@@ -70,7 +70,12 @@ try {
   ExpoAudio = null;
 }
 
+import { NativeModules, Platform } from 'react-native';
+
+const { AlarmScheduler } = NativeModules;
+
 const SOUND_ASSETS: Record<string, any> = {
+  default: require('../../assets/sounds/digital_alarm.wav'),
   chime: require('../../assets/sounds/chime.wav'),
   gentle_bell: require('../../assets/sounds/gentle_bell.wav'),
   digital_alarm: require('../../assets/sounds/digital_alarm.wav'),
@@ -108,6 +113,11 @@ async function configureAudioMode(): Promise<void> {
  * Stop and unload any currently playing preview or alarm sound.
  */
 export async function stopSound(): Promise<void> {
+  if (Platform.OS === 'android' && AlarmScheduler?.stopRingtone) {
+    try {
+      await AlarmScheduler.stopRingtone();
+    } catch {}
+  }
   if (currentSound) {
     try {
       if (typeof currentSound.pause === 'function') {
@@ -180,8 +190,8 @@ export async function previewSound(
 export async function startAlarmSound(soundId: string = 'default'): Promise<void> {
   await stopSound();
 
-  // If native audio module is not present or default sound chosen, native channel handles it
-  if (!isAudioAvailable() || soundId === 'default' || !SOUND_ASSETS[soundId]) {
+  const asset = SOUND_ASSETS[soundId] || SOUND_ASSETS.default;
+  if (!isAudioAvailable() || !asset) {
     return;
   }
 

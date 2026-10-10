@@ -12,6 +12,7 @@ import {
   setupNotificationCategories,
   handleNotificationActionResponse,
 } from '../services/notifications';
+import { getPendingAlarm } from '../services/alarmScheduler';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let N: any = null;
@@ -31,6 +32,12 @@ export function useNotificationSync() {
         await setupNotificationCategories();
         if (isMounted) {
           await fetchReminders().catch(() => {});
+        }
+        // Check for native pending alarm from lock screen / killed launch
+        const pendingAlarmId = await getPendingAlarm();
+        if (pendingAlarmId) {
+          router.push(`/alarm/${pendingAlarmId}`);
+          return;
         }
         // Handle tap on notification that launched the app from killed/background state
         if (N && typeof N.getLastNotificationResponseAsync === 'function') {

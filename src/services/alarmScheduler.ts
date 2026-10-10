@@ -72,3 +72,14 @@ export async function cancelNativeAlarm(reminderId: string): Promise<void> {
     console.warn('[AlarmScheduler] cancelAlarm failed:', e);
   }
 }
+
+export async function getPendingAlarm(): Promise<string | null> {
+  if (Platform.OS !== 'android' || !AlarmScheduler?.getPendingAlarm) {
+    return null;
+  }
+  try {
+    return await AlarmScheduler.getPendingAlarm();
+  } catch {
+    return null;
+  }
+}

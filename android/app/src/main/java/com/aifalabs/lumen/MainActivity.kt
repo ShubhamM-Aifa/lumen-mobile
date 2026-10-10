@@ -3,6 +3,7 @@ package com.aifalabs.lumen
 import android.os.Build
 import android.os.Bundle
 import android.content.Intent
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -21,6 +22,7 @@ class MainActivity : ReactActivity() {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
       } else {
         @Suppress("DEPRECATION")
         window.addFlags(
@@ -43,10 +45,12 @@ class MainActivity : ReactActivity() {
   private fun handleAlarmIntent(intent: Intent?) {
     if (intent?.getBooleanExtra("openAlarm", false) == true) {
       val reminderId = intent.getStringExtra("reminderId") ?: return
-      // Retry until React context is ready (up to 3 seconds)
+      AlarmSchedulerModule.pendingAlarmReminderId = reminderId
+
+      // Retry until React context is ready and subscriber processes the event
       val decorView = window.decorView
       var attempts = 0
-      val maxAttempts = 15
+      val maxAttempts = 30
       val retryRunnable = object : Runnable {
         override fun run() {
           attempts++
