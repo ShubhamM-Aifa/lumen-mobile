@@ -11,6 +11,7 @@ import {
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { CheckCircle2, Copy, Edit2 } from 'lucide-react-native';
 import { uuidv4 } from '../../src/utils/uuid';
 import { IQuestion, IOption, ICategory, Answer, ILogEntry } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
@@ -23,6 +24,7 @@ import { QuestionCard } from '../../src/components/QuestionCard';
 import { validateAnswers } from '../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
 import { queryClient } from '../../src/api/queryClient';
+import { useTodayCategoryLogs } from '../../src/hooks/useTodayCategoryLogs';
 
 function fmt(d: Date): string {
   const h = d.getHours();
@@ -41,12 +43,15 @@ export default function QuestionSheet() {
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
+  const { getCategoryStatus } = useTodayCategoryLogs();
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [occurredAt, setOccurredAt] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState('');
+
+  const todayStatus = getCategoryStatus(categoryId ?? '');
 
   const category: ICategory | undefined = config?.categories.find(c => c._id === categoryId);
   const questions: IQuestion[] = (config?.questions ?? [])
@@ -71,6 +76,20 @@ export default function QuestionSheet() {
     [],
   );
 
+  // Helper to load answers from any given log entry
+  const loadFromLog = (targetLog: ILogEntry) => {
+    const byQ: Record<string, Answer[]> = {};
+    for (const answer of targetLog.answers) {
+      const option = config?.options.find(o => o._id === answer.optionId);
+      if (!option) continue;
+      const qId = option.questionId;
+      if (!byQ[qId]) byQ[qId] = [];
+      byQ[qId].push({ ...answer });
+    }
+    setAnswersByQuestion(byQ);
+    if (targetLog.note) setNote(targetLog.note);
+  };
+
   // "Same as yesterday" — fetch the last log for this category
   const loadYesterday = async () => {
     try {
@@ -80,18 +99,7 @@ export default function QuestionSheet() {
       if (!logs.length) { Alert.alert('No data', "No logs found for yesterday."); return; }
       const last = logs[0];
       if (!last) return;
-      // Rebuild answersByQuestion from the last log's answers
-      const byQ: Record<string, Answer[]> = {};
-      for (const answer of last.answers) {
-        // We don't know which questionId the answer belongs to exactly from the flat list,
-        // but we match by optionId to the question it belongs to
-        const option = config?.options.find(o => o._id === answer.optionId);
-        if (!option) continue;
-        const qId = option.questionId;
-        if (!byQ[qId]) byQ[qId] = [];
-        byQ[qId].push({ ...answer });
-      }
-      setAnswersByQuestion(byQ);
+      loadFromLog(last);
     } catch {
       Alert.alert('Error', "Could not load yesterday's log.");
     }
@@ -136,6 +144,7 @@ export default function QuestionSheet() {
         answers: allAns,
         note: note.trim() || undefined,
       });
+      queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
       safeGoBack('/(tabs)/today');
@@ -177,6 +186,49 @@ export default function QuestionSheet() {
           <Text style={styles.timeText}>{fmt(occurredAt)}</Text>
           <Text style={styles.timeEdit}>Change</Text>
         </TouchableOpacity>
+
+        {/* Already logged today notice banner */}
+        {todayStatus.isLoggedToday && (
+          <View style={styles.todayLoggedCard}>
+            <View style={styles.todayLoggedHeader}>
+              <View style={styles.todayLoggedBadge}>
+                <CheckCircle2 size={15} color={palette.success} />
+                <Text style={styles.todayLoggedBadgeText}>Already Logged Today</Text>
+              </View>
+              <Text style={styles.todayLoggedTime}>
+                {todayStatus.count > 1 ? `${todayStatus.count} entries • Last ` : ''}{todayStatus.latestTimeStr}
+              </Text>
+            </View>
+
+            <Text style={styles.todayLoggedDesc}>
+              You have already logged this category in today's tracking cycle (since {user?.preferences?.dayBoundaryHour ?? 4}:00 AM). You can submit another entry below, or review your previous answers.
+            </Text>
+
+            {todayStatus.latestLog && (
+              <View style={styles.todayLoggedActions}>
+                <TouchableOpacity
+                  style={styles.actionBtnSecondary}
+                  onPress={() => router.push(`/log/edit/${todayStatus.latestLog!._id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit earlier log"
+                >
+                  <Edit2 size={13} color={palette.primary} />
+                  <Text style={styles.actionBtnSecondaryText}>View / Edit Previous Log</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionBtnOutline}
+                  onPress={() => loadFromLog(todayStatus.latestLog!)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy previous answers"
+                >
+                  <Copy size={13} color={palette.textSecondary} />
+                  <Text style={styles.actionBtnOutlineText}>Copy Previous Answers</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Yesterday shortcut */}
         <TouchableOpacity
@@ -291,6 +343,79 @@ const useStyles = createThemedStyles(palette => ({
   timeIcon: { fontSize: 16 },
   timeText: { ...typography.smallBold, color: palette.text, flex: 1 },
   timeEdit: { ...typography.small, color: palette.primary },
+  todayLoggedCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: palette.success + '40',
+    padding: 16,
+    gap: 10,
+    marginBottom: 4,
+  },
+  todayLoggedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  todayLoggedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.success + '18',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  todayLoggedBadgeText: {
+    ...typography.smallBold,
+    color: palette.success,
+  },
+  todayLoggedTime: {
+    ...typography.caption,
+    color: palette.textSecondary,
+    fontWeight: '500',
+  },
+  todayLoggedDesc: {
+    ...typography.small,
+    color: palette.textSecondary,
+    lineHeight: 18,
+  },
+  todayLoggedActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap' as const,
+  },
+  actionBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.primary + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  actionBtnSecondaryText: {
+    ...typography.caption,
+    color: palette.primary,
+    fontWeight: '600',
+  },
+  actionBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.background,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  actionBtnOutlineText: {
+    ...typography.caption,
+    color: palette.textSecondary,
+    fontWeight: '500',
+  },
   yesterdayBtn: {
     backgroundColor: palette.secondary + '18',
     borderRadius: 12, borderWidth: 1, borderColor: palette.secondary + '44',

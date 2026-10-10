@@ -16,7 +16,6 @@ const ANDROID_CLIENT_ID =
 if (Platform.OS === 'android') {
   GoogleSignin.configure({
     webClientId: WEB_CLIENT_ID,
-    androidClientId: ANDROID_CLIENT_ID || undefined,
     offlineAccess: false,
     scopes: ['profile', 'email'],
   });
