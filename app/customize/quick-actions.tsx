@@ -11,6 +11,7 @@ import { useConfigStore } from '../../src/store/configStore';
 import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
+import { QuickActionIcon } from '../../src/components/QuickActionIcon';
 
 const MODE_LABEL: Record<string, string> = {
   counter: 'Counter', timer: 'Timer', toggle: 'Toggle',
@@ -74,7 +75,13 @@ export default function QuickActionsScreen() {
         accessibilityRole="button"
       >
         <View style={[styles.iconBadge, { backgroundColor: item.color + '22', borderColor: item.color + '55' }]}>
-          <Text style={styles.icon}>{item.icon}</Text>
+          <QuickActionIcon
+            icon={item.icon}
+            templateKey={item.templateKey}
+            label={item.label}
+            color={item.color}
+            size={18}
+          />
         </View>
         <View style={styles.rowText}>
           <Text style={styles.rowLabel}>{item.label}</Text>

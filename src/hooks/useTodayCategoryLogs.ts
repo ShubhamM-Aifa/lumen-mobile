@@ -41,8 +41,8 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
           fieldParts.push(fv.unit ? `${fv.value} ${fv.unit}` : `${fv.value}`);
         }
       }
-    } else if (ans.value !== undefined && ans.value !== null && ans.value !== '') {
-      fieldParts.push(String(ans.value));
+    } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {
+      fieldParts.push(String((ans as any).value));
     }
     if (fieldParts.length > 0) {
       return `${baseLabel} (${fieldParts.join(', ')})`;

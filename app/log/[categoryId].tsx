@@ -65,6 +65,17 @@ export default function QuestionSheet() {
       .sort((a, b) => a.order - b.order);
   }
 
+  // Meal slot support for questions with frequency: 'per_meal'
+  const hasPerMealQuestions = useMemo(() => questions.some(q => q.frequency === 'per_meal'), [questions]);
+  const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>(() => {
+    const h = new Date().getHours();
+    if (h >= 4 && h < 11) return 'breakfast';
+    if (h >= 11 && h < 16) return 'lunch';
+    if (h >= 16 && h < 18) return 'snack';
+    if (h >= 18 && h < 23) return 'dinner';
+    return 'snack';
+  });
+
   // All current answers flat — used for conditionalDisplay evaluation
   const allAnswers = Object.values(answersByQuestion).flat();
 
@@ -149,6 +160,10 @@ export default function QuestionSheet() {
   const validate = (): string | null => {
     for (const q of questions) {
       if (!q.required) continue;
+      // If once_per_day and already answered today, skip requirement check
+      const isOncePerDayDone = q.frequency === 'once_per_day' && getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId).length > 0;
+      if (isOncePerDayDone) continue;
+
       const answers = answersByQuestion[q._id] ?? [];
       if (answers.length === 0) {
         return `"${q.title}" is required — please select at least one option.`;
@@ -166,13 +181,26 @@ export default function QuestionSheet() {
 
     const rawAns = Object.values(answersByQuestion).flat();
     if (rawAns.length === 0) {
-      Alert.alert('Nothing selected', 'Please select at least one option before logging.');
+      const allCompletedOnceDaily = questions.length > 0 && questions.every(q =>
+        q.frequency === 'once_per_day' && getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId).length > 0
+      );
+      if (allCompletedOnceDaily) {
+        Alert.alert('Already completed', 'All questions in this category are marked "Once per day" and have already been answered today.');
+      } else {
+        Alert.alert('Nothing selected', 'Please select at least one option before logging.');
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
       const allAns = await uploadAnswerImages(rawAns);
+      const mealMap: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+      const mealPrefix = hasPerMealQuestions ? `[${mealMap[selectedMeal]}]` : '';
+      const finalNote = note.trim()
+        ? (mealPrefix ? `${mealPrefix} ${note.trim()}` : note.trim())
+        : (mealPrefix || undefined);
+
       await api.post('/logs', {
         clientId: uuidv4(),
         daySessionId: todaySession?._id,
@@ -183,7 +211,7 @@ export default function QuestionSheet() {
         occurredAt: occurredAt.toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: allAns,
-        note: note.trim() || undefined,
+        note: finalNote,
       });
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
@@ -227,6 +255,45 @@ export default function QuestionSheet() {
           <Text style={styles.timeText}>{fmt(occurredAt)}</Text>
           <Text style={styles.timeEdit}>Change</Text>
         </TouchableOpacity>
+
+        {/* Meal Slot Selector for per_meal questions */}
+        {hasPerMealQuestions && (
+          <View style={styles.mealCard}>
+            <Text style={styles.mealCardLabel}>Meal Slot</Text>
+            <View style={styles.mealPillsRow}>
+              {[
+                { id: 'breakfast', label: 'Breakfast', emoji: '🍳' },
+                { id: 'lunch',     label: 'Lunch',     emoji: '🥗' },
+                { id: 'dinner',    label: 'Dinner',    emoji: '🍲' },
+                { id: 'snack',     label: 'Snack',     emoji: '🍎' },
+              ].map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.mealPill,
+                    selectedMeal === m.id && styles.mealPillActive,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedMeal(m.id as any);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedMeal === m.id }}
+                >
+                  <Text style={styles.mealPillEmoji}>{m.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.mealPillText,
+                      selectedMeal === m.id && styles.mealPillTextActive,
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Smart Copy Previous / Same as Yesterday Card */}
         {previousLog && (
@@ -483,6 +550,56 @@ const useStyles = createThemedStyles(palette => ({
   },
   previousLogActionTextApplied: {
     color: '#FFFFFF',
+  },
+  mealCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 12,
+    gap: 8,
+  },
+  mealCardLabel: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  mealPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mealPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceAlt,
+  },
+  mealPillActive: {
+    borderColor: palette.primary,
+    backgroundColor: `${palette.primary}12`,
+  },
+  mealPillEmoji: {
+    fontSize: 13,
+  },
+  mealPillText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  mealPillTextActive: {
+    color: palette.primary,
+    fontWeight: '700',
   },
   emptyCard: {
     backgroundColor: palette.surface,

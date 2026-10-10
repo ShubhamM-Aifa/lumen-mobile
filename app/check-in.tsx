@@ -23,6 +23,7 @@ import { typography } from '../src/theme/typography';
 import { QuestionCard } from '../src/components/QuestionCard';
 import { MorningSleepCheckinBanner } from '../src/components/sleep/MorningSleepCheckinBanner';
 import { useSleepTrackerStore, SleepQuality } from '../src/store/sleepTrackerStore';
+import { useTodayCategoryLogs } from '../src/hooks/useTodayCategoryLogs';
 
 const META: Record<string, { emoji: string; title: string; subtitle: string }> = {
   morning: {
@@ -45,6 +46,7 @@ export default function CheckInModal() {
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
   const { lastSleepRecord } = useSleepTrackerStore();
+  const { getQuestionTodayHistory } = useTodayCategoryLogs();
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(lastSleepRecord?.quality ?? null);
@@ -55,7 +57,7 @@ export default function CheckInModal() {
   const tempPrefUnit = user?.preferences.tempUnit ?? 'C';
 
   const allQuestions: IQuestion[] = (config?.questions ?? [])
-    .filter(q => q.isActive && (q.frequency === freq || q.frequency === 'anytime'))
+    .filter(q => q.isActive && (q.frequency === freq || q.frequency === 'anytime' || q.frequency === 'once_per_day'))
     .sort((a, b) => a.order - b.order)
     .slice(0, 8); // limit check-in to 8 questions
 
@@ -137,6 +139,7 @@ export default function CheckInModal() {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           answers: uploadedAnswers,
         });
+        queryClient.invalidateQueries({ queryKey: ['today-logs'] });
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });
         queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
       }
@@ -196,6 +199,9 @@ export default function CheckInModal() {
               sessionAnswers={allAnswers}
               onChange={(ans) => setQAnswers(q._id, ans)}
               tempPrefUnit={tempPrefUnit}
+              todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
+              onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
+              onEditLog={(logId) => router.push(`/log/edit/${logId}`)}
             />
           ))
         )}

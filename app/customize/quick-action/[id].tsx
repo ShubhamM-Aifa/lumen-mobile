@@ -14,6 +14,7 @@ import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
 import { IconPicker } from '../../../src/components/customize/IconPicker';
 import { ColorSwatchPicker } from '../../../src/components/customize/ColorSwatchPicker';
+import { QuickActionIcon } from '../../../src/components/QuickActionIcon';
 
 type Mode = 'counter' | 'timer' | 'toggle';
 
@@ -175,7 +176,7 @@ export default function QuickActionEditorScreen() {
         {/* Live preview */}
         <View style={styles.previewArea}>
           <View style={[styles.previewBtn, { backgroundColor: color + '1A', borderColor: color + '55' }]}>
-            <Text style={styles.previewIcon}>{icon}</Text>
+            <QuickActionIcon icon={icon} label={label} color={color} size={24} />
             <Text style={[styles.previewLabel, { color }]} numberOfLines={1}>{label || 'Button name'}</Text>
           </View>
         </View>

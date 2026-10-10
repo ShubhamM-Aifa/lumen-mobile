@@ -52,6 +52,7 @@ export function QuestionCard({
 
   const hasHistory = todayHistory && todayHistory.length > 0;
   const latestHistory = hasHistory ? todayHistory[0] : null;
+  const isOncePerDayCompleted = question.frequency === 'once_per_day' && hasHistory;
 
   return (
     <View style={styles.card}>
@@ -63,129 +64,187 @@ export function QuestionCard({
         <View style={styles.titleGroup}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>{question.title}</Text>
-            {question.required && <Text style={styles.required}> *</Text>}
+            {question.required && !isOncePerDayCompleted && <Text style={styles.required}> *</Text>}
           </View>
           {question.helpText ? (
             <Text style={styles.helpText}>{question.helpText}</Text>
           ) : null}
-        </View>
-      </View>
 
-      {/* Today Question-Specific History Banner */}
-      {hasHistory && latestHistory && (
-        <View style={styles.historyContainer}>
-          <View style={styles.historyHeaderRow}>
-            <View style={styles.historyTag}>
-              <CheckCircle2 size={13} color="#059669" />
-              <Text style={styles.historyTagText}>
-                Logged {latestHistory.timeFormatted}
-              </Text>
-            </View>
-
-            <View style={styles.historyActions}>
-              {onReuseAnswers && (
-                <TouchableOpacity
-                  style={styles.reuseBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onReuseAnswers(latestHistory.answers);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Fill this previous answer"
-                >
-                  <RotateCcw size={11} color={palette.primary} />
-                  <Text style={styles.reuseBtnText}>Fill</Text>
-                </TouchableOpacity>
+          {/* Frequency pill badge */}
+          {question.frequency && question.frequency !== 'anytime' && (
+            <View style={styles.freqBadgeRow}>
+              {question.frequency === 'morning' && (
+                <View style={[styles.freqBadge, styles.freqMorning]}>
+                  <Text style={styles.freqMorningText}>☀️ Morning</Text>
+                </View>
               )}
-
-              {onEditLog && (
-                <TouchableOpacity
-                  style={styles.editLogBtn}
-                  onPress={() => onEditLog(latestHistory.logId)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit earlier log"
-                >
-                  <Edit2 size={11} color={palette.textSecondary} />
-                </TouchableOpacity>
+              {question.frequency === 'evening' && (
+                <View style={[styles.freqBadge, styles.freqEvening]}>
+                  <Text style={styles.freqEveningText}>🌙 Evening</Text>
+                </View>
               )}
-            </View>
-          </View>
-
-          <Text style={styles.historySummaryText} numberOfLines={2}>
-            {latestHistory.summaryText}
-          </Text>
-
-          {/* Earlier entries accordion */}
-          {todayHistory.length > 1 && (
-            <View style={styles.earlierWrapper}>
-              <TouchableOpacity
-                style={styles.expandToggle}
-                onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle earlier entries for this question"
-              >
-                <Text style={styles.expandToggleText}>
-                  {isHistoryExpanded
-                    ? 'Hide earlier entries'
-                    : `${todayHistory.length - 1} earlier ${todayHistory.length - 1 === 1 ? 'entry' : 'entries'} today`}
-                </Text>
-                {isHistoryExpanded ? (
-                  <ChevronUp size={13} color={palette.textSecondary} />
-                ) : (
-                  <ChevronDown size={13} color={palette.textSecondary} />
-                )}
-              </TouchableOpacity>
-
-              {isHistoryExpanded && (
-                <View style={styles.earlierList}>
-                  {todayHistory.slice(1).map((item, idx) => (
-                    <View key={`${item.logId}-${idx}`} style={styles.earlierItem}>
-                      <View style={styles.earlierItemHeader}>
-                        <Text style={styles.earlierTimeText}>{item.timeFormatted}</Text>
-                        <View style={styles.historyActions}>
-                          {onReuseAnswers && (
-                            <TouchableOpacity
-                              style={styles.reuseBtnSmall}
-                              onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                onReuseAnswers(item.answers);
-                              }}
-                            >
-                              <RotateCcw size={10} color={palette.primary} />
-                              <Text style={styles.reuseBtnSmallText}>Fill</Text>
-                            </TouchableOpacity>
-                          )}
-                          {onEditLog && (
-                            <TouchableOpacity
-                              style={styles.editLogBtnSmall}
-                              onPress={() => onEditLog(item.logId)}
-                            >
-                              <Edit2 size={10} color={palette.textSecondary} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-                      <Text style={styles.earlierSummaryText} numberOfLines={2}>
-                        {item.summaryText}
-                      </Text>
-                    </View>
-                  ))}
+              {question.frequency === 'once_per_day' && (
+                <View style={[styles.freqBadge, styles.freqOncePerDay]}>
+                  <Text style={styles.freqOncePerDayText}>📅 Once per day</Text>
+                </View>
+              )}
+              {question.frequency === 'per_meal' && (
+                <View style={[styles.freqBadge, styles.freqPerMeal]}>
+                  <Text style={styles.freqPerMealText}>🍽️ Per meal</Text>
                 </View>
               )}
             </View>
           )}
         </View>
-      )}
+      </View>
 
-      {/* Options */}
-      <OptionSelector
-        options={activeOptions}
-        selectionType={question.selectionType}
-        allowOther={question.allowOther}
-        answers={answers}
-        onChange={onChange}
-        tempPrefUnit={tempPrefUnit}
-      />
+      {/* Once Per Day: Completed State Card */}
+      {isOncePerDayCompleted && latestHistory ? (
+        <View style={styles.completedDayCard}>
+          <View style={styles.completedDayHeader}>
+            <View style={styles.completedDayBadge}>
+              <CheckCircle2 size={16} color="#059669" />
+              <Text style={styles.completedDayBadgeText}>Completed for today</Text>
+            </View>
+            <Text style={styles.completedDayTimeText}>{latestHistory.timeFormatted}</Text>
+          </View>
+
+          <View style={styles.completedDayContent}>
+            <Text style={styles.completedDayAnswerLabel}>Your recorded answer:</Text>
+            <Text style={styles.completedDayAnswerText}>{latestHistory.summaryText}</Text>
+          </View>
+
+          {onEditLog && (
+            <TouchableOpacity
+              style={styles.completedDayEditBtn}
+              onPress={() => onEditLog(latestHistory.logId)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit today's entry"
+            >
+              <Edit2 size={12} color={palette.primary} />
+              <Text style={styles.completedDayEditText}>Edit entry</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <>
+          {/* Today Question-Specific History Banner (for anytime/multi-entry questions) */}
+          {hasHistory && latestHistory && (
+            <View style={styles.historyContainer}>
+              <View style={styles.historyHeaderRow}>
+                <View style={styles.historyTag}>
+                  <CheckCircle2 size={13} color="#059669" />
+                  <Text style={styles.historyTagText}>
+                    Logged {latestHistory.timeFormatted}
+                  </Text>
+                </View>
+
+                <View style={styles.historyActions}>
+                  {onReuseAnswers && (
+                    <TouchableOpacity
+                      style={styles.reuseBtn}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        onReuseAnswers(latestHistory.answers);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Fill this previous answer"
+                    >
+                      <RotateCcw size={11} color={palette.primary} />
+                      <Text style={styles.reuseBtnText}>Fill</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {onEditLog && (
+                    <TouchableOpacity
+                      style={styles.editLogBtn}
+                      onPress={() => onEditLog(latestHistory.logId)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit earlier log"
+                    >
+                      <Edit2 size={11} color={palette.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              <Text style={styles.historySummaryText} numberOfLines={2}>
+                {latestHistory.summaryText}
+              </Text>
+
+              {/* Earlier entries accordion */}
+              {todayHistory.length > 1 && (
+                <View style={styles.earlierWrapper}>
+                  <TouchableOpacity
+                    style={styles.expandToggle}
+                    onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle earlier entries for this question"
+                  >
+                    <Text style={styles.expandToggleText}>
+                      {isHistoryExpanded
+                        ? 'Hide earlier entries'
+                        : `${todayHistory.length - 1} earlier ${todayHistory.length - 1 === 1 ? 'entry' : 'entries'} today`}
+                    </Text>
+                    {isHistoryExpanded ? (
+                      <ChevronUp size={13} color={palette.textSecondary} />
+                    ) : (
+                      <ChevronDown size={13} color={palette.textSecondary} />
+                    )}
+                  </TouchableOpacity>
+
+                  {isHistoryExpanded && (
+                    <View style={styles.earlierList}>
+                      {todayHistory.slice(1).map((item, idx) => (
+                        <View key={`${item.logId}-${idx}`} style={styles.earlierItem}>
+                          <View style={styles.earlierItemHeader}>
+                            <Text style={styles.earlierTimeText}>{item.timeFormatted}</Text>
+                            <View style={styles.historyActions}>
+                              {onReuseAnswers && (
+                                <TouchableOpacity
+                                  style={styles.reuseBtnSmall}
+                                  onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    onReuseAnswers(item.answers);
+                                  }}
+                                >
+                                  <RotateCcw size={10} color={palette.primary} />
+                                  <Text style={styles.reuseBtnSmallText}>Fill</Text>
+                                </TouchableOpacity>
+                              )}
+                              {onEditLog && (
+                                <TouchableOpacity
+                                  style={styles.editLogBtnSmall}
+                                  onPress={() => onEditLog(item.logId)}
+                                >
+                                  <Edit2 size={10} color={palette.textSecondary} />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          </View>
+                          <Text style={styles.earlierSummaryText} numberOfLines={2}>
+                            {item.summaryText}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Options */}
+          <OptionSelector
+            options={activeOptions}
+            selectionType={question.selectionType}
+            allowOther={question.allowOther}
+            answers={answers}
+            onChange={onChange}
+            tempPrefUnit={tempPrefUnit}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -201,11 +260,135 @@ const useStyles = createThemedStyles(palette => ({
   },
   header: { flexDirection: 'row', gap: 10 },
   icon: { fontSize: 22, paddingTop: 2 },
-  titleGroup: { flex: 1, gap: 2 },
+  titleGroup: { flex: 1, gap: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start' },
   title: { ...typography.h4, color: palette.text, flex: 1 },
   required: { ...typography.h4, color: palette.error },
   helpText: { ...typography.small, color: palette.textSecondary },
+
+  // Frequency badges
+  freqBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  freqBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  freqMorning: {
+    backgroundColor: '#F59E0B14',
+    borderColor: '#F59E0B30',
+  },
+  freqMorningText: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  freqEvening: {
+    backgroundColor: '#6366F114',
+    borderColor: '#6366F130',
+  },
+  freqEveningText: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  freqOncePerDay: {
+    backgroundColor: '#10B98114',
+    borderColor: '#10B98130',
+  },
+  freqOncePerDayText: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  freqPerMeal: {
+    backgroundColor: '#EC489914',
+    borderColor: '#EC489930',
+  },
+  freqPerMealText: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#DB2777',
+  },
+
+  // Completed once per day card
+  completedDayCard: {
+    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#ECFDF5' : '#064E3B1C',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    padding: 13,
+    gap: 10,
+  },
+  completedDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  completedDayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completedDayBadgeText: {
+    ...typography.bodyBold,
+    fontSize: 13,
+    color: '#059669',
+  },
+  completedDayTimeText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  completedDayContent: {
+    backgroundColor: palette.surface,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    gap: 3,
+  },
+  completedDayAnswerLabel: {
+    ...typography.caption,
+    fontSize: 10.5,
+    color: palette.textSecondary,
+    fontWeight: '600',
+  },
+  completedDayAnswerText: {
+    ...typography.body,
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  completedDayEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: `${palette.primary}14`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${palette.primary}30`,
+  },
+  completedDayEditText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '700',
+    color: palette.primary,
+  },
 
   // Question-level today history
   historyContainer: {

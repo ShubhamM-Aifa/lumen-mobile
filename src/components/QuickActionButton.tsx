@@ -17,6 +17,7 @@ import { useTheme, createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { useQuickLogStore } from '../store/quickLogStore';
 import { IQuickAction } from '@lumen/shared';
+import { QuickActionIcon } from './QuickActionIcon';
 
 interface Props {
   action: IQuickAction;
@@ -131,12 +132,18 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
           style={[
             styles.iconWell,
             {
-              backgroundColor: action.color + (count > 0 ? '22' : '14'),
-              borderColor: action.color + (count > 0 ? '35' : '1E'),
+              backgroundColor: action.color + (count > 0 ? '25' : '15'),
+              borderColor: action.color + (count > 0 ? '45' : '26'),
             },
           ]}
         >
-          <Text style={styles.icon}>{action.icon}</Text>
+          <QuickActionIcon
+            icon={action.icon}
+            templateKey={action.templateKey}
+            label={action.label}
+            color={action.color}
+            size={22}
+          />
         </View>
 
         {/* Label */}
@@ -224,7 +231,7 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 5,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   icon: {
     fontSize: 22,
