@@ -93,7 +93,15 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
   return (
     <Animated.View style={[styles.wrapper, width !== undefined ? { width } : null, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: action.color + '22' }]}
+        style={[
+          styles.button,
+          {
+            backgroundColor: count > 0
+              ? (palette.surfaceAlt === '#F5F0EB' ? action.color + '0E' : action.color + '1A')
+              : palette.surface,
+            borderColor: count > 0 ? action.color + '55' : palette.border,
+          },
+        ]}
         onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -118,20 +126,34 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
           </Animated.View>
         )}
 
-        {/* Icon */}
-        <Text style={styles.icon}>{action.icon}</Text>
+        {/* Icon framed in a circular orb */}
+        <View
+          style={[
+            styles.iconWell,
+            {
+              backgroundColor: action.color + (count > 0 ? '22' : '14'),
+              borderColor: action.color + (count > 0 ? '35' : '1E'),
+            },
+          ]}
+        >
+          <Text style={styles.icon}>{action.icon}</Text>
+        </View>
 
         {/* Label */}
         <Text style={styles.label} numberOfLines={2}>{action.label}</Text>
 
-        {/* Last tap time */}
-        {lastAt && (
-          <Text style={styles.lastAt}>at {lastAt}</Text>
+        {/* Status indicator: subtle subtext showing count, time or 'Tap to log' */}
+        {count > 0 ? (
+          <Text style={[styles.statusText, { color: action.color }]} numberOfLines={1}>
+            {count > 1 ? `${count} today` : (lastAt ? `at ${lastAt}` : 'Logged')}
+          </Text>
+        ) : (
+          <Text style={styles.statusEmpty} numberOfLines={1}>Tap to log</Text>
         )}
 
-        {/* Daily goal progress ring for water etc. */}
+        {/* Daily goal progress bar */}
         {action.dailyGoal && count > 0 && (
-          <View style={styles.goalBar}>
+          <View style={[styles.goalBar, { backgroundColor: action.color + '22' }]}>
             <View
               style={[
                 styles.goalFill,
@@ -155,59 +177,95 @@ const useStyles = createThemedStyles(palette => ({
   },
   button: {
     width: '100%',
-    aspectRatio: 1,
+    aspectRatio: 0.92,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     position: 'relative',
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 1.5,
   },
   badge: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: palette.surface,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    zIndex: 2,
   },
   badgeText: {
     ...typography.caption,
     color: '#FFFFFF',
     fontWeight: '700',
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  iconWell: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
+    borderWidth: 1,
   },
   icon: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 28,
   },
   label: {
     ...typography.caption,
+    fontWeight: '700',
     color: palette.text,
     textAlign: 'center',
-    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 15,
   },
-  lastAt: {
+  statusText: {
     ...typography.caption,
-    color: palette.textSecondary,
-    fontSize: 9,
-    marginTop: 1,
+    fontWeight: '600',
+    fontSize: 10,
+    lineHeight: 13,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  statusEmpty: {
+    ...typography.caption,
+    fontWeight: '500',
+    fontSize: 10,
+    lineHeight: 13,
+    color: palette.textDisabled,
+    marginTop: 2,
+    textAlign: 'center',
   },
   goalBar: {
     position: 'absolute',
     bottom: 0,
-    left: 8,
-    right: 8,
+    left: 10,
+    right: 10,
     height: 3,
-    backgroundColor: palette.border,
-    borderRadius: 2,
+    borderRadius: 1.5,
     overflow: 'hidden',
   },
   goalFill: {
     height: 3,
-    borderRadius: 2,
+    borderRadius: 1.5,
   },
 }));

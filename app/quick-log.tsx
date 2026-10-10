@@ -127,6 +127,7 @@ export default function QuickLogScreen() {
         note: note.trim() || undefined,
       });
 
+      queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
 

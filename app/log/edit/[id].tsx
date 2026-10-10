@@ -183,6 +183,7 @@ export default function EditLogScreen() {
       queryClient.invalidateQueries({ queryKey: ['day-entries', dateKey] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['today-logs'] });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       safeGoBack('/(tabs)/timeline');

@@ -3,7 +3,7 @@
  * Renders all active questions via QuestionCard, manages answer state,
  * supports backdating and "Same as yesterday" shortcut, then submits.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Platform, Modal, Pressable,
@@ -11,7 +11,9 @@ import {
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { CheckCircle2, Copy, Edit2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { RotateCcw, Check } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { uuidv4 } from '../../src/utils/uuid';
 import { IQuestion, IOption, ICategory, Answer, ILogEntry } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
@@ -24,7 +26,8 @@ import { QuestionCard } from '../../src/components/QuestionCard';
 import { validateAnswers } from '../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
 import { queryClient } from '../../src/api/queryClient';
-import { useTodayCategoryLogs } from '../../src/hooks/useTodayCategoryLogs';
+import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTodayCategoryLogs';
+import { getDayBoundaryWindow } from '../../src/utils/dayBoundary';
 
 function fmt(d: Date): string {
   const h = d.getHours();
@@ -43,15 +46,13 @@ export default function QuestionSheet() {
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
-  const { getCategoryStatus } = useTodayCategoryLogs();
+  const { getQuestionTodayHistory } = useTodayCategoryLogs();
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [occurredAt, setOccurredAt] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState('');
-
-  const todayStatus = getCategoryStatus(categoryId ?? '');
 
   const category: ICategory | undefined = config?.categories.find(c => c._id === categoryId);
   const questions: IQuestion[] = (config?.questions ?? [])
@@ -90,20 +91,60 @@ export default function QuestionSheet() {
     if (targetLog.note) setNote(targetLog.note);
   };
 
-  // "Same as yesterday" — fetch the last log for this category
-  const loadYesterday = async () => {
-    try {
-      const yesterday = new Date(Date.now() - 86400000);
-      const from = yesterday.toISOString().slice(0, 10);
-      const logs = await api.get<ILogEntry[]>(`/logs?from=${from}&to=${from}&category=${categoryId}&limit=1`);
-      if (!logs.length) { Alert.alert('No data', "No logs found for yesterday."); return; }
-      const last = logs[0];
-      if (!last) return;
-      loadFromLog(last);
-    } catch {
-      Alert.alert('Error', "Could not load yesterday's log.");
+  const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+  const currentBoundaryWindow = useMemo(() => getDayBoundaryWindow(boundaryHour), [boundaryHour]);
+
+  // Fetch the most recent log entry before today's cycle (smart fallback to yesterday or previous entry)
+  const { data: previousLog } = useQuery<ILogEntry | null>({
+    queryKey: ['previous-category-log', categoryId, currentBoundaryWindow.start.toISOString()],
+    queryFn: async () => {
+      if (!categoryId) return null;
+      const res = await api.get<any>('/logs', {
+        params: {
+          to: currentBoundaryWindow.start.toISOString(),
+          category: categoryId,
+          limit: 1,
+        },
+      });
+      const entries: ILogEntry[] = Array.isArray(res) ? res : (res?.logs ?? res?.data ?? []);
+      return entries.length > 0 ? entries[0] : null;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const isYesterdayLog = useMemo(() => {
+    if (!previousLog) return false;
+    const yesterdayRef = new Date(currentBoundaryWindow.start.getTime() - 1000);
+    const yesterdayWindow = getDayBoundaryWindow(boundaryHour, yesterdayRef);
+    const prevTime = new Date(previousLog.occurredAt).getTime();
+    return prevTime >= yesterdayWindow.start.getTime() && prevTime <= yesterdayWindow.end.getTime();
+  }, [previousLog, currentBoundaryWindow.start, boundaryHour]);
+
+  const previousDateBadge = useMemo(() => {
+    if (!previousLog) return '';
+    const d = new Date(previousLog.occurredAt);
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (isYesterdayLog) {
+      return `Yesterday at ${timeStr}`;
     }
-  };
+    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${monthDay} at ${timeStr}`;
+  }, [previousLog, isYesterdayLog]);
+
+  const previousSummaryStr = useMemo(() => {
+    if (!previousLog || !config?.options) return '';
+    return formatAnswerSummary(previousLog.answers ?? [], config.options);
+  }, [previousLog, config?.options]);
+
+  const [justApplied, setJustApplied] = useState(false);
+
+  const handleApplyPrevious = useCallback(async () => {
+    if (!previousLog) return;
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    loadFromLog(previousLog);
+    setJustApplied(true);
+    setTimeout(() => setJustApplied(false), 2500);
+  }, [previousLog, loadFromLog]);
 
   const validate = (): string | null => {
     for (const q of questions) {
@@ -187,60 +228,73 @@ export default function QuestionSheet() {
           <Text style={styles.timeEdit}>Change</Text>
         </TouchableOpacity>
 
-        {/* Already logged today notice banner */}
-        {todayStatus.isLoggedToday && (
-          <View style={styles.todayLoggedCard}>
-            <View style={styles.todayLoggedHeader}>
-              <View style={styles.todayLoggedBadge}>
-                <CheckCircle2 size={15} color={palette.success} />
-                <Text style={styles.todayLoggedBadgeText}>Already Logged Today</Text>
+        {/* Smart Copy Previous / Same as Yesterday Card */}
+        {previousLog && (
+          <TouchableOpacity
+            style={[
+              styles.previousLogCard,
+              justApplied && styles.previousLogCardApplied,
+            ]}
+            onPress={handleApplyPrevious}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isYesterdayLog
+                ? `Copy answers from yesterday's log: ${previousSummaryStr}`
+                : `Copy answers from previous log on ${previousDateBadge}: ${previousSummaryStr}`
+            }
+          >
+            <View
+              style={[
+                styles.previousLogIconBox,
+                justApplied && styles.previousLogIconBoxApplied,
+              ]}
+            >
+              {justApplied ? (
+                <Check size={16} color="#059669" strokeWidth={2.5} />
+              ) : (
+                <RotateCcw size={16} color={palette.primary} strokeWidth={2.2} />
+              )}
+            </View>
+
+            <View style={styles.previousLogInfo}>
+              <View style={styles.previousLogRow}>
+                <Text style={styles.previousLogTitle}>
+                  {justApplied
+                    ? 'Applied to form!'
+                    : (isYesterdayLog ? 'Same as yesterday' : 'Copy previous log')}
+                </Text>
+                <View style={styles.previousLogBadge}>
+                  <Text style={styles.previousLogBadgeText}>{previousDateBadge}</Text>
+                </View>
               </View>
-              <Text style={styles.todayLoggedTime}>
-                {todayStatus.count > 1 ? `${todayStatus.count} entries • Last ` : ''}{todayStatus.latestTimeStr}
+
+              <Text style={styles.previousLogSummary} numberOfLines={1}>
+                {justApplied
+                  ? 'All question answers populated'
+                  : (previousSummaryStr || 'Tap to fill all questions from this entry')}
               </Text>
             </View>
 
-            <Text style={styles.todayLoggedDesc}>
-              You have already logged this category in today's tracking cycle (since {user?.preferences?.dayBoundaryHour ?? 4}:00 AM). You can submit another entry below, or review your previous answers.
-            </Text>
-
-            {todayStatus.latestLog && (
-              <View style={styles.todayLoggedActions}>
-                <TouchableOpacity
-                  style={styles.actionBtnSecondary}
-                  onPress={() => router.push(`/log/edit/${todayStatus.latestLog!._id}`)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit earlier log"
-                >
-                  <Edit2 size={13} color={palette.primary} />
-                  <Text style={styles.actionBtnSecondaryText}>View / Edit Previous Log</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionBtnOutline}
-                  onPress={() => loadFromLog(todayStatus.latestLog!)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Copy previous answers"
-                >
-                  <Copy size={13} color={palette.textSecondary} />
-                  <Text style={styles.actionBtnOutlineText}>Copy Previous Answers</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+            <View
+              style={[
+                styles.previousLogActionBtn,
+                justApplied && styles.previousLogActionBtnApplied,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.previousLogActionText,
+                  justApplied && styles.previousLogActionTextApplied,
+                ]}
+              >
+                {justApplied ? 'Applied' : 'Apply'}
+              </Text>
+            </View>
+          </TouchableOpacity>
         )}
 
-        {/* Yesterday shortcut */}
-        <TouchableOpacity
-          style={styles.yesterdayBtn}
-          onPress={loadYesterday}
-          accessibilityRole="button"
-          accessibilityLabel="Copy from yesterday"
-        >
-          <Text style={styles.yesterdayText}>📋  Same as yesterday</Text>
-        </TouchableOpacity>
-
-        {/* Question cards */}
+        {/* Question cards with question-level today history */}
         {questions.map((q) => (
           <QuestionCard
             key={q._id}
@@ -250,6 +304,9 @@ export default function QuestionSheet() {
             sessionAnswers={allAnswers}
             onChange={(ans) => setQAnswers(q._id, ans)}
             tempPrefUnit={tempPrefUnit}
+            todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId)}
+            onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
+            onEditLog={(logId) => router.push(`/log/edit/${logId}`)}
           />
         ))}
 
@@ -343,85 +400,90 @@ const useStyles = createThemedStyles(palette => ({
   timeIcon: { fontSize: 16 },
   timeText: { ...typography.smallBold, color: palette.text, flex: 1 },
   timeEdit: { ...typography.small, color: palette.primary },
-  todayLoggedCard: {
+  previousLogCard: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: palette.success + '40',
-    padding: 16,
-    gap: 10,
-    marginBottom: 4,
-  },
-  todayLoggedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  todayLoggedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.success + '18',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  todayLoggedBadgeText: {
-    ...typography.smallBold,
-    color: palette.success,
-  },
-  todayLoggedTime: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '500',
-  },
-  todayLoggedDesc: {
-    ...typography.small,
-    color: palette.textSecondary,
-    lineHeight: 18,
-  },
-  todayLoggedActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-    flexWrap: 'wrap' as const,
-  },
-  actionBtnSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.primary + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  actionBtnSecondaryText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '600',
-  },
-  actionBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.background,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  previousLogCardApplied: {
+    borderColor: '#10B981',
+    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#ECFDF5' : '#064E3B1C',
+  },
+  previousLogIconBox: {
+    width: 34,
+    height: 34,
     borderRadius: 10,
+    backgroundColor: `${palette.primary}14`,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionBtnOutlineText: {
+  previousLogIconBoxApplied: {
+    backgroundColor: '#10B98122',
+  },
+  previousLogInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  previousLogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  previousLogTitle: {
     ...typography.caption,
+    fontWeight: '700',
+    color: palette.text,
+    fontSize: 12.5,
+  },
+  previousLogBadge: {
+    backgroundColor: palette.surfaceAlt,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  previousLogBadgeText: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '600',
     color: palette.textSecondary,
-    fontWeight: '500',
   },
-  yesterdayBtn: {
-    backgroundColor: palette.secondary + '18',
-    borderRadius: 12, borderWidth: 1, borderColor: palette.secondary + '44',
-    paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center',
+  previousLogSummary: {
+    ...typography.caption,
+    fontSize: 11,
+    color: palette.textSecondary,
   },
-  yesterdayText: { ...typography.smallBold, color: palette.secondary },
+  previousLogActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: `${palette.primary}14`,
+    borderWidth: 1,
+    borderColor: `${palette.primary}25`,
+  },
+  previousLogActionBtnApplied: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  previousLogActionText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '700',
+    color: palette.primary,
+  },
+  previousLogActionTextApplied: {
+    color: '#FFFFFF',
+  },
   emptyCard: {
     backgroundColor: palette.surface,
     borderRadius: 14, borderWidth: 1, borderColor: palette.border,
