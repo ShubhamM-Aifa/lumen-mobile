@@ -4,6 +4,7 @@
  * live metrics calculation (distance, pace, speed, steps), and persistence.
  */
 import { create } from 'zustand';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uuidv4 } from '../utils/uuid';
 import { IActivitySession, IActivityPoint, ActivityType } from '@lumen/shared';
@@ -38,6 +39,9 @@ interface ActivityState {
   activeSession: IActivitySession | null;
   isTracking: boolean;
   isPaused: boolean;
+  startTimeMs: number;
+  accumulatedActiveMs: number;
+  lastResumeMs: number;
   activeSeconds: number;
   distanceMeters: number;
   steps: number;
@@ -59,6 +63,7 @@ interface ActivityState {
   stopWalking: (notes?: string) => Promise<IActivitySession | null>;
   discardWalking: () => Promise<void>;
   dismissPacingAlert: () => void;
+  recalculateActiveTime: () => number;
 
   fetchHistory: () => Promise<void>;
   fetchTodaySummary: () => Promise<void>;
@@ -70,6 +75,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   activeSession: null,
   isTracking: false,
   isPaused: false,
+  startTimeMs: 0,
+  accumulatedActiveMs: 0,
+  lastResumeMs: 0,
   activeSeconds: 0,
   distanceMeters: 0,
   steps: 0,
@@ -83,9 +91,28 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  recalculateActiveTime: () => {
+    const { isTracking, isPaused, accumulatedActiveMs, lastResumeMs, distanceMeters } = get();
+    if (!isTracking) return get().activeSeconds;
+
+    const now = Date.now();
+    const currentActiveMs = accumulatedActiveMs + (isPaused || lastResumeMs <= 0 ? 0 : Math.max(0, now - lastResumeMs));
+    const totalSeconds = Math.floor(currentActiveMs / 1000);
+    const distKm = distanceMeters / 1000;
+    const pace = distKm > 0.05 && totalSeconds > 10 ? (totalSeconds / 60) / distKm : 0;
+
+    set({
+      activeSeconds: totalSeconds,
+      averagePaceMinPerKm: pace,
+    });
+
+    return totalSeconds;
+  },
+
   startWalking: async (title: string = 'Outdoor Walk') => {
     const clientId = uuidv4();
-    const startTime = new Date().toISOString();
+    const now = Date.now();
+    const startTime = new Date(now).toISOString();
 
     const initialSession: IActivitySession = {
       _id: clientId,
@@ -108,6 +135,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       activeSession: initialSession,
       isTracking: true,
       isPaused: false,
+      startTimeMs: now,
+      accumulatedActiveMs: 0,
+      lastResumeMs: now,
       activeSeconds: 0,
       distanceMeters: 0,
       steps: 0,
@@ -119,9 +149,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     // Start live hardware tracking
     const trackingStarted = await locationService.startTracking(
       (point, totalDistanceMeters, currentSpeedKmh) => {
-        const { activeSeconds } = get();
+        // Sync active seconds and calculate live pace
+        const currentActiveSec = get().recalculateActiveTime();
         const distKm = totalDistanceMeters / 1000;
-        const avgPace = distKm > 0.05 && activeSeconds > 10 ? (activeSeconds / 60) / distKm : 0;
+        const avgPace = distKm > 0.05 && currentActiveSec > 10 ? (currentActiveSec / 60) / distKm : 0;
 
         set(state => ({
           distanceMeters: totalDistanceMeters,
@@ -139,19 +170,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       console.warn('[activityStore] Hardware location tracking unavailable.');
     }
 
-    // Start elapsed active time ticker
+    // Start elapsed active time ticker (updates UI every 1s while active)
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       if (!get().isPaused && get().isTracking) {
-        set(state => {
-          const nextSec = state.activeSeconds + 1;
-          const distKm = state.distanceMeters / 1000;
-          const pace = distKm > 0.05 && nextSec > 10 ? (nextSec / 60) / distKm : 0;
-          return {
-            activeSeconds: nextSec,
-            averagePaceMinPerKm: pace,
-          };
-        });
+        get().recalculateActiveTime();
       }
     }, 1000);
 
@@ -174,13 +197,26 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   pauseWalking: async () => {
     if (!get().isTracking || get().isPaused) return;
-    set({ isPaused: true, currentSpeedKmh: 0 });
+
+    const now = Date.now();
+    const { accumulatedActiveMs, lastResumeMs } = get();
+    const newAccumulatedMs = accumulatedActiveMs + (lastResumeMs > 0 ? Math.max(0, now - lastResumeMs) : 0);
+    const newSeconds = Math.floor(newAccumulatedMs / 1000);
+
+    set({
+      isPaused: true,
+      currentSpeedKmh: 0,
+      accumulatedActiveMs: newAccumulatedMs,
+      lastResumeMs: now,
+      activeSeconds: newSeconds,
+    });
+
     await locationService.pauseTracking();
 
     const session = get().activeSession;
     if (session) {
       api.post(`/activity-sessions/${session._id}/pause`, {
-        activeDurationSeconds: get().activeSeconds,
+        activeDurationSeconds: newSeconds,
         distanceMeters: get().distanceMeters,
         steps: get().steps,
       }).catch(() => {});
@@ -189,12 +225,19 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   resumeWalking: async () => {
     if (!get().isTracking || !get().isPaused) return;
-    set({ isPaused: false });
+
+    const now = Date.now();
+    set({
+      isPaused: false,
+      lastResumeMs: now,
+    });
+    get().recalculateActiveTime();
+
     await locationService.resumeTracking(
       (point, totalDistanceMeters, currentSpeedKmh) => {
-        const { activeSeconds } = get();
+        const currentActiveSec = get().recalculateActiveTime();
         const distKm = totalDistanceMeters / 1000;
-        const avgPace = distKm > 0.05 && activeSeconds > 10 ? (activeSeconds / 60) / distKm : 0;
+        const avgPace = distKm > 0.05 && currentActiveSec > 10 ? (currentActiveSec / 60) / distKm : 0;
         set(state => ({
           distanceMeters: totalDistanceMeters,
           currentSpeedKmh,
@@ -217,21 +260,22 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       timerInterval = null;
     }
 
+    const finalActiveSeconds = get().recalculateActiveTime();
     const { distanceMeters: finalDistance, steps: finalSteps } = await locationService.stopTracking();
-    const { activeSession, activeSeconds, distanceMeters, averagePaceMinPerKm, routePoints } = get();
+    const { activeSession, distanceMeters, averagePaceMinPerKm, routePoints } = get();
 
     if (!activeSession) return null;
 
     const endTime = new Date().toISOString();
     const distKm = Math.max(distanceMeters, finalDistance) / 1000;
-    const avgSpeed = activeSeconds > 0 ? distKm / (activeSeconds / 3600) : 0;
+    const avgSpeed = finalActiveSeconds > 0 ? distKm / (finalActiveSeconds / 3600) : 0;
 
     const completedSession: IActivitySession = {
       ...activeSession,
       status: 'COMPLETED',
       endTime,
-      activeDurationSeconds: activeSeconds,
-      totalDurationSeconds: activeSeconds,
+      activeDurationSeconds: finalActiveSeconds,
+      totalDurationSeconds: finalActiveSeconds,
       distanceMeters: Math.max(distanceMeters, finalDistance),
       steps: Math.max(get().steps, finalSteps),
       averageSpeedKmh: Number(avgSpeed.toFixed(2)),
@@ -247,6 +291,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       activeSession: null,
       isTracking: false,
       isPaused: false,
+      startTimeMs: 0,
+      accumulatedActiveMs: 0,
+      lastResumeMs: 0,
       activeSeconds: 0,
       distanceMeters: 0,
       steps: 0,
@@ -280,8 +327,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     try {
       await api.post(`/activity-sessions/${completedSession._id}/stop`, {
         endTime,
-        totalDurationSeconds: activeSeconds,
-        activeDurationSeconds: activeSeconds,
+        totalDurationSeconds: finalActiveSeconds,
+        activeDurationSeconds: finalActiveSeconds,
         distanceMeters: completedSession.distanceMeters,
         steps: completedSession.steps,
         averageSpeedKmh: completedSession.averageSpeedKmh,
@@ -310,6 +357,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       activeSession: null,
       isTracking: false,
       isPaused: false,
+      startTimeMs: 0,
+      accumulatedActiveMs: 0,
+      lastResumeMs: 0,
       activeSeconds: 0,
       distanceMeters: 0,
       steps: 0,
@@ -355,3 +405,13 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     } catch {}
   },
 }));
+
+// Automatically synchronize active time when device wakes up or app comes into foreground
+AppState.addEventListener('change', (nextAppState) => {
+  if (nextAppState === 'active') {
+    const state = useActivityStore.getState();
+    if (state.isTracking && !state.isPaused) {
+      state.recalculateActiveTime();
+    }
+  }
+});

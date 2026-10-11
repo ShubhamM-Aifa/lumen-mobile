@@ -57,6 +57,11 @@ class LocationService {
     try {
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       locationGranted = fgStatus === 'granted';
+      if (locationGranted) {
+        try {
+          await Location.requestBackgroundPermissionsAsync();
+        } catch {}
+      }
     } catch (e) {
       console.warn('[LocationService] Location permission error:', e);
     }

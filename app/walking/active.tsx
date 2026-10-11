@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -60,6 +61,7 @@ export default function ActiveWalkingScreen() {
     resumeWalking,
     stopWalking,
     discardWalking,
+    recalculateActiveTime,
   } = useActivityStore();
 
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -76,6 +78,17 @@ export default function ActiveWalkingScreen() {
       }
     }
     initSession();
+
+    // Ensure timer updates immediately when phone wakes up or screen unlocks
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        recalculateActiveTime();
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
   }, []);
 
   const handlePauseResume = async () => {

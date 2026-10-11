@@ -21,6 +21,8 @@ module.exports = ({ config }) => ({
       NSPhotoLibraryUsageDescription: 'Lumen accesses your photo library to attach images to log entries.',
       NSFaceIDUsageDescription: 'Lumen uses Face ID to protect your health data.',
       NSLocationWhenInUseUsageDescription: 'Lumen uses your location to provide hyper-local weather reports and assess autoimmune flare triggers like barometric pressure and UV levels.',
+      NSLocationAlwaysAndWhenInUseUsageDescription: 'Lumen tracks your walking distance, elapsed time, and pace accurately in the background and when your screen is locked.',
+      NSMotionUsageDescription: 'Lumen uses motion detection to count your steps during walking tracker sessions.',
     },
   },
   android: {
@@ -43,6 +45,10 @@ module.exports = ({ config }) => ({
       'SYSTEM_ALERT_WINDOW',
       'ACCESS_COARSE_LOCATION',
       'ACCESS_FINE_LOCATION',
+      'ACCESS_BACKGROUND_LOCATION',
+      'ACTIVITY_RECOGNITION',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_LOCATION',
     ],
   },
   web: {

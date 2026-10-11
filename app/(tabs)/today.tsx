@@ -2,9 +2,9 @@
  * Today / Home screen
  * ─ Day clock-in/out card
  * ─ Walking tracking card (distance, time, START WALKING CTA)
- * ─ Active Reminders card (Water next trigger, Stand monitoring, Bedtime)
  * ─ Quick-tap action grid (with water quantity modal)
  * ─ "Today at a glance" summary
+ * ─ Active Reminders card (Water next trigger, Stand monitoring, Bedtime)
  * ─ "Undo" toast
  * ─ Floating "+ Log" button
  */
@@ -385,45 +385,6 @@ export default function TodayScreen() {
           />
         )}
 
-        {/* Active Reminders Card */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Active Reminders</Text>
-            <TouchableOpacity onPress={() => router.push('/reminders?mode=reminders')}>
-              <Text style={styles.sectionActionText}>Manage ({reminders.filter(r => r.enabled).length})</Text>
-            </TouchableOpacity>
-          </View>
-
-          {activeReminders.length === 0 ? (
-            <TouchableOpacity
-              style={styles.emptyRemindersBox}
-              onPress={() => router.push('/reminders/add')}
-            >
-              <Clock size={20} color={palette.textSecondary} />
-              <Text style={styles.emptyRemindersText}>No reminders set. Tap to add water or movement alerts.</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.remindersCard}>
-              {activeReminders.map((rem, idx) => (
-                <TouchableOpacity
-                  key={rem._id}
-                  style={[styles.reminderRow, idx < activeReminders.length - 1 && styles.reminderRowBorder]}
-                  onPress={() => router.push('/reminders?mode=reminders')}
-                >
-                  <Text style={styles.reminderEmoji}>{rem.icon || '⏰'}</Text>
-                  <View style={styles.reminderInfo}>
-                    <Text style={styles.reminderName}>{rem.name}</Text>
-                    <Text style={styles.reminderTiming}>
-                      {rem.scheduleType === 'INTERVAL' ? `Every ${rem.intervalMinutes || 60}m` : (rem.targetTime || 'Daily')}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color={palette.textSecondary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
         {/* Quick-tap grid */}
         {visibleActions.length > 0 && (
           <View style={styles.section}>
@@ -636,6 +597,45 @@ export default function TodayScreen() {
                   ))}
                 </View>
               )}
+            </View>
+          )}
+        </View>
+
+        {/* Active Reminders Card */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Active Reminders</Text>
+            <TouchableOpacity onPress={() => router.push('/reminders?mode=reminders')}>
+              <Text style={styles.sectionActionText}>Manage ({reminders.filter(r => r.enabled).length})</Text>
+            </TouchableOpacity>
+          </View>
+
+          {activeReminders.length === 0 ? (
+            <TouchableOpacity
+              style={styles.emptyRemindersBox}
+              onPress={() => router.push('/reminders/add')}
+            >
+              <Clock size={20} color={palette.textSecondary} />
+              <Text style={styles.emptyRemindersText}>No reminders set. Tap to add water or movement alerts.</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.remindersCard}>
+              {activeReminders.map((rem, idx) => (
+                <TouchableOpacity
+                  key={rem._id}
+                  style={[styles.reminderRow, idx < activeReminders.length - 1 && styles.reminderRowBorder]}
+                  onPress={() => router.push('/reminders?mode=reminders')}
+                >
+                  <Text style={styles.reminderEmoji}>{rem.icon || '⏰'}</Text>
+                  <View style={styles.reminderInfo}>
+                    <Text style={styles.reminderName}>{rem.name}</Text>
+                    <Text style={styles.reminderTiming}>
+                      {rem.scheduleType === 'INTERVAL' ? `Every ${rem.intervalMinutes || 60}m` : (rem.targetTime || 'Daily')}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={palette.textSecondary} />
+                </TouchableOpacity>
+              ))}
             </View>
           )}
         </View>
