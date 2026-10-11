@@ -101,8 +101,8 @@ class LogLocationService {
       }
 
       // Check permission without blocking with prompts
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== 'granted') return null;
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (!perm || perm.status !== 'granted') return null;
 
       // 1. Try instant last known location
       const lastKnown = await Location.getLastKnownPositionAsync();
@@ -149,8 +149,8 @@ class LogLocationService {
         return;
       }
 
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (!perm || perm.status !== 'granted') {
         isResolvingBackgroundGps = false;
         return;
       }

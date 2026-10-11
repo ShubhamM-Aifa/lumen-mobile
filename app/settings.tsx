@@ -60,6 +60,7 @@ import {
 
 import { useTheme } from '../src/theme/ThemeContext';
 import { useAuthStore } from '../src/store/authStore';
+import { usePhotoVaultStore } from '../src/store/photoVaultStore';
 import { logLocationService } from '../src/services/logLocationService';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
 import { api } from '../src/api/client';
@@ -138,6 +139,8 @@ export default function SettingsScreen() {
     purgeAllLocalData,
   } = useAuthStore();
 
+  const isPrimaryUser = user?.authMethod === 'google';
+
   const { signInWithGoogle, googleReady, isLoading: googleAuthLoading } = useGoogleAuth();
 
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -176,6 +179,35 @@ export default function SettingsScreen() {
       Alert.alert('Update failed', err?.message || 'Failed to update account password');
     } finally {
       setIsSavingPassword(false);
+    }
+  };
+
+  // Sensitive Photo PIN Modal state
+  const [photoPinModalVisible, setPhotoPinModalVisible] = useState(false);
+  const [newPhotoPin, setNewPhotoPin] = useState('');
+  const [confirmPhotoPin, setConfirmPhotoPin] = useState('');
+  const [isSavingPhotoPin, setIsSavingPhotoPin] = useState(false);
+
+  const handleSavePhotoPin = async () => {
+    if (!/^\d{4}$/.test(newPhotoPin)) {
+      Alert.alert('Invalid PIN', 'Photo PIN must be exactly 4 numeric digits.');
+      return;
+    }
+    if (newPhotoPin !== confirmPhotoPin) {
+      Alert.alert('PIN Mismatch', 'The PINs you entered do not match. Please try again.');
+      return;
+    }
+    setIsSavingPhotoPin(true);
+    try {
+      await usePhotoVaultStore.getState().setPhotoPin(newPhotoPin);
+      Alert.alert('Photo PIN Saved', 'Your 4-digit Sensitive Photo PIN is now active. Private photos in your logs and timeline will require this PIN or biometrics to view.');
+      setPhotoPinModalVisible(false);
+      setNewPhotoPin('');
+      setConfirmPhotoPin('');
+    } catch (err: any) {
+      Alert.alert('Update failed', err?.message || 'Failed to update photo PIN');
+    } finally {
+      setIsSavingPhotoPin(false);
     }
   };
 
@@ -436,6 +468,16 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
+    if (!isPrimaryUser) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Account Deletion Restricted',
+        'You are currently logged in with shared member credentials. Only the Primary Account Owner (signed in via Google) can delete this account and all associated health records.',
+        [{ text: 'Understood', style: 'default' }]
+      );
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       'Delete Account & All Data?',
@@ -508,9 +550,17 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.badgeRow}>
-              <View style={styles.accountBadge}>
-                <Lock size={11} color={palette.primary} />
-                <Text style={styles.accountBadgeText}>Personal Health Record</Text>
+              <View style={[
+                styles.accountBadge,
+                !isPrimaryUser && { backgroundColor: palette.surfaceAlt, borderColor: palette.border }
+              ]}>
+                <Lock size={11} color={isPrimaryUser ? palette.primary : palette.textSecondary} />
+                <Text style={[
+                  styles.accountBadgeText,
+                  !isPrimaryUser && { color: palette.textSecondary }
+                ]}>
+                  {isPrimaryUser ? '👑 Primary Account Owner' : '👥 Shared Member Access'}
+                </Text>
               </View>
               {memberSince ? (
                 <Text style={styles.memberSinceText}>Joined {memberSince}</Text>
@@ -873,27 +923,29 @@ export default function SettingsScreen() {
                   <Text style={styles.rowLabel}>Account Password</Text>
                   <View style={[
                     styles.methodBadge,
-                    { backgroundColor: user?.authMethod === 'google' ? palette.primary + '20' : palette.surfaceAlt }
+                    { backgroundColor: isPrimaryUser ? palette.primary + '20' : palette.surfaceAlt }
                   ]}>
                     <Text style={[
                       styles.methodBadgeText,
-                      { color: user?.authMethod === 'google' ? palette.primary : palette.textSecondary }
+                      { color: isPrimaryUser ? palette.primary : palette.textSecondary }
                     ]}>
-                      {user?.authMethod === 'google' ? 'Google Session' : 'Email Session'}
+                      {isPrimaryUser ? '👑 Primary (Google)' : '👥 Shared Member (Password)'}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.rowSub}>
-                  {user?.hasPassword
-                    ? 'Password is configured. You can sign in with either Google or email + password.'
-                    : 'No password set. Sign-in is handled via Google. Set a password to also log in with email.'}
+                  {isPrimaryUser
+                    ? (user?.hasPassword
+                        ? 'Configured. You can share this password with family or caregivers so they can log in to view and add logs.'
+                        : 'No password set. Sign-in is handled via Google. Set a password to allow family/caregiver access.')
+                    : 'Managed by the Primary Account Owner. Secondary members cannot create or modify this password.'}
                 </Text>
               </View>
             </View>
           </View>
 
           {/* Action Row */}
-          {user?.authMethod === 'google' ? (
+          {isPrimaryUser ? (
             <TouchableOpacity
               style={[styles.passwordActionBtn, { backgroundColor: palette.primary }]}
               onPress={() => {
@@ -904,31 +956,69 @@ export default function SettingsScreen() {
               {...buttonProps(user?.hasPassword ? 'Change Account Password' : 'Set Account Password')}
             >
               <Text style={styles.passwordActionBtnText}>
-                {user?.hasPassword ? 'Change Password' : 'Set Password (Optional)'}
+                {user?.hasPassword ? 'Change Shared Password' : 'Set Password for Family Access'}
               </Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.elevateNoticeBox}>
               <Text style={styles.elevateNoticeText}>
-                🔒 Passwords can only be set or changed when verified with Google.
+                🔒 Only the Primary Account Owner can create or change the shared account password.
               </Text>
-              <TouchableOpacity
-                style={[styles.elevateBtn, (!googleReady || googleAuthLoading) && { opacity: 0.6 }]}
-                onPress={() => {
-                  signInWithGoogle(() => {
-                    Alert.alert('Google Verified', 'Your session is elevated. You can now set or change your account password.');
-                    setNewPassword('');
-                    setConfirmPassword('');
-                    setSetPasswordVisible(true);
-                  });
-                }}
-                disabled={!googleReady || googleAuthLoading}
-                {...buttonProps('Verify with Google to update password')}
-              >
-                <Text style={styles.elevateBtnText}>
-                  {googleAuthLoading ? 'Verifying with Google…' : 'Verify with Google to Unlock'}
+            </View>
+          )}
+
+          {/* Sensitive Photo Vault PIN */}
+          <View style={[styles.row, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
+            <View style={styles.rowLeft}>
+              <Lock size={18} color={palette.primary} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={styles.rowLabel}>Sensitive Photo PIN</Text>
+                  <View style={[
+                    styles.methodBadge,
+                    { backgroundColor: user?.hasPhotoPin ? palette.primary + '20' : palette.surfaceAlt }
+                  ]}>
+                    <Text style={[
+                      styles.methodBadgeText,
+                      { color: user?.hasPhotoPin ? palette.primary : palette.textSecondary }
+                    ]}>
+                      {user?.hasPhotoPin ? '4-Digit PIN Active' : 'Not Configured'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowSub}>
+                  {isPrimaryUser
+                    ? (user?.hasPhotoPin
+                        ? 'Private photos (flare-ups, skin, stool) require your 4-digit PIN or device biometrics to view.'
+                        : 'Set a 4-digit PIN to lock sensitive medical and body photos across your timeline.')
+                    : (user?.hasPhotoPin
+                        ? "Protected by the Primary Owner's 4-digit PIN. You must enter this PIN to reveal sensitive photos (device biometrics disabled)."
+                        : 'No Sensitive Photo PIN configured by the primary account owner.')}
                 </Text>
-              </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Photo PIN Action Row */}
+          {isPrimaryUser ? (
+            <TouchableOpacity
+              style={[styles.passwordActionBtn, { backgroundColor: palette.primary }]}
+              onPress={() => {
+                setNewPhotoPin('');
+                setConfirmPhotoPin('');
+                setPhotoPinModalVisible(true);
+              }}
+              {...buttonProps(user?.hasPhotoPin ? 'Change Photo PIN' : 'Set Photo PIN')}
+            >
+              <Text style={styles.passwordActionBtnText}>
+                {user?.hasPhotoPin ? 'Change Photo PIN' : 'Set Photo PIN (4-Digit)'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.elevateNoticeBox}>
+              <Text style={styles.elevateNoticeText}>
+                🔒 Only the Primary Account Owner can configure or update the 4-Digit Sensitive Photo PIN.
+              </Text>
             </View>
           )}
 
@@ -1038,7 +1128,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Danger Zone */}
-        <View style={[styles.card, styles.dangerCard]}>
+        <View style={[styles.card, styles.dangerCard, !isPrimaryUser && { opacity: 0.8 }]}>
           <TouchableOpacity
             onPress={handleDeleteAccount}
             disabled={isDeletingAccount}
@@ -1048,14 +1138,16 @@ export default function SettingsScreen() {
               {isDeletingAccount ? (
                 <ActivityIndicator size="small" color={palette.error} style={{ marginRight: 6 }} />
               ) : (
-                <Trash2 size={18} color={palette.error} />
+                <Trash2 size={18} color={isPrimaryUser ? palette.error : palette.textSecondary} />
               )}
-              <Text style={styles.dangerText}>
+              <Text style={[styles.dangerText, !isPrimaryUser && { color: palette.textSecondary }]}>
                 {isDeletingAccount ? 'Deleting Account & Data...' : 'Delete Account & All Data'}
               </Text>
             </View>
             <Text style={styles.dangerSub}>
-              Permanently delete all logged symptoms, walking routes, medications, and your account. This action cannot be reversed.
+              {isPrimaryUser
+                ? 'Permanently delete all logged symptoms, walking routes, medications, and your account. This action cannot be reversed.'
+                : '🔒 Restricted to Primary Account Owner. Secondary members cannot delete this account or its clinical records.'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1238,6 +1330,79 @@ export default function SettingsScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveText}>Save Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Set / Reset Sensitive Photo PIN Modal */}
+      <Modal
+        visible={photoPinModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoPinModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {user?.hasPhotoPin ? 'Change Photo Vault PIN' : 'Set Photo Vault PIN'}
+            </Text>
+            <Text style={styles.modalDesc}>
+              Enter a 4-digit numeric PIN. Once set, sensitive photos will remain blurred until this PIN is entered or biometric verification succeeds.
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              value={newPhotoPin}
+              onChangeText={(t) => setNewPhotoPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="4-digit PIN (e.g. 1234)"
+              placeholderTextColor={palette.placeholder}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              autoFocus
+              accessibilityLabel="New Photo PIN"
+            />
+
+            <TextInput
+              style={styles.modalInput}
+              value={confirmPhotoPin}
+              onChangeText={(t) => setConfirmPhotoPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="Confirm 4-digit PIN"
+              placeholderTextColor={palette.placeholder}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              accessibilityLabel="Confirm Photo PIN"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setPhotoPinModalVisible(false);
+                  setNewPhotoPin('');
+                  setConfirmPhotoPin('');
+                }}
+                disabled={isSavingPhotoPin}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleSavePhotoPin}
+                disabled={isSavingPhotoPin}
+              >
+                {isSavingPhotoPin ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save PIN</Text>
                 )}
               </TouchableOpacity>
             </View>

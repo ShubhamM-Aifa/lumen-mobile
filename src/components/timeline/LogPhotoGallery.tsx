@@ -10,11 +10,14 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Eye, EyeOff, X, Image as ImageIcon, ZoomIn, AlertCircle } from 'lucide-react-native';
+import { Eye, EyeOff, X, Image as ImageIcon, ZoomIn, AlertCircle, Lock, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { useResolvedMediaUrls } from '../../services/mediaService';
+import { usePhotoVaultStore } from '../../store/photoVaultStore';
+import { useAuthStore } from '../../store/authStore';
+import { PhotoPinModal } from '../common/PhotoPinModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,7 +35,17 @@ export function LogPhotoGallery({
   const { palette, colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
 
+  const user = useAuthStore((s) => s.user);
+  const { isUnlocked: isVaultUnlocked, lock: lockVault, unlock: unlockVault } = usePhotoVaultStore();
+  const [showPinModal, setShowPinModal] = useState(false);
+
+  const hasPhotoPin = Boolean(user?.hasPhotoPin);
+  const isProtectedByPin = isSensitive && hasPhotoPin;
+
+  // If protected by PIN, photo is only visible if vault is unlocked AND revealed is true
   const [revealed, setRevealed] = useState(!isSensitive);
+  const isEffectivelyRevealed = isProtectedByPin ? (isVaultUnlocked && revealed) : revealed;
+
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
   const [lightboxLoading, setLightboxLoading] = useState(false);
   const [lightboxError, setLightboxError] = useState(false);
@@ -54,10 +67,18 @@ export function LogPhotoGallery({
 
   const handleToggleReveal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isProtectedByPin && !isVaultUnlocked) {
+      setShowPinModal(true);
+      return;
+    }
     setRevealed((prev) => !prev);
   };
 
   const handleOpenViewer = (uri: string) => {
+    if (isProtectedByPin && !isVaultUnlocked) {
+      setShowPinModal(true);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setActivePhoto(uri);
     setLightboxLoading(true);
@@ -73,6 +94,14 @@ export function LogPhotoGallery({
           <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
             {fieldLabel} ({rawList.length})
           </Text>
+          {isProtectedByPin && (
+            <View style={[styles.pinProtectedBadge, { backgroundColor: isVaultUnlocked ? '#10B98118' : palette.primary + '18' }]}>
+              <Lock size={10} color={isVaultUnlocked ? '#10B981' : palette.primary} />
+              <Text style={[styles.pinProtectedText, { color: isVaultUnlocked ? '#10B981' : palette.primary }]}>
+                {isVaultUnlocked ? 'Unlocked' : 'PIN Locked'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {isSensitive && (
@@ -87,9 +116,9 @@ export function LogPhotoGallery({
             ]}
             onPress={handleToggleReveal}
             accessibilityRole="button"
-            accessibilityLabel={revealed ? 'Hide sensitive photo' : 'Reveal photo'}
+            accessibilityLabel={isEffectivelyRevealed ? 'Hide sensitive photo' : 'Reveal photo'}
           >
-            {revealed ? (
+            {isEffectivelyRevealed ? (
               <>
                 <EyeOff size={12} color={palette.textSecondary} />
                 <Text style={[styles.revealText, { color: palette.textSecondary }]}>
@@ -100,7 +129,7 @@ export function LogPhotoGallery({
               <>
                 <Eye size={12} color={palette.primary} />
                 <Text style={[styles.revealText, { color: palette.primary }]}>
-                  Reveal
+                  {isProtectedByPin && !isVaultUnlocked ? 'Unlock PIN' : 'Reveal'}
                 </Text>
               </>
             )}
@@ -131,8 +160,12 @@ export function LogPhotoGallery({
                   },
                 ]}
                 onPress={() => {
-                  if (!revealed) {
-                    setRevealed(true);
+                  if (!isEffectivelyRevealed) {
+                    if (isProtectedByPin && !isVaultUnlocked) {
+                      setShowPinModal(true);
+                    } else {
+                      setRevealed(true);
+                    }
                   } else if (!hasError && uri) {
                     handleOpenViewer(uri);
                   }
@@ -155,8 +188,8 @@ export function LogPhotoGallery({
                     {!!uri && (
                       <Image
                         source={{ uri }}
-                        style={[styles.thumbnail, !revealed && styles.blurredImage]}
-                        blurRadius={!revealed ? 24 : 0}
+                        style={[styles.thumbnail, !isEffectivelyRevealed && styles.blurredImage]}
+                        blurRadius={!isEffectivelyRevealed ? 24 : 0}
                         resizeMode="cover"
                         onLoadStart={() => {
                           setLoadingThumbs((prev) => ({ ...prev, [index]: true }));
@@ -179,15 +212,24 @@ export function LogPhotoGallery({
                     )}
 
                     {/* Privacy overlay if hidden */}
-                    {!revealed && !isLoadingThis && (
+                    {!isEffectivelyRevealed && !isLoadingThis && (
                       <View style={styles.privacyOverlay}>
-                        <Eye size={20} color="#FFFFFF" strokeWidth={2.2} />
-                        <Text style={styles.privacyText}>Tap to reveal</Text>
+                        {isProtectedByPin && !isVaultUnlocked ? (
+                          <>
+                            <Lock size={20} color="#FFFFFF" strokeWidth={2.2} />
+                            <Text style={styles.privacyText}>Enter PIN to view</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Eye size={20} color="#FFFFFF" strokeWidth={2.2} />
+                            <Text style={styles.privacyText}>Tap to reveal</Text>
+                          </>
+                        )}
                       </View>
                     )}
 
                     {/* Zoom badge when revealed */}
-                    {revealed && !isLoadingThis && (
+                    {isEffectivelyRevealed && !isLoadingThis && (
                       <View style={styles.zoomBadge}>
                         <ZoomIn size={12} color="#FFFFFF" />
                       </View>
@@ -199,6 +241,17 @@ export function LogPhotoGallery({
           );
         })}
       </ScrollView>
+
+      {/* Sensitive Photo PIN Modal */}
+      <PhotoPinModal
+        visible={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={() => {
+          unlockVault();
+          setRevealed(true);
+          setShowPinModal(false);
+        }}
+      />
 
       {/* Fullscreen Lightbox Modal */}
       <Modal
@@ -297,6 +350,19 @@ const styles = StyleSheet.create({
   },
   revealText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+  pinProtectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  pinProtectedText: {
+    fontSize: 10,
     fontWeight: '700',
   },
   thumbnailScroll: {

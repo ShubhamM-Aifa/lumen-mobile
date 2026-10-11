@@ -20,6 +20,8 @@ import { EnumChips }          from './EnumChips';
 import { EnumPictureGrid }    from './EnumPictureGrid';
 import { ImageField }         from './ImageField';
 import { BodyMap }            from './BodyMap';
+import { ChestMap }           from './ChestMap';
+import { ThreeJsBodyViewer }  from './ThreeJsBodyViewer';
 
 interface Props {
   field: FieldDefinition;
@@ -144,6 +146,33 @@ export function DynamicField({ field, fieldValue, onChange, tempPrefUnit = 'C' }
         );
 
       case 'location':
+        if (field.displayAs === 'chest-map') {
+          return (
+            <ChestMap
+              field={field}
+              value={Array.isArray(v) ? (v as string[]) : []}
+              onChange={(keys) => emit(keys)}
+            />
+          );
+        }
+        if (field.displayAs === 'joint-map-3d') {
+          return (
+            <ThreeJsBodyViewer
+              mode="joints"
+              value={Array.isArray(v) ? (v as string[]) : []}
+              onChange={(keys) => emit(keys)}
+            />
+          );
+        }
+        if (field.displayAs === 'body-map-3d') {
+          return (
+            <ThreeJsBodyViewer
+              mode="body"
+              value={Array.isArray(v) ? (v as string[]) : []}
+              onChange={(keys) => emit(keys)}
+            />
+          );
+        }
         return (
           <BodyMap
             field={field}

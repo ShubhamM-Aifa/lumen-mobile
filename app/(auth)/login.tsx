@@ -101,7 +101,7 @@ export default function LoginScreen() {
           {showPasswordLogin && (
             <View style={styles.passwordForm}>
               <Text style={styles.passwordFormNotice}>
-                For accounts that have already configured a local password in Settings.
+                For family members, caregivers, or shared access using the account password configured by the primary account owner.
               </Text>
               <TextInput
                 style={styles.input}

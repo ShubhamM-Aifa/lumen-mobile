@@ -120,10 +120,31 @@ export const FIELD_PRESETS: Preset[] = [
   },
   {
     key: 'body_location',
-    label: 'Body location',
+    label: 'Body location (2D)',
     emoji: '🧍',
-    description: 'Tappable body map for affected areas',
+    description: 'Tappable 2D silhouette for affected areas',
     field: { key: 'location', label: 'Location', dataType: 'location', displayAs: 'body-map', required: false },
+  },
+  {
+    key: 'joint_location_3d',
+    label: 'Body joints (3D rotatable)',
+    emoji: '🦴',
+    description: '360° rotating skeleton & DAS28 joints (Arthritis)',
+    field: { key: 'joints', label: 'Joints', dataType: 'location', displayAs: 'joint-map-3d', required: false },
+  },
+  {
+    key: 'chest_location',
+    label: 'Chest & ribs location',
+    emoji: '🫁',
+    description: '8-zone clinical chest map (Costochondritis / Pleurisy)',
+    field: { key: 'chest_location', label: 'Chest Location', dataType: 'location', displayAs: 'chest-map', required: false },
+  },
+  {
+    key: 'body_location_3d',
+    label: 'Full body map (3D rotatable)',
+    emoji: '🧍‍♂️',
+    description: '360° interactive 3D human body model',
+    field: { key: 'body_location_3d', label: '3D Body Location', dataType: 'location', displayAs: 'body-map-3d', required: false },
   },
   {
     key: 'free_text',

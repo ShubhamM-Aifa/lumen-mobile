@@ -44,7 +44,15 @@ const REGIONS: Region[] = [
   { key: 'r_foot', label: 'R. Foot', shape: 'ellipse', cx: 122, cy: 350, rx: 14, ry: 9 },
 ];
 
-const REGION_MAP = new Map(REGIONS.map((r) => [r.key, r.label]));
+import { CHEST_REGIONS } from '../fields/ChestMap';
+import { DAS28_JOINTS, FULL_BODY_3D_REGIONS } from '../fields/ThreeJsBodyViewer';
+
+const REGION_MAP = new Map<string, string>([
+  ...REGIONS.map((r) => [r.key, r.label] as [string, string]),
+  ...CHEST_REGIONS.map((r) => [r.key, r.label] as [string, string]),
+  ...DAS28_JOINTS.map((r) => [r.key, r.label] as [string, string]),
+  ...FULL_BODY_3D_REGIONS.map((r) => [r.key, r.label] as [string, string]),
+]);
 
 interface Props {
   selectedKeys?: string[] | string;

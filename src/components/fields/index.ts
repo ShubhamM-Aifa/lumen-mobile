@@ -9,4 +9,6 @@ export { EnumChips }          from './EnumChips';
 export { EnumPictureGrid }    from './EnumPictureGrid';
 export { ImageField }         from './ImageField';
 export { BodyMap }            from './BodyMap';
+export { ChestMap }           from './ChestMap';
+export { ThreeJsBodyViewer }  from './ThreeJsBodyViewer';
 export { DynamicField }       from './DynamicField';
