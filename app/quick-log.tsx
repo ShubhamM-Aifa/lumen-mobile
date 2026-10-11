@@ -28,6 +28,7 @@ import { typography } from '../src/theme/typography';
 import { QuestionCard } from '../src/components/QuestionCard';
 import { validateAnswers } from '../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../src/utils/uploadAnswerImages';
+import { logLocationService } from '../src/services/logLocationService';
 
 function fmt(d: Date): string {
   const h = d.getHours();
@@ -58,6 +59,7 @@ export default function QuickLogScreen() {
 
   useEffect(() => {
     fetchConfig();
+    logLocationService.refreshLocationCacheInBackground().catch(() => {});
   }, [fetchConfig]);
 
   useEffect(() => {
@@ -116,7 +118,11 @@ export default function QuickLogScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      const uploadedAnswers = await uploadAnswerImages(allAnswers);
+      const [uploadedAnswers, location] = await Promise.all([
+        uploadAnswerImages(allAnswers),
+        logLocationService.getFastLocationSnapshot().catch(() => null),
+      ]);
+
       await api.post('/logs', {
         clientId: uuidv4(),
         daySessionId: todaySession?._id,
@@ -125,6 +131,7 @@ export default function QuickLogScreen() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: uploadedAnswers,
         note: note.trim() || undefined,
+        ...(location ? { location } : {}),
       });
 
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });

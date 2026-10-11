@@ -3,7 +3,7 @@
  * Filters questions by frequency ('morning' | 'evening') across all active categories.
  * Submitted as source: 'check_in'.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform,
@@ -24,6 +24,7 @@ import { QuestionCard } from '../src/components/QuestionCard';
 import { MorningSleepCheckinBanner } from '../src/components/sleep/MorningSleepCheckinBanner';
 import { useSleepTrackerStore, SleepQuality } from '../src/store/sleepTrackerStore';
 import { useTodayCategoryLogs } from '../src/hooks/useTodayCategoryLogs';
+import { logLocationService } from '../src/services/logLocationService';
 
 const META: Record<string, { emoji: string; title: string; subtitle: string }> = {
   morning: {
@@ -51,6 +52,11 @@ export default function CheckInModal() {
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(lastSleepRecord?.quality ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-warm location in background when modal opens
+  useEffect(() => {
+    logLocationService.refreshLocationCacheInBackground().catch(() => {});
+  }, []);
 
   const meta = META[type] ?? META.morning!;
   const freq: QuestionFrequency = type === 'evening' ? 'evening' : 'morning';
@@ -130,7 +136,11 @@ export default function CheckInModal() {
     setIsSubmitting(true);
     try {
       if (allAnswers.length > 0) {
-        const uploadedAnswers = await uploadAnswerImages(allAnswers);
+        const [uploadedAnswers, location] = await Promise.all([
+          uploadAnswerImages(allAnswers),
+          logLocationService.getFastLocationSnapshot().catch(() => null),
+        ]);
+
         await api.post('/logs', {
           clientId: uuidv4(),
           daySessionId: todaySession?._id,
@@ -138,6 +148,7 @@ export default function CheckInModal() {
           occurredAt: new Date().toISOString(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           answers: uploadedAnswers,
+          ...(location ? { location } : {}),
         });
         queryClient.invalidateQueries({ queryKey: ['today-logs'] });
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });

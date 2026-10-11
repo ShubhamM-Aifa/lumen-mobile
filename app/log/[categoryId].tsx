@@ -28,6 +28,7 @@ import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
 import { queryClient } from '../../src/api/queryClient';
 import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTodayCategoryLogs';
 import { getDayBoundaryWindow } from '../../src/utils/dayBoundary';
+import { logLocationService } from '../../src/services/logLocationService';
 
 function fmt(d: Date): string {
   const h = d.getHours();
@@ -194,7 +195,11 @@ export default function QuestionSheet() {
 
     setIsSubmitting(true);
     try {
-      const allAns = await uploadAnswerImages(rawAns);
+      const [allAns, location] = await Promise.all([
+        uploadAnswerImages(rawAns),
+        logLocationService.getFastLocationSnapshot().catch(() => null),
+      ]);
+
       const mealMap: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
       const mealPrefix = hasPerMealQuestions ? `[${mealMap[selectedMeal]}]` : '';
       const finalNote = note.trim()
@@ -212,6 +217,7 @@ export default function QuestionSheet() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: allAns,
         note: finalNote,
+        ...(location ? { location } : {}),
       });
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });

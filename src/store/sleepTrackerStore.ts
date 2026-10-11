@@ -13,6 +13,7 @@ import { useDaySessionStore } from './daySessionStore';
 import { api } from '../api/client';
 import { queryClient } from '../api/queryClient';
 import { uuidv4 } from '../utils/uuid';
+import { logLocationService } from '../services/logLocationService';
 
 export type SleepQuality = 'RESTFUL' | 'GOOD' | 'FAIR' | 'POOR';
 
@@ -207,6 +208,7 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
 
       // Optionally log to backend as a wellness log entry
       try {
+        const location = await logLocationService.getFastLocationSnapshot().catch(() => null);
         await api.post('/logs', {
           clientId: uuidv4(),
           source: 'sleep_quality_checkin',
@@ -225,6 +227,7 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
               value: quality,
             },
           ],
+          ...(location ? { location } : {}),
         });
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });
         queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });

@@ -55,10 +55,12 @@ import {
   Ruler,
   Scale,
   Calendar,
+  MapPin,
 } from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeContext';
 import { useAuthStore } from '../src/store/authStore';
+import { logLocationService } from '../src/services/logLocationService';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
 import { api } from '../src/api/client';
 import { buttonProps } from '../src/utils/accessibility';
@@ -194,6 +196,18 @@ export default function SettingsScreen() {
   const toggleAppLock = useSecurityStore(s => s.toggleAppLock);
   const biometricType = useSecurityStore(s => s.biometricType);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [isLocationTaggingEnabled, setIsLocationTaggingEnabled] = useState(true);
+
+  useEffect(() => {
+    logLocationService.isLocationTaggingEnabled().then(setIsLocationTaggingEnabled);
+  }, []);
+
+  const handleToggleLocationTagging = async (val: boolean) => {
+    Haptics.selectionAsync();
+    setIsLocationTaggingEnabled(val);
+    await logLocationService.setLocationTaggingEnabled(val);
+  };
 
   useEffect(() => {
     fetchProfile().catch(() => {});
@@ -919,7 +933,7 @@ export default function SettingsScreen() {
           )}
 
           {/* Biometric App Lock */}
-          <View style={[styles.row, styles.rowLast, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
+          <View style={[styles.row, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
             <View style={styles.rowLeft}>
               <Shield size={18} color={palette.textSecondary} />
               <View>
@@ -939,6 +953,26 @@ export default function SettingsScreen() {
               trackColor={{ false: palette.border, true: palette.primary + '88' }}
               thumbColor={isAppLockEnabled ? palette.primary : palette.textDisabled}
               accessibilityLabel="Biometric App Lock"
+            />
+          </View>
+
+          {/* Automatic Location Tagging */}
+          <View style={[styles.row, styles.rowLast, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
+            <View style={styles.rowLeft}>
+              <MapPin size={18} color={palette.textSecondary} />
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.rowLabel}>Auto-Tag Location on Logs</Text>
+                <Text style={styles.rowSub}>
+                  Silently capture location context for Quick Taps, check-ins, and symptom questionnaires to correlate environmental triggers.
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isLocationTaggingEnabled}
+              onValueChange={handleToggleLocationTagging}
+              trackColor={{ false: palette.border, true: palette.primary + '88' }}
+              thumbColor={isLocationTaggingEnabled ? palette.primary : palette.textDisabled}
+              accessibilityLabel="Auto-tag location on logs"
             />
           </View>
         </View>

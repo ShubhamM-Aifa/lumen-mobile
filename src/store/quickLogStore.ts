@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uuidv4 } from '../utils/uuid';
 import { api } from '../api/client';
 import { queryClient } from '../api/queryClient';
+import { logLocationService } from '../services/logLocationService';
 
 const STORAGE_KEY = 'lumen:quick_log:today_taps_v1';
 
@@ -66,6 +67,9 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
     const newTimer = setTimeout(() => set({ undoEntry: null, undoTimer: null }), 5000);
     set({ undoTimer: newTimer });
 
+    // Grab fast location snapshot (0ms if cached, <20ms if last-known)
+    const location = await logLocationService.getFastLocationSnapshot().catch(() => null);
+
     // Send to server (non-blocking)
     try {
       const result = await api.post<{ _id: string }>('/logs', {
@@ -76,6 +80,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: [],
         mediaIds: [],
+        ...(location ? { location } : {}),
       });
       const syncedTaps = {
         ...get().todayTaps,

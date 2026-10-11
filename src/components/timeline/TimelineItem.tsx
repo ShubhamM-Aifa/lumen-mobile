@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import { Trash2, Pencil, ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react-native';
+import { Trash2, Pencil, ChevronDown, ChevronUp, Clock, FileText, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction, FieldValue } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
@@ -121,7 +121,14 @@ export function TimelineItem({
     locationFields.length > 0 ||
     imageFields.length > 0 ||
     standardFields.length > 0 ||
-    Boolean(entry.note);
+    Boolean(entry.note) ||
+    Boolean(entry.location);
+
+  const locationLabel = entry.location
+    ? entry.location.city && entry.location.region
+      ? `${entry.location.city}, ${entry.location.region}`
+      : entry.location.name || entry.location.city || entry.location.formattedAddress || 'Location Tagged'
+    : null;
 
   // Expand / collapse state
   const [localExpanded, setLocalExpanded] = useState<boolean | null>(null);
@@ -217,6 +224,14 @@ export function TimelineItem({
               >
                 {SOURCE_LABEL[entry.source] ?? entry.source}
               </Text>
+              {locationLabel && (
+                <View style={styles.locationPill}>
+                  <MapPin size={9} color={palette.textSecondary} />
+                  <Text style={styles.locationPillText} numberOfLines={1}>
+                    {locationLabel}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Expand / Collapse Chevron Button */}
@@ -350,6 +365,11 @@ export function TimelineItem({
                   <Text style={styles.miniBadgeText}>📝 Note</Text>
                 </View>
               ) : null}
+              {locationLabel ? (
+                <View style={styles.miniBadge}>
+                  <Text style={styles.miniBadgeText}>📍 {locationLabel}</Text>
+                </View>
+              ) : null}
               {standardFields.length > 0 && (
                 <View style={styles.miniBadge}>
                   <Text style={styles.miniBadgeText}>⚙️ {standardFields.length} metrics</Text>
@@ -415,6 +435,30 @@ export function TimelineItem({
                 })}
               </View>
             )}
+
+            {/* Captured Location block */}
+            {entry.location ? (
+              <View
+                style={[
+                  styles.expandedLocationBox,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.025)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.06)',
+                  },
+                ]}
+              >
+                <MapPin size={14} color={palette.primary} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1, marginLeft: 6 }}>
+                  <Text style={[styles.expandedLocationTitle, { color: palette.text }]}>
+                    {entry.location.formattedAddress || locationLabel}
+                  </Text>
+                  <Text style={[styles.expandedLocationSub, { color: palette.textSecondary }]}>
+                    {entry.location.latitude.toFixed(4)}°, {entry.location.longitude.toFixed(4)}°
+                    {entry.location.accuracy ? ` • ±${Math.round(entry.location.accuracy)}m` : ''}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
 
             {/* Notes callout block */}
             {entry.note ? (
@@ -737,5 +781,34 @@ const useStyles = createThemedStyles((palette) => ({
   actionBtnText: {
     fontSize: 11.5,
     fontWeight: '700',
+  },
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  locationPillText: {
+    fontSize: 10,
+    color: palette.textSecondary,
+    fontWeight: '500',
+    maxWidth: 95,
+  },
+  expandedLocationBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  expandedLocationTitle: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  expandedLocationSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 }));
