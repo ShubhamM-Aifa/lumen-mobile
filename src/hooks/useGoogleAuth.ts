@@ -27,7 +27,7 @@ export function useGoogleAuth() {
 
   const googleReady = Platform.OS === 'android' && !!WEB_CLIENT_ID;
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (onSuccess?: () => void) => {
     if (Platform.OS !== 'android') {
       Alert.alert('Not supported', 'Native Google Sign-In is Android only.');
       return;
@@ -45,7 +45,11 @@ export function useGoogleAuth() {
       }
 
       await loginWithGoogle(idToken);
-      router.replace('/(tabs)/today');
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.replace('/(tabs)/today');
+      }
     } catch (err: any) {
       if (err.code === statusCodes.SIGN_IN_CANCELLED) return;
       if (err.code === statusCodes.IN_PROGRESS) return;

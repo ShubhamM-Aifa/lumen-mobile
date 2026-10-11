@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../../src/utils/navigation';
-import { IOption, CaptureTime, FieldDefinition } from '@lumen/shared';
+import { IOption, CaptureTime, FieldDefinition, EnumValue } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
@@ -328,6 +328,24 @@ function InlineFieldEditor({ field, onSave, onClose }: { field: FieldDefinition;
   const [unit,     setUnit]     = useState(field.unit ?? '');
   const [required, setRequired] = useState(field.required ?? false);
   const [helpText, setHelpText] = useState(field.helpText ?? '');
+  const [enumValues, setEnumValues] = useState<EnumValue[]>(field.enumValues ? [...field.enumValues] : []);
+  const [newChoiceText, setNewChoiceText] = useState('');
+
+  const addChoice = () => {
+    const trimmed = newChoiceText.trim();
+    if (!trimmed) return;
+    const valKey = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `opt_${Date.now()}`;
+    if (enumValues.some(e => e.value === valKey)) {
+      Alert.alert('Duplicate choice', 'This choice option already exists.');
+      return;
+    }
+    setEnumValues(prev => [...prev, { value: valKey, label: trimmed }]);
+    setNewChoiceText('');
+  };
+
+  const removeChoice = (indexToRemove: number) => {
+    setEnumValues(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   return (
     <Modal transparent animationType="slide" visible>
@@ -343,11 +361,53 @@ function InlineFieldEditor({ field, onSave, onClose }: { field: FieldDefinition;
               <TextInput style={inlineStyles.input} value={label} onChangeText={setLabel} placeholder="Field label" placeholderTextColor={palette.placeholder} />
             </InlineField>
             <InlineField label="Key (internal, no spaces)">
-              <TextInput style={inlineStyles.input} value={key} onChangeText={t => setKey(t.replace(/\s/g, '_').toLowerCase())} placeholder="e.g. severity, amount" placeholderTextColor={palette.placeholder} autoCapitalize="none" />
+              <TextInput style={inlineStyles.input} value={key} onChangeText={t => setKey(t.replace(/\s/g, '_').toLowerCase())} placeholder="e.g. severity, amount, type" placeholderTextColor={palette.placeholder} autoCapitalize="none" />
             </InlineField>
-            <InlineField label="Unit (optional)">
-              <TextInput style={inlineStyles.input} value={unit} onChangeText={setUnit} placeholder="e.g. ml, °C, km, bpm" placeholderTextColor={palette.placeholder} />
-            </InlineField>
+
+            {field.dataType === 'enum' && (
+              <InlineField label={`Choices / Chips (${enumValues.length})`}>
+                <View style={inlineStyles.chipsWrap}>
+                  {enumValues.map((item, idx) => (
+                    <View key={item.value + idx} style={inlineStyles.chipPill}>
+                      <Text style={inlineStyles.chipPillText}>{item.label}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeChoice(idx)}
+                        style={inlineStyles.chipDeleteBtn}
+                        accessibilityLabel={`Remove ${item.label}`}
+                      >
+                        <Text style={inlineStyles.chipDeleteText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={inlineStyles.addChoiceRow}>
+                  <TextInput
+                    style={[inlineStyles.input, { flex: 1 }]}
+                    value={newChoiceText}
+                    onChangeText={setNewChoiceText}
+                    placeholder="e.g. Nausea, Bloating, Cramps"
+                    placeholderTextColor={palette.placeholder}
+                    onSubmitEditing={addChoice}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity
+                    style={inlineStyles.addChoiceBtn}
+                    onPress={addChoice}
+                    disabled={!newChoiceText.trim()}
+                  >
+                    <Text style={inlineStyles.addChoiceBtnText}>＋ Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </InlineField>
+            )}
+
+            {field.dataType !== 'enum' && (
+              <InlineField label="Unit (optional)">
+                <TextInput style={inlineStyles.input} value={unit} onChangeText={setUnit} placeholder="e.g. ml, °C, km, bpm" placeholderTextColor={palette.placeholder} />
+              </InlineField>
+            )}
+
             <InlineField label="Help text (optional)">
               <TextInput style={inlineStyles.input} value={helpText} onChangeText={setHelpText} placeholder="Shown under the field" placeholderTextColor={palette.placeholder} />
             </InlineField>
@@ -360,7 +420,14 @@ function InlineFieldEditor({ field, onSave, onClose }: { field: FieldDefinition;
           <View style={inlineStyles.footer}>
             <TouchableOpacity
               style={inlineStyles.saveBtn}
-              onPress={() => onSave({ label: label.trim(), key: key.trim(), unit: unit.trim() || undefined, required, helpText: helpText.trim() || undefined })}
+              onPress={() => onSave({
+                label: label.trim(),
+                key: key.trim(),
+                unit: unit.trim() || undefined,
+                required,
+                helpText: helpText.trim() || undefined,
+                ...(field.dataType === 'enum' ? { enumValues } : {}),
+              })}
             >
               <Text style={inlineStyles.saveBtnText}>Save field</Text>
             </TouchableOpacity>
@@ -407,6 +474,59 @@ const useInlineStyles = createThemedStyles((palette) => ({
   input: { backgroundColor: palette.surfaceAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, ...typography.body, color: palette.text },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
   toggleLabel: { ...typography.body, color: palette.text },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  chipPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  chipPillText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  chipDeleteBtn: {
+    padding: 2,
+  },
+  chipDeleteText: {
+    fontSize: 11,
+    color: palette.textSecondary,
+    fontWeight: '700',
+  },
+  addChoiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  addChoiceBtn: {
+    backgroundColor: palette.primary + '18',
+    borderColor: palette.primary + '40',
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addChoiceBtnText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.primary,
+  },
   typeNote: { ...typography.small, color: palette.textDisabled, marginTop: 8 },
   footer: { padding: 16, paddingBottom: 28, borderTopWidth: 1, borderTopColor: palette.border },
   saveBtn: { backgroundColor: palette.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },

@@ -30,6 +30,24 @@ export const FIELD_PRESETS: Preset[] = [
     field: { key: 'severity', label: 'Severity', dataType: 'range', min: 0, max: 10, step: 1, displayAs: 'slider', helpText: 'None,Worst ever', required: false },
   },
   {
+    key: 'choice_chips',
+    label: 'Type / Sub-type chips',
+    emoji: '🏷️',
+    description: 'Selectable pill choices (like Digestive: Nausea, Cramps)',
+    field: {
+      key: 'type',
+      label: 'Type',
+      dataType: 'enum',
+      displayAs: 'chips',
+      enumValues: [
+        { value: 'option_1', label: 'Option 1' },
+        { value: 'option_2', label: 'Option 2' },
+        { value: 'option_3', label: 'Option 3' },
+      ],
+      required: false,
+    },
+  },
+  {
     key: 'amount_ml',
     label: 'Amount (ml)',
     emoji: '💧',

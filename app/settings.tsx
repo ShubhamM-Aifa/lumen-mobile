@@ -50,6 +50,7 @@ import {
   X,
   Sparkles,
   Lock,
+  KeyRound,
   Heart,
   Ruler,
   Scale,
@@ -58,6 +59,7 @@ import {
 
 import { useTheme } from '../src/theme/ThemeContext';
 import { useAuthStore } from '../src/store/authStore';
+import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
 import { api } from '../src/api/client';
 import { buttonProps } from '../src/utils/accessibility';
 import { typography } from '../src/theme/typography';
@@ -126,12 +128,15 @@ export default function SettingsScreen() {
   const {
     user,
     updateProfile,
+    setPassword,
     logout,
     fetchProfile,
     isLoading,
     deleteAccountAndData,
     purgeAllLocalData,
   } = useAuthStore();
+
+  const { signInWithGoogle, googleReady, isLoading: googleAuthLoading } = useGoogleAuth();
 
   const styles = useMemo(() => makeStyles(palette), [palette]);
 
@@ -142,6 +147,35 @@ export default function SettingsScreen() {
   const [editNameVisible, setEditNameVisible] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
+
+  // Account Password Modal state
+  const [setPasswordVisible, setSetPasswordVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  const handleSavePassword = async () => {
+    if (newPassword.length < 8) {
+      Alert.alert('Password too short', 'Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Password mismatch', 'Passwords do not match. Please verify and try again.');
+      return;
+    }
+    setIsSavingPassword(true);
+    try {
+      await setPassword(newPassword);
+      Alert.alert('Password Saved', 'Your account password has been updated. You can now also sign in with email and this password.');
+      setSetPasswordVisible(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      Alert.alert('Update failed', err?.message || 'Failed to update account password');
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
 
   // Condition Manager state
   const [addConditionVisible, setAddConditionVisible] = useState(false);
@@ -813,10 +847,79 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Security */}
-        <Text style={styles.sectionTitle}>Security & Privacy</Text>
+        {/* Security & Credentials */}
+        <Text style={styles.sectionTitle}>Security & Credentials</Text>
         <View style={styles.card}>
-          <View style={[styles.row, styles.rowLast]}>
+          {/* Account Password Section */}
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <KeyRound size={18} color={palette.primary} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={styles.rowLabel}>Account Password</Text>
+                  <View style={[
+                    styles.methodBadge,
+                    { backgroundColor: user?.authMethod === 'google' ? palette.primary + '20' : palette.surfaceAlt }
+                  ]}>
+                    <Text style={[
+                      styles.methodBadgeText,
+                      { color: user?.authMethod === 'google' ? palette.primary : palette.textSecondary }
+                    ]}>
+                      {user?.authMethod === 'google' ? 'Google Session' : 'Email Session'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowSub}>
+                  {user?.hasPassword
+                    ? 'Password is configured. You can sign in with either Google or email + password.'
+                    : 'No password set. Sign-in is handled via Google. Set a password to also log in with email.'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Row */}
+          {user?.authMethod === 'google' ? (
+            <TouchableOpacity
+              style={[styles.passwordActionBtn, { backgroundColor: palette.primary }]}
+              onPress={() => {
+                setNewPassword('');
+                setConfirmPassword('');
+                setSetPasswordVisible(true);
+              }}
+              {...buttonProps(user?.hasPassword ? 'Change Account Password' : 'Set Account Password')}
+            >
+              <Text style={styles.passwordActionBtnText}>
+                {user?.hasPassword ? 'Change Password' : 'Set Password (Optional)'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.elevateNoticeBox}>
+              <Text style={styles.elevateNoticeText}>
+                🔒 Passwords can only be set or changed when verified with Google.
+              </Text>
+              <TouchableOpacity
+                style={[styles.elevateBtn, (!googleReady || googleAuthLoading) && { opacity: 0.6 }]}
+                onPress={() => {
+                  signInWithGoogle(() => {
+                    Alert.alert('Google Verified', 'Your session is elevated. You can now set or change your account password.');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setSetPasswordVisible(true);
+                  });
+                }}
+                disabled={!googleReady || googleAuthLoading}
+                {...buttonProps('Verify with Google to update password')}
+              >
+                <Text style={styles.elevateBtnText}>
+                  {googleAuthLoading ? 'Verifying with Google…' : 'Verify with Google to Unlock'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Biometric App Lock */}
+          <View style={[styles.row, styles.rowLast, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
             <View style={styles.rowLeft}>
               <Shield size={18} color={palette.textSecondary} />
               <View>
@@ -1032,6 +1135,75 @@ export default function SettingsScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveText}>Add Condition</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Set / Reset Account Password Modal */}
+      <Modal
+        visible={setPasswordVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSetPasswordVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {user?.hasPassword ? 'Change Account Password' : 'Set Account Password'}
+            </Text>
+            <Text style={styles.modalDesc}>
+              Enter a secure password (min 8 characters). Once set, you can use your email and this password to sign into Lumen.
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="New password (8+ characters)"
+              placeholderTextColor={palette.placeholder}
+              secureTextEntry
+              autoFocus
+              accessibilityLabel="New Password"
+            />
+
+            <TextInput
+              style={styles.modalInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm new password"
+              placeholderTextColor={palette.placeholder}
+              secureTextEntry
+              accessibilityLabel="Confirm New Password"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setSetPasswordVisible(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}
+                disabled={isSavingPassword}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleSavePassword}
+                disabled={isSavingPassword}
+              >
+                {isSavingPassword ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save Password</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1591,6 +1763,54 @@ function makeStyles(palette: ThemeTokens) {
       lineHeight: 19,
       color: palette.textSecondary,
       textAlign: 'center',
+    },
+    methodBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 12,
+    },
+    methodBadgeText: {
+      ...typography.caption,
+      fontWeight: '700',
+      fontSize: 11,
+    },
+    passwordActionBtn: {
+      marginTop: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    passwordActionBtnText: {
+      ...typography.button,
+      color: '#FFFFFF',
+      fontSize: 14,
+    },
+    elevateNoticeBox: {
+      backgroundColor: palette.surfaceAlt,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 12,
+      padding: 12,
+      marginTop: 10,
+      gap: 10,
+    },
+    elevateNoticeText: {
+      ...typography.caption,
+      color: palette.textSecondary,
+      lineHeight: 16,
+    },
+    elevateBtn: {
+      backgroundColor: palette.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    elevateBtnText: {
+      ...typography.button,
+      color: '#FFFFFF',
+      fontSize: 13,
     },
     brandFooter: {
       alignItems: 'center',

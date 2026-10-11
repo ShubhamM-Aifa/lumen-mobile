@@ -24,6 +24,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
+  setPassword: (password: string) => Promise<void>;
   fetchProfile: () => Promise<IUser | null>;
   updateProfile: (patch: UpdateProfileDto) => Promise<IUser>;
   logout: () => Promise<void>;
@@ -70,8 +71,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         { email, password },
       );
       await saveTokens(data.accessToken, data.refreshToken);
-      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(data.user)).catch(() => {});
-      set({ user: data.user, isAuthenticated: true });
+      const user = { ...data.user, authMethod: 'password' as const, hasPassword: true };
+      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user)).catch(() => {});
+      set({ user, isAuthenticated: true });
     } finally {
       set({ isLoading: false });
     }
@@ -100,8 +102,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         { idToken },
       );
       await saveTokens(data.accessToken, data.refreshToken);
-      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(data.user)).catch(() => {});
-      set({ user: data.user, isAuthenticated: true });
+      const user = { ...data.user, authMethod: 'google' as const };
+      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user)).catch(() => {});
+      set({ user, isAuthenticated: true });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  setPassword: async (password: string) => {
+    set({ isLoading: true });
+    try {
+      await api.post('/auth/set-password', { password });
+      const current = get().user;
+      if (current) {
+        const updated = { ...current, hasPassword: true };
+        set({ user: updated });
+        await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+      }
     } finally {
       set({ isLoading: false });
     }
