@@ -24,6 +24,7 @@ import {
   Play,
   Bell,
   ChevronRight,
+  ChevronLeft,
   Droplets,
   Clock,
   Stethoscope,
@@ -32,6 +33,10 @@ import {
   Timer,
   SlidersHorizontal,
   Plus,
+  Check,
+  ArrowLeftRight,
+  GripVertical,
+  Pin,
 } from 'lucide-react-native';
 
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
@@ -42,7 +47,7 @@ import { useDaySessionStore } from '../../src/store/daySessionStore';
 import { useQuickLogStore } from '../../src/store/quickLogStore';
 import { useActivityStore } from '../../src/store/activityStore';
 import { useReminderStore } from '../../src/store/reminderStore';
-import { useGlanceConfigStore } from '../../src/store/glanceConfigStore';
+import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceConfigStore';
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
 import { useWeatherStore } from '../../src/store/weatherStore';
 
@@ -66,7 +71,16 @@ export default function TodayScreen() {
   const [activeGlanceIndex, setActiveGlanceIndex] = useState(0);
   const { todaySummary, fetchTodaySummary, isTracking, activePacingAlert } = useActivityStore();
   const { reminders, fetchReminders } = useReminderStore();
-  const { fetchGlanceConfig, isMetricEnabled, getActiveCount } = useGlanceConfigStore();
+  const {
+    fetchGlanceConfig,
+    isMetricEnabled,
+    getActiveCount,
+    compactOrder,
+    swapCompactMetrics,
+    moveCompactMetric,
+  } = useGlanceConfigStore();
+  const [isEditingGlanceOrder, setIsEditingGlanceOrder] = useState(false);
+  const [selectedCardForSwap, setSelectedCardForSwap] = useState<string | null>(null);
   const { isSleeping, lastSleepRecord, loadState: loadSleepState } = useSleepTrackerStore();
   const {
     weather,
@@ -270,11 +284,65 @@ export default function TodayScreen() {
     });
   }, [customGoalActions, todayTaps, palette.primary]);
 
-  const hasSlide1 = isMetricEnabled('water') || !!reminderItem || !!walkingItem;
-  const hasSlide2 = !!quickTapItem || !!activeTimeItem || !!sleepItem || customGoalItems.length > 0;
-  const extraCustomItems = customGoalItems.slice(1);
-  const extraCustomSlidesCount = Math.ceil(extraCustomItems.length / 2);
+  const getCompactItemByKey = useCallback((key: GlanceMetricKey): GlanceItem | null => {
+    switch (key) {
+      case 'reminders': return reminderItem;
+      case 'walking': return walkingItem;
+      case 'quick_logs': return quickTapItem;
+      case 'active_time': return activeTimeItem;
+      case 'day_session': return sleepItem;
+      default: return null;
+    }
+  }, [reminderItem, walkingItem, quickTapItem, activeTimeItem, sleepItem]);
 
+  const orderedCompactItems = useMemo<GlanceItem[]>(() => {
+    const list: GlanceItem[] = [];
+    for (const key of compactOrder) {
+      if (key === 'water') continue;
+      const item = getCompactItemByKey(key);
+      if (item) list.push(item);
+    }
+    return list;
+  }, [compactOrder, getCompactItemByKey]);
+
+  const handleCardPressInEdit = useCallback((key: GlanceMetricKey) => {
+    if (!selectedCardForSwap) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedCardForSwap(key);
+    } else if (selectedCardForSwap === key) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedCardForSwap(null);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      swapCompactMetrics(selectedCardForSwap as GlanceMetricKey, key);
+      setSelectedCardForSwap(null);
+    }
+  }, [selectedCardForSwap, swapCompactMetrics]);
+
+  const handleNudgeMetric = useCallback((key: GlanceMetricKey, direction: 'prev' | 'next') => {
+    const activeKeys = orderedCompactItems.map(item => item.id as GlanceMetricKey);
+    const idx = activeKeys.indexOf(key);
+    if (idx === -1) return;
+    const targetIdx = direction === 'prev' ? idx - 1 : idx + 1;
+    if (targetIdx >= 0 && targetIdx < activeKeys.length) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      swapCompactMetrics(key, activeKeys[targetIdx]);
+    }
+  }, [orderedCompactItems, swapCompactMetrics]);
+
+  const hasSlide1 = isMetricEnabled('water') || orderedCompactItems.length > 0;
+  const hasSlide2 = isMetricEnabled('water')
+    ? orderedCompactItems.length > 2 || customGoalItems.length > 0
+    : orderedCompactItems.length > 4 || customGoalItems.length > 0;
+
+  const remainingExtraItems = useMemo(() => {
+    const compactOffset = isMetricEnabled('water') ? 5 : 6;
+    const extraCompact = orderedCompactItems.slice(compactOffset);
+    const extraGoals = customGoalItems.slice(1);
+    return [...extraCompact, ...extraGoals];
+  }, [isMetricEnabled, orderedCompactItems, customGoalItems]);
+
+  const extraCustomSlidesCount = Math.ceil(remainingExtraItems.length / 2);
   const totalGlancePages = (hasSlide1 ? 1 : 0) + (hasSlide2 ? 1 : 0) + extraCustomSlidesCount;
 
   const slideWidth = Math.max(280, windowWidth - 32);
@@ -440,31 +508,61 @@ export default function TodayScreen() {
         {/* Today at a glance */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Today at a glance</Text>
-            <View style={styles.headerRightActions}>
-              <TouchableOpacity
-                onPress={() => router.push('/customize/at-a-glance')}
-                style={styles.customizeGlanceBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Customize Today at a glance metrics"
-              >
-                <SlidersHorizontal size={13} color={palette.textSecondary} />
-                <Text style={styles.customizeGlanceText}>Customize</Text>
-              </TouchableOpacity>
+            <Text style={styles.sectionTitle}>
+              {isEditingGlanceOrder ? '✏️ Reorder Cards' : 'Today at a glance'}
+            </Text>
+
+            {isEditingGlanceOrder ? (
               <TouchableOpacity
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/(tabs)/timeline');
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  setIsEditingGlanceOrder(false);
+                  setSelectedCardForSwap(null);
                 }}
-                style={styles.seeAllBtn}
+                style={styles.doneReorderBtn}
                 accessibilityRole="button"
-                accessibilityLabel="View full timeline"
+                accessibilityLabel="Finish reordering cards"
               >
-                <Text style={styles.seeAllText}>Timeline</Text>
-                <ChevronRight size={14} color={palette.primary} />
+                <Check size={14} color="#FFFFFF" strokeWidth={2.6} />
+                <Text style={styles.doneReorderText}>Done</Text>
               </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={styles.headerRightActions}>
+                <TouchableOpacity
+                  onPress={() => router.push('/customize/at-a-glance')}
+                  style={styles.customizeGlanceBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Customize Today at a glance metrics"
+                >
+                  <SlidersHorizontal size={13} color={palette.textSecondary} />
+                  <Text style={styles.customizeGlanceText}>Customize</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/(tabs)/timeline');
+                  }}
+                  style={styles.seeAllBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="View full timeline"
+                >
+                  <Text style={styles.seeAllText}>Timeline</Text>
+                  <ChevronRight size={14} color={palette.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+
+          {isEditingGlanceOrder && (
+            <View style={styles.editReorderHintRow}>
+              <ArrowLeftRight size={13} color={palette.primary} />
+              <Text style={styles.editReorderHintText}>
+                {selectedCardForSwap
+                  ? 'Tap another card to swap positions'
+                  : 'Tap a card then tap another to swap • Use arrows to nudge • Water is pinned'}
+              </Text>
+            </View>
+          )}
 
           {/* Empty state when all metrics are hidden */}
           {!hasSlide1 && !hasSlide2 ? (
@@ -490,7 +588,7 @@ export default function TodayScreen() {
                   onScroll={handleGlanceScroll}
                   scrollEventThrottle={16}
                 >
-                  {/* Slide 1: Water (left) + Reminder & Walking (right) */}
+                  {/* Slide 1: Water (left) + Slot 0 & Slot 1 (right) */}
                   {hasSlide1 && (
                     <View style={[styles.glanceSlide, { width: slideWidth }]}>
                       {isMetricEnabled('water') && (
@@ -498,6 +596,7 @@ export default function TodayScreen() {
                           width={cardColWidth}
                           count={waterCount}
                           goal={waterGoal}
+                          isEditing={isEditingGlanceOrder}
                           onQuickAdd={handleQuickWaterAdd}
                           onManage={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -509,37 +608,111 @@ export default function TodayScreen() {
                             setSelectedWaterActionId(waterAction?._id);
                             setWaterModalVisible(true);
                           }}
+                          onLongPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            setIsEditingGlanceOrder(true);
+                          }}
                         />
                       )}
 
                       <View style={[styles.glanceColumn, { width: isMetricEnabled('water') ? cardColWidth : slideWidth }]}>
-                        {reminderItem && (
-                          <CompactGlanceCard item={reminderItem} width={isMetricEnabled('water') ? cardColWidth : slideWidth} />
+                        {orderedCompactItems[0] && (
+                          <CompactGlanceCard
+                            item={orderedCompactItems[0]}
+                            width={isMetricEnabled('water') ? cardColWidth : slideWidth}
+                            isEditing={isEditingGlanceOrder}
+                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[0].id}
+                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[0].id as GlanceMetricKey)}
+                            onLongPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setIsEditingGlanceOrder(true);
+                            }}
+                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[0].id as GlanceMetricKey, 'prev')}
+                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[0].id as GlanceMetricKey, 'next')}
+                            canMovePrev={false}
+                            canMoveNext={orderedCompactItems.length > 1}
+                          />
                         )}
-                        {walkingItem && (
-                          <CompactGlanceCard item={walkingItem} width={isMetricEnabled('water') ? cardColWidth : slideWidth} />
+                        {orderedCompactItems[1] && (
+                          <CompactGlanceCard
+                            item={orderedCompactItems[1]}
+                            width={isMetricEnabled('water') ? cardColWidth : slideWidth}
+                            isEditing={isEditingGlanceOrder}
+                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[1].id}
+                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[1].id as GlanceMetricKey)}
+                            onLongPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setIsEditingGlanceOrder(true);
+                            }}
+                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[1].id as GlanceMetricKey, 'prev')}
+                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[1].id as GlanceMetricKey, 'next')}
+                            canMovePrev={true}
+                            canMoveNext={orderedCompactItems.length > 2}
+                          />
                         )}
                       </View>
                     </View>
                   )}
 
-                  {/* Slide 2: Quick tap & Active Time (left) + Sleep session & (Custom Goal or Customize card) (right) */}
+                  {/* Slide 2: Slot 2 & Slot 3 (left) + Slot 4 & (Custom Goal or Customize card) (right) */}
                   {hasSlide2 && (
                     <View style={[styles.glanceSlide, { width: slideWidth }]}>
-                      {/* Left Column: Quick tap & Active Time */}
+                      {/* Left Column */}
                       <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                        {quickTapItem && (
-                          <CompactGlanceCard item={quickTapItem} width={cardColWidth} />
+                        {orderedCompactItems[2] && (
+                          <CompactGlanceCard
+                            item={orderedCompactItems[2]}
+                            width={cardColWidth}
+                            isEditing={isEditingGlanceOrder}
+                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[2].id}
+                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[2].id as GlanceMetricKey)}
+                            onLongPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setIsEditingGlanceOrder(true);
+                            }}
+                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[2].id as GlanceMetricKey, 'prev')}
+                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[2].id as GlanceMetricKey, 'next')}
+                            canMovePrev={true}
+                            canMoveNext={orderedCompactItems.length > 3}
+                          />
                         )}
-                        {activeTimeItem && (
-                          <CompactGlanceCard item={activeTimeItem} width={cardColWidth} />
+                        {orderedCompactItems[3] && (
+                          <CompactGlanceCard
+                            item={orderedCompactItems[3]}
+                            width={cardColWidth}
+                            isEditing={isEditingGlanceOrder}
+                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[3].id}
+                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[3].id as GlanceMetricKey)}
+                            onLongPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setIsEditingGlanceOrder(true);
+                            }}
+                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[3].id as GlanceMetricKey, 'prev')}
+                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[3].id as GlanceMetricKey, 'next')}
+                            canMovePrev={true}
+                            canMoveNext={orderedCompactItems.length > 4}
+                          />
                         )}
                       </View>
 
-                      {/* Right Column: Sleep session & (Custom Goal or Customize card) */}
+                      {/* Right Column */}
                       <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                        {sleepItem && (
-                          <CompactGlanceCard item={sleepItem} width={cardColWidth} />
+                        {orderedCompactItems[4] && (
+                          <CompactGlanceCard
+                            item={orderedCompactItems[4]}
+                            width={cardColWidth}
+                            isEditing={isEditingGlanceOrder}
+                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[4].id}
+                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[4].id as GlanceMetricKey)}
+                            onLongPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setIsEditingGlanceOrder(true);
+                            }}
+                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[4].id as GlanceMetricKey, 'prev')}
+                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[4].id as GlanceMetricKey, 'next')}
+                            canMovePrev={true}
+                            canMoveNext={orderedCompactItems.length > 5}
+                          />
                         )}
                         {customGoalItems.length > 0 ? (
                           <CompactGlanceCard item={customGoalItems[0]} width={cardColWidth} />
@@ -567,15 +740,39 @@ export default function TodayScreen() {
                     </View>
                   )}
 
-                  {/* Extra Slides if user has multiple custom goal actions */}
+                  {/* Extra Slides if user has multiple custom goal actions or extra compact items */}
                   {extraCustomSlidesCount > 0 &&
                     Array.from({ length: extraCustomSlidesCount }).map((_, slideIdx) => {
-                      const pair = extraCustomItems.slice(slideIdx * 2, slideIdx * 2 + 2);
+                      const pair = remainingExtraItems.slice(slideIdx * 2, slideIdx * 2 + 2);
                       return (
                         <View key={`extra-slide-${slideIdx}`} style={[styles.glanceSlide, { width: slideWidth }]}>
                           <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                            {pair[0] && <CompactGlanceCard item={pair[0]} width={cardColWidth} />}
-                            {pair[1] && <CompactGlanceCard item={pair[1]} width={cardColWidth} />}
+                            {pair[0] && (
+                              <CompactGlanceCard
+                                item={pair[0]}
+                                width={cardColWidth}
+                                isEditing={isEditingGlanceOrder}
+                                isSelectedForSwap={selectedCardForSwap === pair[0].id}
+                                onSelectForSwap={() => handleCardPressInEdit(pair[0].id as GlanceMetricKey)}
+                                onLongPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                  setIsEditingGlanceOrder(true);
+                                }}
+                              />
+                            )}
+                            {pair[1] && (
+                              <CompactGlanceCard
+                                item={pair[1]}
+                                width={cardColWidth}
+                                isEditing={isEditingGlanceOrder}
+                                isSelectedForSwap={selectedCardForSwap === pair[1].id}
+                                onSelectForSwap={() => handleCardPressInEdit(pair[1].id as GlanceMetricKey)}
+                                onLongPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                  setIsEditingGlanceOrder(true);
+                                }}
+                              />
+                            )}
                           </View>
                         </View>
                       );
@@ -680,12 +877,14 @@ interface FeaturedWaterCardProps {
   count: number;
   goal: number;
   width?: number;
+  isEditing?: boolean;
   onManage: () => void;
   onPress: () => void;
+  onLongPress?: () => void;
   onQuickAdd?: () => void;
 }
 
-function FeaturedWaterCard({ count, goal, onManage, onPress, onQuickAdd, width }: FeaturedWaterCardProps) {
+function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuickAdd, width, isEditing }: FeaturedWaterCardProps) {
   const { colorScheme, palette } = useTheme();
   const styles = useStyles();
   const isDark = colorScheme === 'dark';
@@ -705,8 +904,16 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onQuickAdd, width }
 
   return (
     <TouchableOpacity
-      style={[styles.featuredWaterCard, width ? { width } : null]}
+      style={[
+        styles.featuredWaterCard,
+        width ? { width } : null,
+        isEditing && { borderWidth: 2, borderColor: '#0284C7' },
+      ]}
       onPress={onPress}
+      onLongPress={() => {
+        if (onLongPress) onLongPress();
+      }}
+      delayLongPress={350}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={`Water progress: ${count} of ${goal} glasses. ${pctStr}`}
@@ -765,11 +972,18 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onQuickAdd, width }
       <View style={styles.waterCardBottomRow}>
         <View style={styles.waterMetaCol}>
           <Text style={styles.waterMetaTitle}>Water</Text>
-          <View style={[styles.waterGoalPill, pct > 0 && styles.waterGoalPillActive]}>
-            <Text style={[styles.waterMetaPercent, pct > 0 && styles.waterMetaPercentActive]}>
-              {pctStr}
-            </Text>
-          </View>
+          {isEditing ? (
+            <View style={styles.pinnedHeroBadge}>
+              <Pin size={9} color="#0284C7" />
+              <Text style={styles.pinnedHeroText}>Pinned Hero</Text>
+            </View>
+          ) : (
+            <View style={[styles.waterGoalPill, pct > 0 && styles.waterGoalPillActive]}>
+              <Text style={[styles.waterMetaPercent, pct > 0 && styles.waterMetaPercentActive]}>
+                {pctStr}
+              </Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -790,14 +1004,37 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onQuickAdd, width }
 interface CompactGlanceCardProps {
   item: GlanceItem;
   width?: number;
+  isEditing?: boolean;
+  isSelectedForSwap?: boolean;
+  onLongPress?: () => void;
+  onSelectForSwap?: () => void;
+  onMovePrev?: () => void;
+  onMoveNext?: () => void;
+  canMovePrev?: boolean;
+  canMoveNext?: boolean;
 }
 
-function CompactGlanceCard({ item, width }: CompactGlanceCardProps) {
+function CompactGlanceCard({
+  item,
+  width,
+  isEditing,
+  isSelectedForSwap,
+  onLongPress,
+  onSelectForSwap,
+  onMovePrev,
+  onMoveNext,
+  canMovePrev,
+  canMoveNext,
+}: CompactGlanceCardProps) {
   const { palette, colorScheme } = useTheme();
   const styles = useStyles();
   const isDark = colorScheme === 'dark';
 
   const handlePress = () => {
+    if (isEditing) {
+      if (onSelectForSwap) onSelectForSwap();
+      return;
+    }
     if (item.onPress) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       item.onPress();
@@ -811,17 +1048,47 @@ function CompactGlanceCard({ item, width }: CompactGlanceCardProps) {
       style={[
         styles.compactGlanceCard,
         {
-          borderColor: isDark ? `${item.color}99` : item.color,
-          backgroundColor: isDark ? palette.surface : `${item.color}0A`,
+          borderColor: isSelectedForSwap
+            ? palette.primary
+            : isDark
+            ? `${item.color}99`
+            : item.color,
+          backgroundColor: isSelectedForSwap
+            ? `${palette.primary}20`
+            : isDark
+            ? palette.surface
+            : `${item.color}0A`,
+          borderWidth: isSelectedForSwap ? 2.5 : isEditing ? 2 : 1.5,
+          borderStyle: isEditing && !isSelectedForSwap ? 'dashed' : 'solid',
         },
         width ? { width } : null,
       ]}
       onPress={handlePress}
-      activeOpacity={item.onPress ? 0.75 : 1}
-      disabled={!item.onPress}
+      onLongPress={() => {
+        if (!isEditing && onLongPress) {
+          onLongPress();
+        }
+      }}
+      delayLongPress={350}
+      activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityLabel={`${item.label}: ${item.value}`}
     >
+      {/* Swap indicator badge when selected */}
+      {isEditing && isSelectedForSwap && (
+        <View style={styles.swapActiveBadge}>
+          <Check size={9} color="#FFFFFF" strokeWidth={3} />
+          <Text style={styles.swapActiveText}>Selected</Text>
+        </View>
+      )}
+
+      {/* Grip icon when in edit mode but not selected */}
+      {isEditing && !isSelectedForSwap && (
+        <View style={styles.swapIndicatorBox}>
+          <GripVertical size={11} color={palette.textSecondary} />
+        </View>
+      )}
+
       <View style={styles.compactCardTop}>
         <Text style={styles.compactValue} numberOfLines={1}>
           {item.value}
@@ -845,6 +1112,32 @@ function CompactGlanceCard({ item, width }: CompactGlanceCardProps) {
           </Text>
         ) : null}
       </View>
+
+      {/* Reorder directional nudge buttons */}
+      {isEditing && (canMovePrev || canMoveNext) && !isSelectedForSwap && (
+        <View style={styles.reorderArrowsRow}>
+          {canMovePrev && (
+            <TouchableOpacity
+              style={styles.reorderArrowBtn}
+              onPress={onMovePrev}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Move ${item.label} earlier`}
+            >
+              <ChevronLeft size={11} color={palette.primary} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+          {canMoveNext && (
+            <TouchableOpacity
+              style={styles.reorderArrowBtn}
+              onPress={onMoveNext}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Move ${item.label} later`}
+            >
+              <ChevronRight size={11} color={palette.primary} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -1167,6 +1460,107 @@ const useStyles = createThemedStyles(palette => ({
     fontWeight: '700',
     color: palette.primary,
     fontSize: 11.5,
+  },
+  doneReorderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  doneReorderText: {
+    ...typography.caption,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontSize: 12,
+  },
+  editReorderHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: `${palette.primary}12`,
+    borderRadius: 10,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  editReorderHintText: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: palette.primary,
+    flex: 1,
+  },
+  pinnedHeroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#0284C718',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  pinnedHeroText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#0284C7',
+    textTransform: 'uppercase',
+  },
+  swapActiveBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: palette.primary,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    zIndex: 10,
+  },
+  swapActiveText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  swapIndicatorBox: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    padding: 3,
+    backgroundColor: `${palette.textSecondary}15`,
+    borderRadius: 6,
+    zIndex: 5,
+  },
+  reorderArrowsRow: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    zIndex: 5,
+  },
+  reorderArrowBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyGlanceBox: {
     width: '100%',

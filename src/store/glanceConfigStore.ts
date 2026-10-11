@@ -69,7 +69,16 @@ export const AVAILABLE_METRICS: MetricDefinition[] = [
   },
 ];
 
+export const DEFAULT_COMPACT_ORDER: GlanceMetricKey[] = [
+  'reminders',
+  'walking',
+  'quick_logs',
+  'active_time',
+  'day_session',
+];
+
 const STORAGE_KEY = 'lumen:glance_metrics_v1';
+const ORDER_STORAGE_KEY = 'lumen:glance_metrics_order_v1';
 
 const DEFAULT_STATE: Record<GlanceMetricKey, boolean> = {
   water: true,
@@ -82,11 +91,15 @@ const DEFAULT_STATE: Record<GlanceMetricKey, boolean> = {
 
 interface GlanceConfigState {
   enabledMetrics: Record<GlanceMetricKey, boolean>;
+  compactOrder: GlanceMetricKey[];
   isLoaded: boolean;
 
   fetchGlanceConfig: () => Promise<void>;
   toggleMetric: (key: GlanceMetricKey) => Promise<boolean>;
   setMetricEnabled: (key: GlanceMetricKey, enabled: boolean) => Promise<void>;
+  setCompactOrder: (order: GlanceMetricKey[]) => Promise<void>;
+  swapCompactMetrics: (keyA: GlanceMetricKey, keyB: GlanceMetricKey) => Promise<void>;
+  moveCompactMetric: (fromIndex: number, toIndex: number) => Promise<void>;
   resetToDefaults: () => Promise<void>;
   isMetricEnabled: (key: GlanceMetricKey) => boolean;
   getActiveCount: () => number;
@@ -94,27 +107,49 @@ interface GlanceConfigState {
 
 export const useGlanceConfigStore = create<GlanceConfigState>((set, get) => ({
   enabledMetrics: { ...DEFAULT_STATE },
+  compactOrder: [...DEFAULT_COMPACT_ORDER],
   isLoaded: false,
 
   fetchGlanceConfig: async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
+      const [storedEnabled, storedOrder] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(ORDER_STORAGE_KEY),
+      ]);
+
+      let enabledMap = { ...DEFAULT_STATE };
+      if (storedEnabled) {
+        const parsed = JSON.parse(storedEnabled);
         if (typeof parsed === 'object' && parsed !== null) {
-          set({
-            enabledMetrics: {
-              ...DEFAULT_STATE,
-              ...parsed,
-            },
-            isLoaded: true,
-          });
-          return;
+          enabledMap = { ...DEFAULT_STATE, ...parsed };
         }
       }
+
+      let resolvedOrder = [...DEFAULT_COMPACT_ORDER];
+      if (storedOrder) {
+        try {
+          const parsedOrder = JSON.parse(storedOrder);
+          if (Array.isArray(parsedOrder) && parsedOrder.length > 0) {
+            const validKeys = parsedOrder.filter((k: GlanceMetricKey) => DEFAULT_COMPACT_ORDER.includes(k));
+            const missingKeys = DEFAULT_COMPACT_ORDER.filter(k => !validKeys.includes(k));
+            resolvedOrder = [...validKeys, ...missingKeys];
+          }
+        } catch {}
+      }
+
+      set({
+        enabledMetrics: enabledMap,
+        compactOrder: resolvedOrder,
+        isLoaded: true,
+      });
+      return;
     } catch {}
 
-    set({ enabledMetrics: { ...DEFAULT_STATE }, isLoaded: true });
+    set({
+      enabledMetrics: { ...DEFAULT_STATE },
+      compactOrder: [...DEFAULT_COMPACT_ORDER],
+      isLoaded: true,
+    });
   },
 
   toggleMetric: async (key: GlanceMetricKey) => {
@@ -135,9 +170,42 @@ export const useGlanceConfigStore = create<GlanceConfigState>((set, get) => ({
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
   },
 
+  setCompactOrder: async (newOrder: GlanceMetricKey[]) => {
+    set({ compactOrder: newOrder });
+    await AsyncStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(newOrder)).catch(() => {});
+  },
+
+  swapCompactMetrics: async (keyA: GlanceMetricKey, keyB: GlanceMetricKey) => {
+    const current = [...get().compactOrder];
+    const idxA = current.indexOf(keyA);
+    const idxB = current.indexOf(keyB);
+    if (idxA === -1 || idxB === -1 || idxA === idxB) return;
+    const temp = current[idxA];
+    current[idxA] = current[idxB];
+    current[idxB] = temp;
+    set({ compactOrder: current });
+    await AsyncStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(current)).catch(() => {});
+  },
+
+  moveCompactMetric: async (fromIndex: number, toIndex: number) => {
+    const current = [...get().compactOrder];
+    if (fromIndex < 0 || fromIndex >= current.length || toIndex < 0 || toIndex >= current.length || fromIndex === toIndex) return;
+    const [moved] = current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, moved);
+    set({ compactOrder: current });
+    await AsyncStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(current)).catch(() => {});
+  },
+
   resetToDefaults: async () => {
-    set({ enabledMetrics: { ...DEFAULT_STATE }, isLoaded: true });
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE)).catch(() => {});
+    set({
+      enabledMetrics: { ...DEFAULT_STATE },
+      compactOrder: [...DEFAULT_COMPACT_ORDER],
+      isLoaded: true,
+    });
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE)),
+      AsyncStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(DEFAULT_COMPACT_ORDER)),
+    ]).catch(() => {});
   },
 
   isMetricEnabled: (key: GlanceMetricKey) => {
