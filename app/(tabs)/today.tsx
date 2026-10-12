@@ -903,23 +903,23 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuic
   const trackColor = isDark ? '#0E749022' : '#E2E8F0';
 
   return (
-    <TouchableOpacity
+    <View
       style={[
         styles.featuredWaterCard,
         width ? { width } : null,
         isEditing && { borderWidth: 2, borderColor: '#0284C7' },
       ]}
-      onPress={onPress}
-      onLongPress={() => {
-        if (onLongPress) onLongPress();
-      }}
-      delayLongPress={350}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={`Water progress: ${count} of ${goal} glasses. ${pctStr}`}
     >
       <View style={styles.waterCardTopRow}>
-        <View style={styles.waterRingWrapper}>
+        <TouchableOpacity
+          style={styles.waterRingWrapper}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={350}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Water progress: ${count} of ${goal} glasses. ${pctStr}`}
+        >
           <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
             <Defs>
               <SvgGradient id="waterProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -953,7 +953,7 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuic
             <Text style={styles.waterRingCount}>{`${count}/${goal}`}</Text>
             <Text style={styles.waterRingSubLabel}>Water</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.waterBadgeBox}
@@ -970,7 +970,15 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuic
       </View>
 
       <View style={styles.waterCardBottomRow}>
-        <View style={styles.waterMetaCol}>
+        <TouchableOpacity
+          style={styles.waterMetaCol}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={350}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Water intake details"
+        >
           <Text style={styles.waterMetaTitle}>Water</Text>
           {isEditing ? (
             <View style={styles.pinnedHeroBadge}>
@@ -984,7 +992,7 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuic
               </Text>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.waterManageBtn}
@@ -997,7 +1005,7 @@ function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuic
           <Text style={styles.waterManageBtnText}>Manage</Text>
         </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1044,7 +1052,7 @@ function CompactGlanceCard({
   const IconComp = item.icon;
 
   return (
-    <TouchableOpacity
+    <View
       style={[
         styles.compactGlanceCard,
         {
@@ -1063,20 +1071,24 @@ function CompactGlanceCard({
         },
         width ? { width } : null,
       ]}
-      onPress={handlePress}
-      onLongPress={() => {
-        if (!isEditing && onLongPress) {
-          onLongPress();
-        }
-      }}
-      delayLongPress={350}
-      activeOpacity={0.75}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.label}: ${item.value}`}
     >
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        onPress={handlePress}
+        onLongPress={() => {
+          if (!isEditing && onLongPress) {
+            onLongPress();
+          }
+        }}
+        delayLongPress={350}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.label}: ${item.value}`}
+      />
+
       {/* Swap indicator badge when selected */}
       {isEditing && isSelectedForSwap && (
-        <View style={styles.swapActiveBadge}>
+        <View style={styles.swapActiveBadge} pointerEvents="none">
           <Check size={9} color="#FFFFFF" strokeWidth={3} />
           <Text style={styles.swapActiveText}>Selected</Text>
         </View>
@@ -1084,12 +1096,12 @@ function CompactGlanceCard({
 
       {/* Grip icon when in edit mode but not selected */}
       {isEditing && !isSelectedForSwap && (
-        <View style={styles.swapIndicatorBox}>
+        <View style={styles.swapIndicatorBox} pointerEvents="none">
           <GripVertical size={11} color={palette.textSecondary} />
         </View>
       )}
 
-      <View style={styles.compactCardTop}>
+      <View style={styles.compactCardTop} pointerEvents="none">
         <Text style={styles.compactValue} numberOfLines={1}>
           {item.value}
         </Text>
@@ -1102,7 +1114,7 @@ function CompactGlanceCard({
         </View>
       </View>
 
-      <View style={styles.compactCardBottom}>
+      <View style={styles.compactCardBottom} pointerEvents="none">
         <Text style={styles.compactLabel} numberOfLines={1}>
           {item.label}
         </Text>
@@ -1138,7 +1150,7 @@ function CompactGlanceCard({
           )}
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1733,6 +1745,8 @@ const useStyles = createThemedStyles(palette => ({
     paddingHorizontal: 11,
     paddingVertical: 9,
     justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
     shadowOffset: { width: 0, height: 1.5 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
