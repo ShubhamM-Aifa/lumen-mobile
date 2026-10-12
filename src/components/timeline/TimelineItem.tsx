@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { Trash2, Pencil, ChevronDown, ChevronUp, Clock, FileText, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction, FieldValue } from '@lumen/shared';
+import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction, FieldValue, Answer } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { BodyMapPreview } from './BodyMapPreview';
@@ -22,6 +22,8 @@ interface Props {
   category?: ICategory;
   question?: IQuestion;
   options: IOption[];
+  allQuestions?: IQuestion[];
+  allOptions?: IOption[];
   quickAction?: IQuickAction;
   onPress?: () => void;
   onEdit?: (id: string) => void;
@@ -69,11 +71,46 @@ function formatSeverity(val: unknown): { label: string; color: string } {
   return { label: `${num}/10 Severe`, color: '#EF4444' };
 }
 
+function getOptionValueSummary(ans: Answer): { label: string; color?: string }[] {
+  if (!ans.values || ans.values.length === 0) return [];
+  const items: { label: string; color?: string }[] = [];
+
+  for (const v of ans.values) {
+    if (v.dataType === 'location' || v.dataType === 'image') continue;
+    if (v.dataType === 'range') {
+      const sev = formatSeverity(v.value);
+      items.push({ label: sev.label, color: sev.color });
+    } else if (
+      v.fieldKey.toLowerCase().includes('type') ||
+      v.fieldKey.toLowerCase().includes('bristol') ||
+      v.fieldKey.toLowerCase().includes('stool')
+    ) {
+      const stool = formatStoolType(v.value);
+      if (stool) items.push({ label: stool, color: '#10B981' });
+    } else if (v.dataType === 'temperature') {
+      items.push({ label: `${Number(v.value).toFixed(1)} °C` });
+    } else if (v.dataType === 'duration') {
+      const s = Number(v.value);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      items.push({ label: h > 0 ? `${h}h ${m}m` : `${m}m` });
+    } else if (v.value !== undefined && v.value !== null && v.value !== '') {
+      const valStr = String(v.value);
+      const unitStr = v.unit ? ` ${v.unit}` : '';
+      items.push({ label: `${valStr}${unitStr}` });
+    }
+  }
+
+  return items;
+}
+
 export function TimelineItem({
   entry,
   category,
   question,
   options,
+  allQuestions,
+  allOptions,
   quickAction,
   onPress,
   onEdit,
@@ -101,10 +138,44 @@ export function TimelineItem({
       ? `+${quickAction.defaultValue}${quickAction.unit ? ' ' + quickAction.unit : ''}`
       : null;
 
+  const lookupOptions = allOptions && allOptions.length > 0 ? allOptions : options;
+  const lookupQuestions =
+    allQuestions && allQuestions.length > 0 ? allQuestions : question ? [question] : [];
+
+  // Group answers by question
+  const questionGroups = React.useMemo(() => {
+    if (!entry.answers || entry.answers.length === 0) return [];
+
+    const groupsMap = new Map<
+      string,
+      { questionId?: string; questionTitle: string; answers: Answer[] }
+    >();
+
+    for (const ans of entry.answers) {
+      const opt = lookupOptions.find((o) => o._id === ans.optionId);
+      const qId = opt?.questionId || entry.questionId || 'default';
+      const qObj =
+        lookupQuestions.find((q) => q._id === qId) ||
+        (qId === entry.questionId ? question : undefined);
+      const qTitle = qObj?.title || '';
+
+      if (!groupsMap.has(qId)) {
+        groupsMap.set(qId, {
+          questionId: qId !== 'default' ? qId : undefined,
+          questionTitle: qTitle,
+          answers: [],
+        });
+      }
+      groupsMap.get(qId)!.answers.push(ans);
+    }
+
+    return Array.from(groupsMap.values());
+  }, [entry.answers, entry.questionId, lookupOptions, lookupQuestions, question]);
+
   // Extract all media and location fields across all answers
   const allFieldValues: { answerLabel: string; field: FieldValue }[] = [];
   entry.answers?.forEach((ans) => {
-    const opt = options.find((o) => o._id === ans.optionId);
+    const opt = lookupOptions.find((o) => o._id === ans.optionId);
     const label = ans.optionLabelSnapshot ?? opt?.label ?? 'Item';
     ans.values?.forEach((f) => {
       allFieldValues.push({ answerLabel: label, field: f });
@@ -202,11 +273,6 @@ export function TimelineItem({
             <Text style={styles.catName} numberOfLines={1}>
               {title}
             </Text>
-            {question && (
-              <Text style={styles.qTitle} numberOfLines={1}>
-                {question.title}
-              </Text>
-            )}
           </View>
 
           <View style={styles.metaRow}>
@@ -224,14 +290,6 @@ export function TimelineItem({
               >
                 {SOURCE_LABEL[entry.source] ?? entry.source}
               </Text>
-              {locationLabel && (
-                <View style={styles.locationPill}>
-                  <MapPin size={9} color={palette.textSecondary} />
-                  <Text style={styles.locationPillText} numberOfLines={1}>
-                    {locationLabel}
-                  </Text>
-                </View>
-              )}
             </View>
 
             {/* Expand / Collapse Chevron Button */}
@@ -269,73 +327,78 @@ export function TimelineItem({
           </View>
         )}
 
-        {/* Option Chips with Key Value Highlights */}
-        {entry.answers && entry.answers.length > 0 && (
-          <View style={styles.chips}>
-            {entry.answers.map((ans, i) => {
-              const opt = options.find((o) => o._id === ans.optionId);
-              const label =
-                ans.optionLabelSnapshot ??
-                opt?.label ??
-                (ans.optionId === '__other__' ? ans.otherText : 'Option');
-
-              const rangeVal = ans.values?.find((v) => v.dataType === 'range');
-              const stoolVal = ans.values?.find(
-                (v) =>
-                  v.fieldKey.toLowerCase().includes('type') ||
-                  v.fieldKey.toLowerCase().includes('bristol') ||
-                  v.fieldKey.toLowerCase().includes('stool')
-              );
-
+        {/* Question Groups with Answer Chips & Inline Values */}
+        {!isQuickAction && questionGroups.length > 0 && (
+          <View style={styles.questionGroupsContainer}>
+            {questionGroups.map((group, gIdx) => {
+              const showQTitle = Boolean(group.questionTitle);
               return (
-                <View
-                  key={`ans-chip-${i}`}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: accentColor + '44',
-                      backgroundColor: accentColor + '10',
-                    },
-                  ]}
-                >
-                  {opt?.icon && <Text style={styles.chipIcon}>{opt.icon}</Text>}
-                  <Text style={[styles.chipText, { color: palette.text }]}>{label}</Text>
-
-                  {/* Highlighted severity */}
-                  {rangeVal && (
-                    <View
-                      style={[
-                        styles.severityPill,
-                        { backgroundColor: formatSeverity(rangeVal.value).color + '22' },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.severityText,
-                          { color: formatSeverity(rangeVal.value).color },
-                        ]}
-                      >
-                        {formatSeverity(rangeVal.value).label}
-                      </Text>
-                    </View>
+                <View key={`q-group-${gIdx}`} style={styles.questionGroup}>
+                  {showQTitle && (
+                    <Text style={styles.groupQuestionTitle} numberOfLines={2}>
+                      {group.questionTitle}
+                    </Text>
                   )}
+                  <View style={styles.chips}>
+                    {group.answers.map((ans, i) => {
+                      const opt = lookupOptions.find((o) => o._id === ans.optionId);
+                      const label =
+                        ans.optionLabelSnapshot ??
+                        opt?.label ??
+                        (ans.optionId === '__other__' ? ans.otherText : 'Option');
+                      const valSummaries = getOptionValueSummary(ans);
 
-                  {/* Highlighted Stool Type */}
-                  {stoolVal && formatStoolType(stoolVal.value) && (
-                    <View style={styles.stoolPill}>
-                      <Text style={[styles.stoolText, { color: palette.primary }]}>
-                        {formatStoolType(stoolVal.value)}
-                      </Text>
-                    </View>
-                  )}
+                      return (
+                        <View
+                          key={`ans-chip-${gIdx}-${i}`}
+                          style={[
+                            styles.chip,
+                            {
+                              borderColor: accentColor + '44',
+                              backgroundColor: accentColor + '10',
+                            },
+                          ]}
+                        >
+                          {opt?.icon && <Text style={styles.chipIcon}>{opt.icon}</Text>}
+                          <Text style={[styles.chipText, { color: palette.text }]}>{label}</Text>
+
+                          {/* Inline value pills for this option */}
+                          {valSummaries.map((val, vi) => (
+                            <View
+                              key={`val-${vi}`}
+                              style={[
+                                styles.inlineValPill,
+                                {
+                                  backgroundColor: val.color
+                                    ? val.color + '22'
+                                    : isDark
+                                    ? 'rgba(255, 255, 255, 0.09)'
+                                    : 'rgba(0, 0, 0, 0.07)',
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.inlineValText,
+                                  { color: val.color || palette.textSecondary },
+                                ]}
+                              >
+                                {val.label}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    })}
+                  </View>
                 </View>
               );
             })}
           </View>
         )}
 
-        {/* Collapsed State Summary Row (Shows indicators of hidden details) */}
-        {!isExpanded && hasDetails && (
+        {/* Unified Metadata & Details Toggle Row */}
+        {hasDetails && (
           <TouchableOpacity
             style={[
               styles.collapsedSummaryRow,
@@ -379,9 +442,13 @@ export function TimelineItem({
 
             <View style={styles.expandPromptWrap}>
               <Text style={[styles.expandPromptText, { color: palette.primary }]}>
-                Show details
+                {isExpanded ? 'Hide details' : 'Show details'}
               </Text>
-              <ChevronDown size={12} color={palette.primary} />
+              {isExpanded ? (
+                <ChevronUp size={12} color={palette.primary} />
+              ) : (
+                <ChevronDown size={12} color={palette.primary} />
+              )}
             </View>
           </TouchableOpacity>
         )}
@@ -427,7 +494,7 @@ export function TimelineItem({
                   return (
                     <View key={`std-${idx}`} style={styles.fieldLine}>
                       <Text style={[styles.fieldKey, { color: palette.textSecondary }]}>
-                        {f.field.fieldKey}:
+                        {f.answerLabel} • {f.field.fieldKey}:
                       </Text>
                       <Text style={[styles.fieldVal, { color: palette.text }]}>{displayVal}</Text>
                     </View>
@@ -482,24 +549,7 @@ export function TimelineItem({
 
         {/* Bottom Actions Bar (Edit & Delete) */}
         <View style={styles.bottomBar}>
-          {hasDetails ? (
-            <TouchableOpacity
-              style={styles.collapseToggleBtn}
-              onPress={toggleExpand}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              <Text style={[styles.collapseToggleText, { color: palette.textSecondary }]}>
-                {isExpanded ? 'Collapse details' : 'Expand details'}
-              </Text>
-              {isExpanded ? (
-                <ChevronUp size={12} color={palette.textSecondary} />
-              ) : (
-                <ChevronDown size={12} color={palette.textSecondary} />
-              )}
-            </TouchableOpacity>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
+          <View style={{ flex: 1 }} />
 
           <View style={styles.actionsGroup}>
             {/* Edit Button */}
@@ -575,12 +625,12 @@ const useStyles = createThemedStyles((palette) => ({
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
     paddingRight: 8,
   },
@@ -592,11 +642,7 @@ const useStyles = createThemedStyles((palette) => ({
     fontSize: 16,
     color: palette.text,
     fontWeight: '700',
-  },
-  qTitle: {
-    ...typography.small,
-    color: palette.textSecondary,
-    flex: 1,
+    flexShrink: 1,
   },
   metaRow: {
     flexDirection: 'row',
@@ -604,8 +650,9 @@ const useStyles = createThemedStyles((palette) => ({
     gap: 8,
   },
   timeBadgeRow: {
-    alignItems: 'flex-end',
-    gap: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   time: {
     ...typography.caption,
@@ -627,11 +674,24 @@ const useStyles = createThemedStyles((palette) => ({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  questionGroupsContainer: {
+    gap: 8,
+    marginTop: 2,
+  },
+  questionGroup: {
+    gap: 4,
+  },
+  groupQuestionTitle: {
+    ...typography.caption,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    letterSpacing: 0.2,
+  },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 2,
   },
   chip: {
     flexDirection: 'row',
@@ -649,23 +709,13 @@ const useStyles = createThemedStyles((palette) => ({
     ...typography.caption,
     fontWeight: '600',
   },
-  severityPill: {
+  inlineValPill: {
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
+    paddingVertical: 1.5,
+    borderRadius: 8,
     marginLeft: 3,
   },
-  severityText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  stoolPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
-    marginLeft: 3,
-  },
-  stoolText: {
+  inlineValText: {
     fontSize: 10,
     fontWeight: '700',
   },
@@ -746,23 +796,12 @@ const useStyles = createThemedStyles((palette) => ({
   },
   bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginTop: 4,
     paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: 'rgba(150, 150, 150, 0.1)',
-  },
-  collapseToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-  },
-  collapseToggleText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   actionsGroup: {
     flexDirection: 'row',
@@ -781,18 +820,6 @@ const useStyles = createThemedStyles((palette) => ({
   actionBtnText: {
     fontSize: 11.5,
     fontWeight: '700',
-  },
-  locationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
-  },
-  locationPillText: {
-    fontSize: 10,
-    color: palette.textSecondary,
-    fontWeight: '500',
-    maxWidth: 95,
   },
   expandedLocationBox: {
     flexDirection: 'row',

@@ -7,7 +7,12 @@ import { useQuery } from '@tanstack/react-query';
 import { ILogEntry, Answer, IOption } from '@lumen/shared';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/authStore';
-import { getDayBoundaryWindow, formatTimeRelative, DayBoundaryWindow } from '../utils/dayBoundary';
+import {
+  getDayBoundaryWindow,
+  getTrackingDayWindowFromDateString,
+  formatTimeRelative,
+  DayBoundaryWindow,
+} from '../utils/dayBoundary';
 
 export interface CategoryLogStatus {
   isLoggedToday: boolean;
@@ -103,19 +108,22 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
   return parts.filter(Boolean).join(', ');
 }
 
-export function useTodayCategoryLogs() {
+export function useTodayCategoryLogs(customDateStr?: string) {
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
 
   const boundaryWindow: DayBoundaryWindow = useMemo(() => {
+    if (customDateStr) {
+      return getTrackingDayWindowFromDateString(customDateStr, boundaryHour);
+    }
     return getDayBoundaryWindow(boundaryHour);
-  }, [boundaryHour]);
+  }, [boundaryHour, customDateStr]);
 
   const from = boundaryWindow.start.toISOString();
   const to = boundaryWindow.end.toISOString();
 
   const query = useQuery<ILogEntry[]>({
-    queryKey: ['today-logs', from, to],
+    queryKey: ['today-logs', customDateStr || 'today', from, to],
     queryFn: async () => {
       const res = await api.get<any>('/logs', {
         params: { from, to, limit: 500 },

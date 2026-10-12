@@ -4,7 +4,7 @@
  * - Full edit flow navigation to /log/edit/[id]
  * - Visual anatomical body map & photo inspection
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Search, X, Camera, RotateCcw, ChevronLeft, ChevronRight, Calendar } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -40,13 +40,28 @@ export default function TimelineScreen() {
 
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+  const { date: routeDate } = useLocalSearchParams<{ date?: string }>();
 
   const [today, setToday] = useState(() => getTrackingDayDateString(new Date(), boundaryHour));
-  const [selectedDate, setSelectedDate] = useState(() => getTrackingDayDateString(new Date(), boundaryHour));
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [selectedDate, setSelectedDate] = useState(() => routeDate || getTrackingDayDateString(new Date(), boundaryHour));
+  const [calYear, setCalYear] = useState(() => {
+    const dStr = routeDate || getTrackingDayDateString(new Date(), boundaryHour);
+    const p = dStr.split('-');
+    return p.length === 3 ? parseInt(p[0], 10) : new Date().getFullYear();
+  });
+  const [calMonth, setCalMonth] = useState(() => {
+    const dStr = routeDate || getTrackingDayDateString(new Date(), boundaryHour);
+    const p = dStr.split('-');
+    return p.length === 3 ? parseInt(p[1], 10) - 1 : new Date().getMonth();
+  });
   const [showCalendar, setShowCalendar] = useState(true);
   const [calViewMode, setCalViewMode] = useState<'week' | 'month'>('week');
+
+  useEffect(() => {
+    if (routeDate && routeDate !== selectedDate) {
+      jumpToDate(routeDate);
+    }
+  }, [routeDate]);
 
   // Multi-dimensional filters
   const [searchQuery, setSearchQuery] = useState('');

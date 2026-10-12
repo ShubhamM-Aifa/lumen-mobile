@@ -28,7 +28,7 @@ interface QuickLogState {
   undoEntry: QuickTapEntry | null;
   undoTimer: ReturnType<typeof setTimeout> | null;
 
-  tap: (quickActionId: string) => Promise<void>;
+  tap: (quickActionId: string, customOccurredAt?: string) => Promise<void>;
   undo: () => void;
   resetToday: () => void;
   loadTodayTaps: (quickActionId: string, count: number, lastAt: string) => void;
@@ -40,8 +40,8 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
   undoEntry: null,
   undoTimer: null,
 
-  tap: async (quickActionId: string) => {
-    const now = new Date().toISOString();
+  tap: async (quickActionId: string, customOccurredAt?: string) => {
+    const now = customOccurredAt || new Date().toISOString();
     const clientId = uuidv4();
     const prev = get().todayTaps[quickActionId];
 

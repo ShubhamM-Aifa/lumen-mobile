@@ -42,12 +42,12 @@ const META: Record<string, { emoji: string; title: string; subtitle: string }> =
 export default function CheckInModal() {
   const { palette } = useTheme();
   const styles = useStyles();
-  const { type = 'morning' } = useLocalSearchParams<{ type: string }>();
+  const { type = 'morning', date } = useLocalSearchParams<{ type: string; date?: string }>();
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
   const { lastSleepRecord } = useSleepTrackerStore();
-  const { getQuestionTodayHistory } = useTodayCategoryLogs();
+  const { getQuestionTodayHistory } = useTodayCategoryLogs(date);
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [sleepQuality, setSleepQuality] = useState<SleepQuality | null>(lastSleepRecord?.quality ?? null);
@@ -141,11 +141,25 @@ export default function CheckInModal() {
           logLocationService.getFastLocationSnapshot().catch(() => null),
         ]);
 
+        const parts = (date || '').split('-');
+        let targetOccurredAt: string;
+        if (parts.length === 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          const d = parseInt(parts[2], 10);
+          const defaultHour = type === 'morning' ? 8 : 21;
+          targetOccurredAt = new Date(y, m, d, defaultHour, 0, 0).toISOString();
+        } else {
+          targetOccurredAt = new Date().toISOString();
+        }
+
+        const isTodaySession = !date;
+
         await api.post('/logs', {
           clientId: uuidv4(),
-          daySessionId: todaySession?._id,
+          daySessionId: isTodaySession ? todaySession?._id : undefined,
           source: 'check_in',
-          occurredAt: new Date().toISOString(),
+          occurredAt: targetOccurredAt,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           answers: uploadedAnswers,
           ...(location ? { location } : {}),
@@ -154,7 +168,11 @@ export default function CheckInModal() {
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });
         queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
       }
-      safeGoBack('/(tabs)/today');
+      if (date) {
+        safeGoBack('/(tabs)/timeline');
+      } else {
+        safeGoBack('/(tabs)/today');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Check-in failed';
       Alert.alert('Error', msg);

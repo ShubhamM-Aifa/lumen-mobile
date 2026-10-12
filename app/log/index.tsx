@@ -2,12 +2,12 @@
  * Category picker — first step of the log flow.
  * Grouped by role: Symptoms first, then Trigger candidates, then Context.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { Check } from 'lucide-react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Check, Calendar } from 'lucide-react-native';
 import { ICategory } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
@@ -24,10 +24,21 @@ const ROLE_LABEL: Record<string, string> = {
 export default function LogCategoryPicker() {
   const { palette } = useTheme();
   const styles = useStyles();
+  const { date } = useLocalSearchParams<{ date?: string }>();
   const { config, isLoading, fetchConfig } = useConfigStore();
-  const { getCategoryStatus } = useTodayCategoryLogs();
+  const { getCategoryStatus } = useTodayCategoryLogs(date);
 
   useEffect(() => { fetchConfig(); }, []);
+
+  const formattedDate = useMemo(() => {
+    if (!date) return null;
+    const parts = date.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date;
+  }, [date]);
 
   const categories = config?.categories.filter(c => c.isActive) ?? [];
 
@@ -52,7 +63,20 @@ export default function LogCategoryPicker() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'What would you like to log?' }} />
+      <Stack.Screen
+        options={{
+          title: formattedDate ? `Log for ${formattedDate}` : 'What would you like to log?',
+        }}
+      />
+
+      {formattedDate && (
+        <View style={styles.pastDateBanner}>
+          <Calendar size={15} color={palette.primary} strokeWidth={2.4} />
+          <Text style={styles.pastDateBannerText}>
+            Logging for <Text style={styles.pastDateHighlight}>{formattedDate}</Text>
+          </Text>
+        </View>
+      )}
 
       <FlatList
         data={grouped}
@@ -66,7 +90,12 @@ export default function LogCategoryPicker() {
                 key={cat._id}
                 category={cat}
                 status={getCategoryStatus(cat._id)}
-                onPress={() => router.push(`/log/${cat._id}`)}
+                onPress={() =>
+                  router.push({
+                    pathname: `/log/${cat._id}`,
+                    params: date ? { date } : undefined,
+                  })
+                }
               />
             ))}
           </View>
@@ -122,6 +151,30 @@ function CategoryRow({
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background },
+  pastDateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: palette.primary + '14',
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+  },
+  pastDateBannerText: {
+    ...typography.caption,
+    fontSize: 13,
+    color: palette.text,
+    fontWeight: '600',
+  },
+  pastDateHighlight: {
+    color: palette.primary,
+    fontWeight: '800',
+  },
   list: { padding: 16, gap: 20 },
   section: { gap: 6 },
   sectionLabel: {

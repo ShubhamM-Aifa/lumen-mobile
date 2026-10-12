@@ -12,7 +12,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { RotateCcw, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { RotateCcw, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { uuidv4 } from '../../src/utils/uuid';
 import { IQuestion, IOption, ICategory, Answer, ILogEntry } from '@lumen/shared';
@@ -28,7 +28,7 @@ import { validateAnswers } from '../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
 import { queryClient } from '../../src/api/queryClient';
 import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTodayCategoryLogs';
-import { getDayBoundaryWindow } from '../../src/utils/dayBoundary';
+import { getDayBoundaryWindow, getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { logLocationService } from '../../src/services/logLocationService';
 
 function fmt(d: Date): string {
@@ -44,11 +44,34 @@ function fmt(d: Date): string {
 export default function QuestionSheet() {
   const { palette } = useTheme();
   const styles = useStyles();
-  const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
+  const { categoryId, date } = useLocalSearchParams<{ categoryId: string; date?: string }>();
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
-  const { getQuestionTodayHistory, refetch: refetchTodayLogs } = useTodayCategoryLogs();
+  const { getQuestionTodayHistory, refetch: refetchTodayLogs } = useTodayCategoryLogs(date);
+
+  const initialOccurredAt = useMemo(() => {
+    if (!date) return new Date();
+    const parts = date.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const now = new Date();
+      return new Date(y, m, d, now.getHours(), now.getMinutes(), 0);
+    }
+    return new Date();
+  }, [date]);
+
+  const formattedTargetDate = useMemo(() => {
+    if (!date) return null;
+    const parts = date.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date;
+  }, [date]);
 
   const [editingTarget, setEditingTarget] = useState<{
     logId: string;
@@ -57,10 +80,14 @@ export default function QuestionSheet() {
   } | null>(null);
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
-  const [occurredAt, setOccurredAt] = useState(new Date());
+  const [occurredAt, setOccurredAt] = useState<Date>(initialOccurredAt);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState('');
+
+  useEffect(() => {
+    setOccurredAt(initialOccurredAt);
+  }, [initialOccurredAt]);
 
   const category: ICategory | undefined = config?.categories.find(c => c._id === categoryId);
   const questions: IQuestion[] = (config?.questions ?? [])
@@ -224,13 +251,20 @@ export default function QuestionSheet() {
         ? (mealPrefix ? `${mealPrefix} ${note.trim()}` : note.trim())
         : (mealPrefix || undefined);
 
+      const primaryAnsweredQuestion = questions.find(q => (answersByQuestion[q._id] ?? []).length > 0) ?? questions[0];
+
+      const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+      const curToday = getTrackingDayDateString(new Date(), boundaryHour);
+      const logDay = getTrackingDayDateString(occurredAt, boundaryHour);
+      const isLoggingForToday = logDay === curToday;
+
       await api.post('/logs', {
         clientId: uuidv4(),
-        daySessionId: todaySession?._id,
+        daySessionId: isLoggingForToday ? todaySession?._id : undefined,
         source: 'questionnaire',
         categoryId,
-        questionId: questions[0]?._id,           // primary question ref
-        questionVersion: questions[0]?.version ?? 1,
+        questionId: primaryAnsweredQuestion?._id,
+        questionVersion: primaryAnsweredQuestion?.version ?? 1,
         occurredAt: occurredAt.toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: allAns,
@@ -240,7 +274,11 @@ export default function QuestionSheet() {
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
-      safeGoBack('/(tabs)/today');
+      if (date) {
+        safeGoBack('/(tabs)/timeline');
+      } else {
+        safeGoBack('/(tabs)/today');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       Alert.alert('Log failed', msg);
@@ -265,9 +303,23 @@ export default function QuestionSheet() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: category.name }} />
+      <Stack.Screen
+        options={{
+          title: formattedTargetDate ? `${category.name} (${formattedTargetDate})` : category.name,
+        }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Past Date Context Banner */}
+        {formattedTargetDate && (
+          <View style={styles.pastDateBanner}>
+            <Calendar size={15} color={palette.primary} strokeWidth={2.4} />
+            <Text style={styles.pastDateBannerText}>
+              Logging for <Text style={styles.pastDateHighlight}>{formattedTargetDate}</Text>
+            </Text>
+          </View>
+        )}
+
         {/* Log time row */}
         <TouchableOpacity
           style={styles.timeRow}
@@ -537,6 +589,27 @@ const useStyles = createThemedStyles(palette => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: palette.error },
   scroll: { padding: 16, gap: 14 },
+  pastDateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: palette.primary + '14',
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+  },
+  pastDateBannerText: {
+    ...typography.caption,
+    fontSize: 13,
+    color: palette.text,
+    fontWeight: '600',
+  },
+  pastDateHighlight: {
+    color: palette.primary,
+    fontWeight: '800',
+  },
   timeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: palette.surface,

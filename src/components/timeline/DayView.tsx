@@ -6,17 +6,19 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ActivityIndicator, TouchableOpacity,
+  View, Text, ActivityIndicator, TouchableOpacity, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Plus, ChevronDown, ChevronUp, CalendarClock, Sparkles, Clock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useQueryClient } from '@tanstack/react-query';
 import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction } from '@lumen/shared';
 import { TimelineItem } from './TimelineItem';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { PressableScale } from '../common/PressableScale';
 import { getTrackingDayDateString } from '../../utils/dayBoundary';
+import { useQuickLogStore } from '../../store/quickLogStore';
 
 interface Props {
   date: string; // 'YYYY-MM-DD'
@@ -61,6 +63,31 @@ export function DayView({
 
   // Bulk expand/collapse state: defaults to false (collapsed by default)
   const [allExpanded, setAllExpanded] = useState<boolean | null>(false);
+  const { tap } = useQuickLogStore();
+  const queryClient = useQueryClient();
+
+  const handleQuickActionTap = async (qa: IQuickAction) => {
+    const parts = (date || '').split('-');
+    let targetOccurredAt: string;
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const now = new Date();
+      targetOccurredAt = new Date(y, m, d, now.getHours(), now.getMinutes(), 0).toISOString();
+    } else {
+      targetOccurredAt = new Date().toISOString();
+    }
+
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await tap(qa._id, targetOccurredAt);
+      queryClient.invalidateQueries({ queryKey: ['day-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
+    } catch {
+      Alert.alert('Error', `Could not log ${qa.label}`);
+    }
+  };
 
   const toggleAllExpanded = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -132,7 +159,12 @@ export function DayView({
           </Text>
           <PressableScale
             style={styles.emptyAddBtn}
-            onPress={() => router.push('/log' as any)}
+            onPress={() =>
+              router.push({
+                pathname: '/log',
+                params: { date },
+              } as any)
+            }
             haptic="medium"
             activeScale={0.95}
             accessibilityRole="button"
@@ -154,12 +186,7 @@ export function DayView({
                   <PressableScale
                     key={qa._id}
                     style={styles.emptyQuickChip}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/log',
-                        params: { quickActionId: qa._id },
-                      } as any)
-                    }
+                    onPress={() => handleQuickActionTap(qa)}
                     haptic="light"
                     activeScale={0.93}
                   >
@@ -242,6 +269,8 @@ export function DayView({
                   category={cat}
                   question={q}
                   options={opts}
+                  allQuestions={questions}
+                  allOptions={options}
                   quickAction={qa}
                   onDelete={onDeleteEntry}
                   onEdit={onEditEntry}
@@ -252,6 +281,26 @@ export function DayView({
           </View>
         </View>
       ))}
+
+      {/* Footer action to add another log for this day */}
+      <View style={styles.dayFooterAddWrap}>
+        <PressableScale
+          style={styles.dayFooterAddBtn}
+          onPress={() =>
+            router.push({
+              pathname: '/log',
+              params: { date },
+            } as any)
+          }
+          haptic="medium"
+          activeScale={0.96}
+          accessibilityRole="button"
+          accessibilityLabel={`Log an entry for ${formattedDate}`}
+        >
+          <Plus size={16} color={palette.primary} strokeWidth={2.5} />
+          <Text style={styles.dayFooterAddText}>Log an entry for this day</Text>
+        </PressableScale>
+      </View>
 
       <View style={{ height: 32 }} />
     </View>
@@ -481,4 +530,25 @@ const useStyles = createThemedStyles(palette => ({
   },
   line: { flex: 1, height: 1, backgroundColor: palette.border },
   entriesWrap: { paddingLeft: 4 },
+  dayFooterAddWrap: {
+    marginTop: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayFooterAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: palette.primary + '12',
+    borderWidth: 1.5,
+    borderColor: palette.primary + '35',
+  },
+  dayFooterAddText: {
+    ...typography.bodyBold,
+    fontSize: 14,
+    color: palette.primary,
+  },
 }));
