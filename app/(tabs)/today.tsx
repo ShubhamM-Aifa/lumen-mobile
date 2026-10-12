@@ -59,12 +59,14 @@ import { FlareNowButton } from '../../src/components/FlareNowButton';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
 import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
+import { AccountSwitcherModal } from '../../src/components/auth/AccountSwitcherModal';
 
 export default function TodayScreen() {
   const { palette } = useTheme();
   const styles = useStyles();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { user, fetchProfile } = useAuthStore();
+  const { user, fetchProfile, savedAccounts } = useAuthStore();
+  const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
   const { config, fetchConfig } = useConfigStore();
   const { todaySession, fetchTodaySession } = useDaySessionStore();
   const { todayTaps, fetchTodayTaps, tap } = useQuickLogStore();
@@ -398,9 +400,13 @@ export default function TodayScreen() {
 
             <TouchableOpacity
               style={styles.profileAvatarBtn}
-              onPress={() => router.push('/settings')}
+              onPress={() => setAccountSwitcherVisible(true)}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/settings');
+              }}
               accessibilityRole="button"
-              accessibilityLabel="Open Profile & Settings"
+              accessibilityLabel="Switch account or open profile"
             >
               <LinearGradient
                 colors={['#FFA448', '#FF581E']}
@@ -421,6 +427,11 @@ export default function TodayScreen() {
                     : 'U'}
                 </Text>
               </LinearGradient>
+              {savedAccounts && savedAccounts.length > 1 && (
+                <View style={styles.multiAccountDot}>
+                  <Text style={styles.multiAccountDotText}>{savedAccounts.length}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -858,6 +869,20 @@ export default function TodayScreen() {
         visible={weatherModalVisible}
         onClose={() => setWeatherModalVisible(false)}
       />
+
+      {/* Account Switcher Modal */}
+      <AccountSwitcherModal
+        visible={accountSwitcherVisible}
+        onClose={() => setAccountSwitcherVisible(false)}
+        onSwitched={() => {
+          fetchProfile().catch(() => {});
+          fetchConfig().catch(() => {});
+          fetchTodaySession().catch(() => {});
+          fetchTodayTaps().catch(() => {});
+          fetchTodaySummary().catch(() => {});
+          fetchReminders().catch(() => {});
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1270,6 +1295,25 @@ const useStyles = createThemedStyles(palette => ({
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 0.2,
+  },
+  multiAccountDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#059669',
+    borderRadius: 7,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  multiAccountDotText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
   },
   section: {
     gap: 10,

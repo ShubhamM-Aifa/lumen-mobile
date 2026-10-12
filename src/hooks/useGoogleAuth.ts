@@ -27,7 +27,10 @@ export function useGoogleAuth() {
 
   const googleReady = Platform.OS === 'android' && !!WEB_CLIENT_ID;
 
-  const signInWithGoogle = async (onSuccess?: () => void) => {
+  const signInWithGoogle = async (
+    onSuccess?: () => void,
+    customHandler?: (idToken: string) => Promise<void>,
+  ) => {
     if (Platform.OS !== 'android') {
       Alert.alert('Not supported', 'Native Google Sign-In is Android only.');
       return;
@@ -44,7 +47,12 @@ export function useGoogleAuth() {
         return;
       }
 
-      await loginWithGoogle(idToken);
+      if (customHandler) {
+        await customHandler(idToken);
+      } else {
+        await loginWithGoogle(idToken);
+      }
+
       if (onSuccess) {
         onSuccess();
       } else {

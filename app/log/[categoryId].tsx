@@ -23,6 +23,7 @@ import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { QuestionCard } from '../../src/components/QuestionCard';
+import { EditSingleQuestionModal } from '../../src/components/log/EditSingleQuestionModal';
 import { validateAnswers } from '../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
 import { queryClient } from '../../src/api/queryClient';
@@ -47,7 +48,13 @@ export default function QuestionSheet() {
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
-  const { getQuestionTodayHistory } = useTodayCategoryLogs();
+  const { getQuestionTodayHistory, refetch: refetchTodayLogs } = useTodayCategoryLogs();
+
+  const [editingTarget, setEditingTarget] = useState<{
+    logId: string;
+    question: IQuestion;
+    options: IOption[];
+  } | null>(null);
 
   const [answersByQuestion, setAnswersByQuestion] = useState<Record<string, Answer[]>>({});
   const [occurredAt, setOccurredAt] = useState(new Date());
@@ -425,7 +432,13 @@ export default function QuestionSheet() {
             tempPrefUnit={tempPrefUnit}
             todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId)}
             onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
-            onEditLog={(logId) => router.push(`/log/edit/${logId}`)}
+            onEditLog={(logId) =>
+              setEditingTarget({
+                logId,
+                question: q,
+                options: optionsByQuestion[q._id] ?? [],
+              })
+            }
             forceExpanded={allQuestionsExpanded}
           />
         ))}
@@ -502,6 +515,19 @@ export default function QuestionSheet() {
           maximumDate={new Date()}
         />
       )}
+
+      {/* Focused Single-Question Edit Modal */}
+      <EditSingleQuestionModal
+        visible={!!editingTarget}
+        onClose={() => setEditingTarget(null)}
+        logId={editingTarget?.logId ?? null}
+        question={editingTarget?.question ?? null}
+        options={editingTarget?.options ?? []}
+        tempPrefUnit={tempPrefUnit}
+        onUpdated={() => {
+          refetchTodayLogs?.();
+        }}
+      />
     </View>
   );
 }

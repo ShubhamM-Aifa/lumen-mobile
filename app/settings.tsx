@@ -56,6 +56,8 @@ import {
   Scale,
   Calendar,
   MapPin,
+  Users,
+  ArrowRightLeft,
 } from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeContext';
@@ -63,6 +65,7 @@ import { useAuthStore } from '../src/store/authStore';
 import { usePhotoVaultStore } from '../src/store/photoVaultStore';
 import { logLocationService } from '../src/services/logLocationService';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
+import { AccountSwitcherModal } from '../src/components/auth/AccountSwitcherModal';
 import { api } from '../src/api/client';
 import { buttonProps } from '../src/utils/accessibility';
 import { typography } from '../src/theme/typography';
@@ -130,6 +133,7 @@ export default function SettingsScreen() {
   const { palette, preference, setPreference } = useTheme();
   const {
     user,
+    savedAccounts,
     updateProfile,
     setPassword,
     logout,
@@ -138,6 +142,8 @@ export default function SettingsScreen() {
     deleteAccountAndData,
     purgeAllLocalData,
   } = useAuthStore();
+
+  const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
 
   const isPrimaryUser = user?.authMethod === 'google';
 
@@ -566,7 +572,55 @@ export default function SettingsScreen() {
                 <Text style={styles.memberSinceText}>Joined {memberSince}</Text>
               ) : null}
             </View>
+
+            <TouchableOpacity
+              style={styles.switchAccountHeroBtn}
+              onPress={() => setAccountSwitcherVisible(true)}
+              activeOpacity={0.8}
+              {...buttonProps('Switch Account')}
+            >
+              <ArrowRightLeft size={13} color={palette.primary} />
+              <Text style={styles.switchAccountHeroText}>
+                Switch / Manage Accounts ({savedAccounts?.length || 1})
+              </Text>
+            </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Multi-Account Management Section */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Accounts & Access</Text>
+          <View style={styles.accountCountBadge}>
+            <Users size={11} color={palette.primary} />
+            <Text style={styles.accountCountText}>
+              {savedAccounts?.length || 1} {savedAccounts?.length === 1 ? 'account' : 'accounts'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.sectionDescription}>
+          Switch between clinical profiles, family members, or personal tracking spaces without signing out.
+        </Text>
+        <View style={styles.accountSwitchCard}>
+          <TouchableOpacity
+            style={styles.accountSwitchRow}
+            onPress={() => setAccountSwitcherVisible(true)}
+            activeOpacity={0.7}
+            {...buttonProps('Manage multi-accounts')}
+          >
+            <View style={styles.accountSwitchIconBox}>
+              <Users size={20} color={palette.primary} />
+            </View>
+            <View style={styles.accountSwitchInfo}>
+              <Text style={styles.accountSwitchLabel}>Switch or Add Account</Text>
+              <Text style={styles.accountSwitchSubLabel} numberOfLines={1}>
+                Active: {user?.name || user?.email || 'Current Account'}
+              </Text>
+            </View>
+            <View style={styles.accountSwitchActionPill}>
+              <ArrowRightLeft size={13} color={palette.primary} />
+              <Text style={styles.accountSwitchActionPillText}>Switch</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Sleep & Recovery Summary Card */}
@@ -1430,6 +1484,12 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Multi-Account Switcher Bottom Sheet */}
+      <AccountSwitcherModal
+        visible={accountSwitcherVisible}
+        onClose={() => setAccountSwitcherVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1577,6 +1637,92 @@ function makeStyles(palette: ThemeTokens) {
       ...typography.caption,
       fontSize: 11,
       color: palette.textDisabled,
+    },
+    switchAccountHeroBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      marginTop: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 10,
+      backgroundColor: palette.primary + '14',
+      borderWidth: 1,
+      borderColor: palette.primary + '30',
+    },
+    switchAccountHeroText: {
+      ...typography.caption,
+      fontSize: 12,
+      color: palette.primary,
+      fontWeight: '700',
+    },
+    accountCountBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: palette.primary + '14',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 9999,
+    },
+    accountCountText: {
+      ...typography.caption,
+      fontSize: 11,
+      color: palette.primary,
+      fontWeight: '600',
+    },
+    accountSwitchCard: {
+      backgroundColor: palette.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      overflow: 'hidden',
+      marginBottom: 10,
+    },
+    accountSwitchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      gap: 12,
+    },
+    accountSwitchIconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: palette.primary + '14',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accountSwitchInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    accountSwitchLabel: {
+      ...typography.body,
+      fontWeight: '700',
+      color: palette.text,
+      fontSize: 15,
+    },
+    accountSwitchSubLabel: {
+      ...typography.caption,
+      color: palette.textSecondary,
+      fontSize: 12,
+    },
+    accountSwitchActionPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: palette.primary + '18',
+    },
+    accountSwitchActionPillText: {
+      ...typography.caption,
+      color: palette.primary,
+      fontWeight: '700',
+      fontSize: 12,
     },
     // Sections
     sectionHeaderRow: {

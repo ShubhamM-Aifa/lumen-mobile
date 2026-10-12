@@ -212,7 +212,12 @@ export default function CheckInModal() {
               tempPrefUnit={tempPrefUnit}
               todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
               onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
-              onEditLog={(logId) => router.push(`/log/edit/${logId}`)}
+              onEditLog={(logId) =>
+                router.push({
+                  pathname: `/log/edit/${logId}`,
+                  params: { questionId: q._id },
+                })
+              }
             />
           ))
         )}

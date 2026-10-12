@@ -44,7 +44,7 @@ function fmtDate(d: Date): string {
 }
 
 export default function EditLogScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, questionId } = useLocalSearchParams<{ id: string; questionId?: string }>();
   const { palette } = useTheme();
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -112,10 +112,14 @@ export default function EditLogScreen() {
 
   const questions: IQuestion[] = useMemo(() => {
     if (!categoryId || !config) return [];
-    return config.questions
-      .filter((q) => q.categoryId === categoryId && q.isActive)
-      .sort((a, b) => a.order - b.order);
-  }, [categoryId, config]);
+    let list = config.questions
+      .filter((q) => q.categoryId === categoryId && q.isActive);
+    if (questionId) {
+      const single = list.find((q) => q._id === questionId);
+      if (single) list = [single];
+    }
+    return list.sort((a, b) => a.order - b.order);
+  }, [categoryId, config, questionId]);
 
   const optionsByQuestion = useMemo(() => {
     const map: Record<string, IOption[]> = {};
@@ -172,9 +176,19 @@ export default function EditLogScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const uploadedAnswers = await uploadAnswerImages(allAnswers);
 
+      let finalAnswers = uploadedAnswers;
+      if (questionId && logEntry) {
+        // preserve answers of other questions that belong to this log entry
+        const currentQOptionIds = new Set((optionsByQuestion[questionId] ?? []).map((o) => o._id));
+        const otherAnswers = (logEntry.answers ?? []).filter(
+          (a) => !currentQOptionIds.has(a.optionId) && a.optionId !== '__other__'
+        );
+        finalAnswers = [...otherAnswers, ...uploadedAnswers];
+      }
+
       await api.patch(`/logs/${id}`, {
         occurredAt: occurredAt.toISOString(),
-        answers: uploadedAnswers,
+        answers: finalAnswers,
         note: note.trim() || undefined,
       });
 
@@ -211,7 +225,7 @@ export default function EditLogScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: `Edit ${category?.name ?? 'Log'}`,
+          title: questionId && questions[0] ? `Edit ${questions[0].title}` : `Edit ${category?.name ?? 'Log'}`,
           headerStyle: { backgroundColor: palette.surface },
           headerTintColor: palette.text,
           headerShadowVisible: false,

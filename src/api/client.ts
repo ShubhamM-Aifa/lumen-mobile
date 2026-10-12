@@ -44,21 +44,61 @@ const storage = {
   },
 };
 
+const ACTIVE_ACCOUNT_KEY = 'lumen_active_account_id';
+
+export async function getActiveAccountId(): Promise<string | null> {
+  return storage.get(ACTIVE_ACCOUNT_KEY);
+}
+
+export async function setActiveAccountId(userId: string | null): Promise<void> {
+  if (userId) {
+    await storage.set(ACTIVE_ACCOUNT_KEY, userId);
+  } else {
+    await storage.delete(ACTIVE_ACCOUNT_KEY);
+  }
+}
+
 export async function getAccessToken(): Promise<string | null> {
   return storage.get(KEYS.accessToken);
 }
 
-export async function saveTokens(accessToken: string, refreshToken: string): Promise<void> {
+export async function saveTokens(accessToken: string, refreshToken: string, userId?: string): Promise<void> {
   await Promise.all([
     storage.set(KEYS.accessToken, accessToken),
     storage.set(KEYS.refreshToken, refreshToken),
   ]);
+  const uid = userId || (await getActiveAccountId());
+  if (uid) {
+    await saveAccountTokens(uid, accessToken, refreshToken);
+  }
 }
 
 export async function clearTokens(): Promise<void> {
   await Promise.all([
     storage.delete(KEYS.accessToken),
     storage.delete(KEYS.refreshToken),
+  ]);
+}
+
+export async function saveAccountTokens(userId: string, accessToken: string, refreshToken: string): Promise<void> {
+  await Promise.all([
+    storage.set(`lumen_access_token_${userId}`, accessToken),
+    storage.set(`lumen_refresh_token_${userId}`, refreshToken),
+  ]);
+}
+
+export async function getAccountTokens(userId: string): Promise<{ accessToken: string | null; refreshToken: string | null }> {
+  const [accessToken, refreshToken] = await Promise.all([
+    storage.get(`lumen_access_token_${userId}`),
+    storage.get(`lumen_refresh_token_${userId}`),
+  ]);
+  return { accessToken, refreshToken };
+}
+
+export async function clearAccountTokens(userId: string): Promise<void> {
+  await Promise.all([
+    storage.delete(`lumen_access_token_${userId}`),
+    storage.delete(`lumen_refresh_token_${userId}`),
   ]);
 }
 
