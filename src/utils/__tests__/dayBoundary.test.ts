@@ -2,6 +2,8 @@ import {
   getDayBoundaryWindow,
   isWithinDayBoundary,
   formatTimeRelative,
+  getTrackingDayDateString,
+  getTrackingDayWindowFromDateString,
 } from '../dayBoundary';
 
 describe('dayBoundary utilities', () => {
@@ -89,6 +91,57 @@ describe('dayBoundary utilities', () => {
       const now = new Date('2026-10-10T20:00:00');
       const logTime = new Date('2026-10-10T09:30:00');
       expect(formatTimeRelative(logTime, now)).toBe('9:30 AM');
+    });
+  });
+
+  describe('getTrackingDayDateString', () => {
+    it('returns the same calendar date during the day (e.g. 2:00 PM with 4 AM boundary)', () => {
+      const date = new Date(2026, 9, 10, 14, 0, 0); // Oct 10, 2:00 PM
+      expect(getTrackingDayDateString(date, 4)).toBe('2026-10-10');
+    });
+
+    it('returns previous calendar date when before boundary hour (e.g. 2:30 AM with 4 AM boundary)', () => {
+      const date = new Date(2026, 9, 11, 2, 30, 0); // Oct 11, 2:30 AM
+      expect(getTrackingDayDateString(date, 4)).toBe('2026-10-10');
+    });
+
+    it('returns new calendar date right at or after boundary hour (e.g. 4:00 AM with 4 AM boundary)', () => {
+      const date = new Date(2026, 9, 11, 4, 0, 0); // Oct 11, 4:00 AM
+      expect(getTrackingDayDateString(date, 4)).toBe('2026-10-11');
+    });
+
+    it('handles midnight boundary (0 AM)', () => {
+      const date = new Date(2026, 9, 11, 1, 0, 0);
+      expect(getTrackingDayDateString(date, 0)).toBe('2026-10-11');
+    });
+  });
+
+  describe('getTrackingDayWindowFromDateString', () => {
+    it('constructs accurate tracking window for a given tracking day and boundary', () => {
+      const { start, end } = getTrackingDayWindowFromDateString('2026-10-10', 4);
+
+      expect(start.getFullYear()).toBe(2026);
+      expect(start.getMonth()).toBe(9);
+      expect(start.getDate()).toBe(10);
+      expect(start.getHours()).toBe(4);
+      expect(start.getMinutes()).toBe(0);
+
+      expect(end.getFullYear()).toBe(2026);
+      expect(end.getMonth()).toBe(9);
+      expect(end.getDate()).toBe(11);
+      expect(end.getHours()).toBe(3);
+      expect(end.getMinutes()).toBe(59);
+      expect(end.getSeconds()).toBe(59);
+    });
+
+    it('handles midnight boundary (0 AM) as standard calendar day', () => {
+      const { start, end } = getTrackingDayWindowFromDateString('2026-10-10', 0);
+
+      expect(start.getDate()).toBe(10);
+      expect(start.getHours()).toBe(0);
+      expect(end.getDate()).toBe(10);
+      expect(end.getHours()).toBe(23);
+      expect(end.getMinutes()).toBe(59);
     });
   });
 });

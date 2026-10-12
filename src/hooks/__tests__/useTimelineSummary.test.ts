@@ -48,5 +48,20 @@ describe('useTimelineSummary date helpers', () => {
       expect(startOfDay.getHours()).toBe(0);
       expect(endOfDay.getHours()).toBe(23);
     });
+
+    it('respects custom boundaryHour (e.g. 4 AM)', () => {
+      const { startOfDay, endOfDay } = parseLocalDate('2026-10-03', 4);
+
+      expect(startOfDay.getFullYear()).toBe(2026);
+      expect(startOfDay.getMonth()).toBe(9);
+      expect(startOfDay.getDate()).toBe(3);
+      expect(startOfDay.getHours()).toBe(4);
+
+      expect(endOfDay.getFullYear()).toBe(2026);
+      expect(endOfDay.getMonth()).toBe(9);
+      expect(endOfDay.getDate()).toBe(4);
+      expect(endOfDay.getHours()).toBe(3);
+      expect(endOfDay.getMinutes()).toBe(59);
+    });
   });
 });

@@ -54,6 +54,47 @@ export function isWithinDayBoundary(
 }
 
 /**
+ * Returns the tracking day string ('YYYY-MM-DD') for a given timestamp.
+ * If the hour is earlier than boundaryHour, the tracking day belongs to the previous calendar date.
+ */
+export function getTrackingDayDateString(
+  date: Date = new Date(),
+  boundaryHour: number = 4
+): string {
+  const { start } = getDayBoundaryWindow(boundaryHour, date);
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, '0');
+  const d = String(start.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Returns the start and end Date for a given tracking day date string ('YYYY-MM-DD').
+ * E.g., for '2026-10-10' and boundaryHour = 4:
+ * start = 2026-10-10 04:00:00.000
+ * end = 2026-10-11 03:59:59.999
+ */
+export function getTrackingDayWindowFromDateString(
+  dateStr: string,
+  boundaryHour: number = 4
+): DayBoundaryWindow {
+  if (!dateStr || !dateStr.includes('-')) {
+    return getDayBoundaryWindow(boundaryHour, new Date());
+  }
+  const parts = dateStr.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+
+  const start = new Date(y, m, d, boundaryHour, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setMilliseconds(-1);
+
+  return { start, end };
+}
+
+/**
  * Human-friendly format for time relative to now or today:
  * e.g., "Just now", "25m ago", "2h ago", "9:30 AM"
  */

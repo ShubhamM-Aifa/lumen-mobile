@@ -28,6 +28,7 @@ interface Props {
   onToggleViewMode?: (mode: 'week' | 'month') => void;
   onPrevWeek?: () => void;
   onNextWeek?: () => void;
+  todayDate?: string;
 }
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -57,6 +58,7 @@ export function CalendarHeatMap({
   onToggleViewMode,
   onPrevWeek,
   onNextWeek,
+  todayDate,
 }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
@@ -101,7 +103,7 @@ export function CalendarHeatMap({
     });
   }, [selectedDate]);
 
-  const todayStr = toLocalDateString(new Date());
+  const todayStr = todayDate ?? toLocalDateString(new Date());
 
   const isoDate = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;

@@ -12,7 +12,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { RotateCcw, Check } from 'lucide-react-native';
+import { RotateCcw, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { uuidv4 } from '../../src/utils/uuid';
 import { IQuestion, IOption, ICategory, Answer, ILogEntry } from '@lumen/shared';
@@ -88,6 +88,17 @@ export default function QuestionSheet() {
     },
     [],
   );
+
+  const [allQuestionsExpanded, setAllQuestionsExpanded] = useState<boolean | null>(null);
+
+  const answeredQuestionsCount = useMemo(() => {
+    return questions.filter(q => (answersByQuestion[q._id] ?? []).length > 0).length;
+  }, [questions, answersByQuestion]);
+
+  const toggleAllQuestionsExpanded = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAllQuestionsExpanded(prev => (prev === false ? true : false));
+  };
 
   // Helper to load answers from any given log entry
   const loadFromLog = (targetLog: ILogEntry) => {
@@ -367,6 +378,41 @@ export default function QuestionSheet() {
           </TouchableOpacity>
         )}
 
+        {/* Category Questions Toolbar with Expand/Collapse All */}
+        {questions.length > 1 && (
+          <View style={styles.questionsToolbar}>
+            <View style={styles.questionsToolbarLeft}>
+              <Text style={styles.questionsToolbarTitle}>
+                Questions ({questions.length})
+              </Text>
+              {answeredQuestionsCount > 0 && (
+                <View style={styles.answeredCountBadge}>
+                  <Text style={styles.answeredCountBadgeText}>
+                    {answeredQuestionsCount} answered
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.expandCollapseAllBtn}
+              onPress={toggleAllQuestionsExpanded}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={allQuestionsExpanded === false ? 'Expand all questions' : 'Collapse all questions'}
+            >
+              <Text style={styles.expandCollapseAllText}>
+                {allQuestionsExpanded === false ? 'Expand all' : 'Collapse all'}
+              </Text>
+              {allQuestionsExpanded === false ? (
+                <ChevronDown size={14} color={palette.primary} strokeWidth={2.4} />
+              ) : (
+                <ChevronUp size={14} color={palette.primary} strokeWidth={2.4} />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Question cards with question-level today history */}
         {questions.map((q) => (
           <QuestionCard
@@ -380,6 +426,7 @@ export default function QuestionSheet() {
             todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId)}
             onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
             onEditLog={(logId) => router.push(`/log/edit/${logId}`)}
+            forceExpanded={allQuestionsExpanded}
           />
         ))}
 
@@ -606,6 +653,58 @@ const useStyles = createThemedStyles(palette => ({
   mealPillTextActive: {
     color: palette.primary,
     fontWeight: '700',
+  },
+  questionsToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: -4,
+  },
+  questionsToolbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  questionsToolbarTitle: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  answeredCountBadge: {
+    backgroundColor: '#05966914',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#05966928',
+  },
+  answeredCountBadgeText: {
+    ...typography.caption,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  expandCollapseAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: `${palette.primary}12`,
+    borderWidth: 1,
+    borderColor: `${palette.primary}25`,
+  },
+  expandCollapseAllText: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '700',
+    color: palette.primary,
   },
   emptyCard: {
     backgroundColor: palette.surface,

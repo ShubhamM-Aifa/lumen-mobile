@@ -16,12 +16,61 @@ export interface CategoryLogStatus {
   latestTimeStr?: string;
 }
 
+export interface HistoryFieldDetail {
+  key?: string;
+  label: string;
+  value: unknown;
+  displayValue: string;
+  unit?: string;
+  dataType?: string;
+}
+
+export interface HistoryAnswerDetail {
+  optionId: string;
+  optionLabel: string;
+  icon?: string;
+  color?: string;
+  fields: HistoryFieldDetail[];
+  comment?: string;
+  otherText?: string;
+}
+
 export interface QuestionTodayHistoryEntry {
   logId: string;
   occurredAt: string;
   timeFormatted: string;
+  timeClockStr: string;
   answers: Answer[];
   summaryText: string;
+  details?: HistoryAnswerDetail[];
+}
+
+function humanizeFieldKey(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .trim()
+    .replace(/^\w/, c => c.toUpperCase());
+}
+
+function formatSingleFieldValue(val: unknown): string {
+  if (val === undefined || val === null || val === '') return '';
+  const str = String(val);
+  // Humanize zone and joint IDs if formatted like chest_right_parasternal
+  if (str.includes('_')) {
+    return str
+      .split(',')
+      .map(part => {
+        const cleaned = part
+          .trim()
+          .replace(/^chest_/, '')
+          .replace(/^joint_/, '')
+          .replace(/_/g, ' ');
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      })
+      .join(', ');
+  }
+  return str;
 }
 
 export function formatAnswerSummary(answers: Answer[], options: IOption[]): string {
@@ -38,11 +87,13 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
     if (ans.values && ans.values.length > 0) {
       for (const fv of ans.values) {
         if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
-          fieldParts.push(fv.unit ? `${fv.value} ${fv.unit}` : `${fv.value}`);
+          const formattedVal = formatSingleFieldValue(fv.value);
+          fieldParts.push(fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal);
         }
       }
     } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {
-      fieldParts.push(String((ans as any).value));
+      const formattedVal = formatSingleFieldValue((ans as any).value);
+      fieldParts.push(formattedVal);
     }
     if (fieldParts.length > 0) {
       return `${baseLabel} (${fieldParts.join(', ')})`;
@@ -133,12 +184,71 @@ export function useTodayCategoryLogs() {
 
       if (matchedAnswers.length > 0) {
         const summary = formatAnswerSummary(matchedAnswers, options);
+        const d = new Date(log.occurredAt);
+        const h = d.getHours();
+        const m = d.getMinutes().toString().padStart(2, '0');
+        const period = h < 12 ? 'AM' : 'PM';
+        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        const timeClockStr = isNaN(d.getTime()) ? '' : `${h12}:${m} ${period}`;
+
+        const details: HistoryAnswerDetail[] = matchedAnswers.map(ans => {
+          if (ans.optionId === '__other__') {
+            return {
+              optionId: '__other__',
+              optionLabel: 'Other',
+              fields: [],
+              otherText: (ans as any).otherText || '',
+              comment: ans.comment,
+            };
+          }
+          const option = options.find(o => o._id === ans.optionId);
+          const baseLabel = (ans as any).optionLabelSnapshot || option?.label || 'Selected';
+
+          const fields: HistoryFieldDetail[] = [];
+          if (ans.values && ans.values.length > 0) {
+            for (const fv of ans.values) {
+              if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
+                const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
+                const label = fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value');
+                const formattedVal = formatSingleFieldValue(fv.value);
+                fields.push({
+                  key: fv.fieldKey,
+                  label,
+                  value: fv.value,
+                  displayValue: fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal,
+                  unit: fv.unit,
+                  dataType: fv.dataType || fieldDef?.dataType,
+                });
+              }
+            }
+          } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {
+            const formattedVal = formatSingleFieldValue((ans as any).value);
+            fields.push({
+              label: 'Value',
+              value: (ans as any).value,
+              displayValue: formattedVal,
+            });
+          }
+
+          return {
+            optionId: ans.optionId,
+            optionLabel: baseLabel,
+            icon: option?.icon,
+            color: option?.color,
+            fields,
+            comment: ans.comment,
+            otherText: (ans as any).otherText,
+          };
+        });
+
         result.push({
           logId: log._id,
           occurredAt: log.occurredAt,
           timeFormatted: formatTimeRelative(log.occurredAt),
+          timeClockStr,
           answers: matchedAnswers,
           summaryText: summary || 'Answered',
+          details,
         });
       }
     }

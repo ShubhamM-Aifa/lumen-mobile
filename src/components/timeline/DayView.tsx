@@ -9,14 +9,14 @@ import {
   View, Text, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Plus, ChevronDown, ChevronUp, CalendarClock, Sparkles } from 'lucide-react-native';
+import { Plus, ChevronDown, ChevronUp, CalendarClock, Sparkles, Clock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction } from '@lumen/shared';
 import { TimelineItem } from './TimelineItem';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { PressableScale } from '../common/PressableScale';
-import { toLocalDateString } from '../../hooks/useTimelineSummary';
+import { getTrackingDayDateString } from '../../utils/dayBoundary';
 
 interface Props {
   date: string; // 'YYYY-MM-DD'
@@ -28,6 +28,7 @@ interface Props {
   loading: boolean;
   onEditEntry?: (id: string) => void;
   onDeleteEntry?: (id: string) => void;
+  boundaryHour?: number;
 }
 
 interface HourBucket {
@@ -53,6 +54,7 @@ export function DayView({
   loading,
   onEditEntry,
   onDeleteEntry,
+  boundaryHour = 4,
 }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
@@ -73,27 +75,34 @@ export function DayView({
       map[h].push(e);
     });
 
-    return Object.keys(map)
-      .map(Number)
-      .sort((a, b) => b - a)
-      .map(hour => ({
-        hour,
-        label: toHourLabel(hour),
-        entries: map[hour].sort(
-          (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
-        ),
-      }));
+    const hourKeys = Object.keys(map).map(Number);
+    // Sort reverse-chronologically by latest entry timestamp in each bucket so that
+    // late-night entries (e.g. 1 AM, 2 AM before boundary) sit at the top of the day,
+    // preceding midnight and evening entries.
+    hourKeys.sort((a, b) => {
+      const maxA = Math.max(...map[a].map(e => new Date(e.occurredAt).getTime()));
+      const maxB = Math.max(...map[b].map(e => new Date(e.occurredAt).getTime()));
+      return maxB - maxA;
+    });
+
+    return hourKeys.map(hour => ({
+      hour,
+      label: toHourLabel(hour),
+      entries: map[hour].sort(
+        (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
+      ),
+    }));
   }, [entries]);
 
   const formattedDate = useMemo(() => {
-    const today = toLocalDateString(new Date());
-    if (date === today) return 'Today';
+    const curToday = getTrackingDayDateString(new Date(), boundaryHour);
+    if (date === curToday) return 'Today';
     const parts = (date || '').split('-');
     const d = parts.length === 3
       ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
       : new Date();
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-  }, [date]);
+  }, [date, boundaryHour]);
 
   if (loading) {
     return (
@@ -176,6 +185,14 @@ export function DayView({
           <Text style={styles.countBadge}>
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
           </Text>
+          {boundaryHour !== undefined && boundaryHour !== 0 && (
+            <View style={styles.boundaryBadge}>
+              <Clock size={11} color={palette.primary} strokeWidth={2.4} />
+              <Text style={styles.boundaryBadgeText}>
+                {boundaryHour % 12 || 12} {boundaryHour < 12 ? 'AM' : 'PM'} Reset
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Global Expand all / Collapse all toggle button */}
@@ -416,6 +433,23 @@ const useStyles = createThemedStyles(palette => ({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    fontWeight: '700',
+  },
+  boundaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.primary + '14',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: palette.primary + '2E',
+  },
+  boundaryBadgeText: {
+    ...typography.caption,
+    color: palette.primary,
+    fontSize: 10.5,
     fontWeight: '700',
   },
   expandAllBtn: {
