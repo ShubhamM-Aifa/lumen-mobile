@@ -15,6 +15,8 @@ import { useTheme, createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { OptionSelector } from './OptionSelector';
 import { QuestionTodayHistoryEntry } from '../hooks/useTodayCategoryLogs';
+import { LogPhotoGallery } from './timeline/LogPhotoGallery';
+
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -368,7 +370,9 @@ export function QuestionCard({
                             <View style={styles.inlineValuesRow}>
                               {allFields.map((f, fIdx) => (
                                 <View key={`${f.key || fIdx}`} style={styles.inlineValueChip}>
-                                  <Text style={styles.inlineValueChipLabel}>{f.label}:</Text>
+                                  <Text style={styles.inlineValueChipLabel}>
+                                    {f.isImage ? '📷 Photo:' : `${f.label}:`}
+                                  </Text>
                                   <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
                                 </View>
                               ))}
@@ -402,14 +406,24 @@ export function QuestionCard({
                                     {detail.fields.length > 0 ? (
                                       <View style={styles.detailFieldsGrid}>
                                         {detail.fields.map((field, fIdx) => (
-                                          <View key={fIdx} style={styles.detailFieldRow}>
-                                            <Text style={styles.detailFieldLabel}>{field.label}</Text>
-                                            <View style={styles.detailFieldValueBadge}>
-                                              <Text style={styles.detailFieldValueText}>
-                                                {field.displayValue}
-                                              </Text>
+                                          field.isImage ? (
+                                            <View key={fIdx} style={{ width: '100%', marginTop: 6, marginBottom: 4 }}>
+                                              <LogPhotoGallery
+                                                uris={field.value as string}
+                                                isSensitive={true}
+                                                fieldLabel={field.label || 'Photo'}
+                                              />
                                             </View>
-                                          </View>
+                                          ) : (
+                                            <View key={fIdx} style={styles.detailFieldRow}>
+                                              <Text style={styles.detailFieldLabel}>{field.label}</Text>
+                                              <View style={styles.detailFieldValueBadge}>
+                                                <Text style={styles.detailFieldValueText}>
+                                                  {field.displayValue}
+                                                </Text>
+                                              </View>
+                                            </View>
+                                          )
                                         ))}
                                       </View>
                                     ) : (

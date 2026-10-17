@@ -13,6 +13,8 @@ import {
   formatTimeRelative,
   DayBoundaryWindow,
 } from '../utils/dayBoundary';
+import { isMediaId, isDirectDisplayableUri } from '../services/mediaService';
+
 
 export interface CategoryLogStatus {
   isLoggedToday: boolean;
@@ -28,6 +30,7 @@ export interface HistoryFieldDetail {
   displayValue: string;
   unit?: string;
   dataType?: string;
+  isImage?: boolean;
 }
 
 export interface HistoryAnswerDetail {
@@ -50,6 +53,26 @@ export interface QuestionTodayHistoryEntry {
   details?: HistoryAnswerDetail[];
 }
 
+export function isPhotoFieldOrValue(key?: string, dataType?: string, val?: unknown): boolean {
+  if (dataType === 'image') return true;
+  const k = key ? key.toLowerCase() : '';
+  if (k === 'photo' || k === 'image' || k.includes('photo') || k.includes('image')) return true;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (isDirectDisplayableUri(trimmed)) return true;
+    if (
+      isMediaId(trimmed) &&
+      (k.includes('media') || k.includes('pic') || k.includes('photo') || k.includes('img') || k === '')
+    ) {
+      return true;
+    }
+  }
+  if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') {
+    if (isDirectDisplayableUri(val[0]) || isMediaId(val[0])) return true;
+  }
+  return false;
+}
+
 function humanizeFieldKey(key: string): string {
   return key
     .replace(/([A-Z])/g, ' $1')
@@ -58,8 +81,11 @@ function humanizeFieldKey(key: string): string {
     .replace(/^\w/, c => c.toUpperCase());
 }
 
-function formatSingleFieldValue(val: unknown): string {
+function formatSingleFieldValue(val: unknown, key?: string, dataType?: string): string {
   if (val === undefined || val === null || val === '') return '';
+  if (isPhotoFieldOrValue(key, dataType, val)) {
+    return '📷 Attached';
+  }
   const str = String(val);
   // Humanize zone and joint IDs if formatted like chest_right_parasternal
   if (str.includes('_')) {
@@ -92,8 +118,16 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
     if (ans.values && ans.values.length > 0) {
       for (const fv of ans.values) {
         if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
-          const formattedVal = formatSingleFieldValue(fv.value);
-          fieldParts.push(fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal);
+          const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
+          const isPhoto = isPhotoFieldOrValue(fv.fieldKey, fv.dataType || fieldDef?.dataType, fv.value);
+          if (isPhoto) {
+            fieldParts.push('📷 Photo');
+          } else if (fv.fieldKey && fv.fieldKey.toLowerCase().includes('bristol')) {
+            fieldParts.push(`Type ${fv.value}`);
+          } else {
+            const formattedVal = formatSingleFieldValue(fv.value, fv.fieldKey, fv.dataType || fieldDef?.dataType);
+            fieldParts.push(fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal);
+          }
         }
       }
     } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {
@@ -107,6 +141,7 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
   });
   return parts.filter(Boolean).join(', ');
 }
+
 
 export function useTodayCategoryLogs(customDateStr?: string) {
   const { user } = useAuthStore();
@@ -217,15 +252,17 @@ export function useTodayCategoryLogs(customDateStr?: string) {
             for (const fv of ans.values) {
               if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
                 const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
-                const label = fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value');
-                const formattedVal = formatSingleFieldValue(fv.value);
+                const isPhoto = isPhotoFieldOrValue(fv.fieldKey, fv.dataType || fieldDef?.dataType, fv.value);
+                const label = isPhoto ? 'Photo' : (fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value'));
+                const formattedVal = formatSingleFieldValue(fv.value, fv.fieldKey, fv.dataType || fieldDef?.dataType);
                 fields.push({
                   key: fv.fieldKey,
                   label,
                   value: fv.value,
-                  displayValue: fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal,
+                  displayValue: isPhoto ? '📷 Attached' : (fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal),
                   unit: fv.unit,
                   dataType: fv.dataType || fieldDef?.dataType,
+                  isImage: isPhoto,
                 });
               }
             }
