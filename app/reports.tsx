@@ -57,10 +57,15 @@ export default function ReportsScreen() {
   const exportReport = async () => {
     setExporting(true);
     try {
+      const fromStart = new Date(fromDate);
+      fromStart.setHours(0, 0, 0, 0);
+      const toEnd = new Date(toDate);
+      toEnd.setHours(23, 59, 59, 999);
+
       const catIds = selectedCats.size > 0 ? [...selectedCats] : undefined;
       const { base64 } = await apiDownload('/reports', {
-        from: isoDate(fromDate),
-        to: isoDate(toDate),
+        from: fromStart.toISOString(),
+        to: toEnd.toISOString(),
         format,
         categoryIds: catIds,
       });
@@ -101,8 +106,10 @@ export default function ReportsScreen() {
       } else {
         Alert.alert('Exported', `Saved to: ${path}`);
       }
-    } catch {
-      Alert.alert('Export failed', 'Could not generate the report. Please try again.');
+    } catch (err: unknown) {
+      console.error('[reports] Export failed:', err);
+      const msg = err instanceof Error ? err.message : 'Could not generate the report. Please try again.';
+      Alert.alert('Export failed', msg);
     } finally { setExporting(false); }
   };
 

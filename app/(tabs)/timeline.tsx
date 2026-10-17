@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Search, X, Camera, RotateCcw, ChevronLeft, ChevronRight, Calendar } from 'lucide-react-native';
+import { Search, X, Camera, RotateCcw, ChevronLeft, ChevronRight, Calendar, Sparkles, Check, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useConfigStore } from '../../src/store/configStore';
 import { useAuthStore } from '../../src/store/authStore';
@@ -313,6 +313,26 @@ export default function TimelineScreen() {
     router.push(`/log/edit/${id}` as any);
   };
 
+  const selectedDayInfo = useMemo(() => {
+    const found = summary.find(d => d.date === selectedDate);
+    if (found) return found;
+
+    const activeQuestions = (config?.questions ?? []).filter(q => q.isActive);
+    const activeCategories = (config?.categories ?? []).filter(c => c.isActive);
+    return {
+      date: selectedDate,
+      maxSeverity: -1,
+      hasLogs: false,
+      progress: 0,
+      percentage: 0,
+      answeredCount: 0,
+      totalQuestions: activeQuestions.length,
+      completedCategoriesCount: 0,
+      totalCategoriesCount: activeCategories.length,
+      isComplete: false,
+    };
+  }, [summary, selectedDate, config]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
@@ -429,6 +449,77 @@ export default function TimelineScreen() {
           >
             <ChevronRight size={18} color={palette.primary} strokeWidth={2.4} />
           </PressableScale>
+        </View>
+
+        {/* Selected Day Progress Breakdown Card */}
+        <View style={styles.dayProgressCard}>
+          <View style={styles.dayProgressHeader}>
+            <View style={styles.dayProgressTitleWrap}>
+              <View style={[styles.dayProgressIconBox, selectedDayInfo?.isComplete && styles.dayProgressIconBoxComplete]}>
+                {selectedDayInfo?.isComplete ? (
+                  <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                ) : (
+                  <Sparkles size={14} color={palette.primary} strokeWidth={2.4} />
+                )}
+              </View>
+              <View style={styles.dayProgressTextCol}>
+                <Text style={styles.dayProgressTitle}>
+                  {selectedDayInfo?.isComplete
+                    ? 'All questions completed!'
+                    : (selectedDayInfo && selectedDayInfo.progress !== undefined && selectedDayInfo.progress > 0
+                        ? `${selectedDayInfo.percentage}% logged for this day`
+                        : 'No logs for this day')}
+                </Text>
+                <Text style={styles.dayProgressSubtitle}>
+                  {selectedDayInfo && selectedDayInfo.answeredCount !== undefined && selectedDayInfo.answeredCount > 0
+                    ? `${selectedDayInfo.answeredCount} of ${selectedDayInfo.totalQuestions} questions answered`
+                    : `${(config?.questions ?? []).filter(q => q.isActive).length} active questions to track`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.dayProgressBadge, selectedDayInfo?.isComplete && styles.dayProgressBadgeComplete]}>
+              <Text style={[styles.dayProgressBadgeText, selectedDayInfo?.isComplete && styles.dayProgressBadgeTextComplete]}>
+                {selectedDayInfo?.percentage ?? 0}%
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress bar */}
+          <View style={styles.dayProgressTrack}>
+            <View
+              style={[
+                styles.dayProgressFill,
+                {
+                  width: `${selectedDayInfo?.percentage ?? 0}%`,
+                  backgroundColor: selectedDayInfo?.isComplete ? palette.success : palette.primary,
+                },
+              ]}
+            />
+          </View>
+
+          {/* Category count & Quick Action */}
+          <View style={styles.dayProgressFooter}>
+            <Text style={styles.dayProgressFooterStats}>
+              {selectedDayInfo?.completedCategoriesCount !== undefined && selectedDayInfo?.totalCategoriesCount !== undefined
+                ? `${selectedDayInfo.completedCategoriesCount} of ${selectedDayInfo.totalCategoriesCount} categories completed`
+                : ''}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.dayProgressLogBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push({ pathname: '/log', params: { date: selectedDate } });
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Log for ${selectedDate}`}
+            >
+              <Plus size={12} color={palette.primary} strokeWidth={2.6} />
+              <Text style={styles.dayProgressLogBtnText}>Log this day</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search & Filter Toolbar */}
@@ -672,6 +763,119 @@ const useStyles = createThemedStyles(palette => ({
     fontSize: 11,
   },
   dim: { opacity: 0.25 },
+
+  // Selected Day Progress Card
+  dayProgressCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 13,
+    gap: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dayProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dayProgressTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    flex: 1,
+  },
+  dayProgressIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: palette.primary + '16',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayProgressIconBoxComplete: {
+    backgroundColor: palette.success,
+  },
+  dayProgressTextCol: {
+    gap: 1.5,
+    flex: 1,
+  },
+  dayProgressTitle: {
+    ...typography.caption,
+    fontSize: 13,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  dayProgressSubtitle: {
+    ...typography.caption,
+    fontSize: 11.5,
+    color: palette.textSecondary,
+    fontWeight: '500',
+  },
+  dayProgressBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 9,
+    backgroundColor: palette.primary + '16',
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+  },
+  dayProgressBadgeComplete: {
+    backgroundColor: palette.success,
+    borderColor: palette.success,
+  },
+  dayProgressBadgeText: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: palette.primary,
+  },
+  dayProgressBadgeTextComplete: {
+    color: '#FFFFFF',
+  },
+  dayProgressTrack: {
+    height: 4.5,
+    width: '100%',
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 2.5,
+    overflow: 'hidden',
+  },
+  dayProgressFill: {
+    height: '100%',
+    borderRadius: 2.5,
+  },
+  dayProgressFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dayProgressFooterStats: {
+    ...typography.caption,
+    fontSize: 11,
+    color: palette.textDisabled,
+    fontWeight: '500',
+  },
+  dayProgressLogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: palette.primary + '12',
+    borderWidth: 1,
+    borderColor: palette.primary + '28',
+  },
+  dayProgressLogBtnText: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: palette.primary,
+  },
 
   // Search & Filter Toolbar
   filterToolbar: {

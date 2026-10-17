@@ -1,18 +1,19 @@
 /**
  * Category picker — first step of the log flow.
  * Grouped by role: Symptoms first, then Trigger candidates, then Context.
+ * Displays per-category progress bars with question completion and daily summary.
  */
 import React, { useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { Check, Calendar } from 'lucide-react-native';
+import { Check, Calendar, Sparkles } from 'lucide-react-native';
 import { ICategory } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
-import { useTodayCategoryLogs, CategoryLogStatus } from '../../src/hooks/useTodayCategoryLogs';
+import { useCategoryProgress, CategoryProgressInfo } from '../../src/hooks/useCategoryProgress';
 
 const ROLE_ORDER = ['symptom', 'trigger_candidate', 'context'] as const;
 const ROLE_LABEL: Record<string, string> = {
@@ -25,8 +26,14 @@ export default function LogCategoryPicker() {
   const { palette } = useTheme();
   const styles = useStyles();
   const { date } = useLocalSearchParams<{ date?: string }>();
-  const { config, isLoading, fetchConfig } = useConfigStore();
-  const { getCategoryStatus } = useTodayCategoryLogs(date);
+  const { config, isLoading: isConfigLoading, fetchConfig } = useConfigStore();
+  const {
+    getCategoryProgress,
+    overallPercentage,
+    completedCategoriesCount,
+    totalCategoriesCount,
+    isLoading: isProgressLoading,
+  } = useCategoryProgress(date);
 
   useEffect(() => { fetchConfig(); }, []);
 
@@ -52,7 +59,7 @@ export default function LogCategoryPicker() {
     }))
     .filter(g => g.items.length > 0);
 
-  if (isLoading) {
+  if (isConfigLoading && !config) {
     return (
       <View style={styles.center}>
         <Stack.Screen options={{ title: 'Log Something' }} />
@@ -60,6 +67,8 @@ export default function LogCategoryPicker() {
       </View>
     );
   }
+
+  const isAllComplete = overallPercentage >= 100;
 
   return (
     <View style={styles.screen}>
@@ -78,6 +87,45 @@ export default function LogCategoryPicker() {
         </View>
       )}
 
+      {/* Daily Progress Overview Card */}
+      <View style={styles.overviewCard}>
+        <View style={styles.overviewHeader}>
+          <View style={styles.overviewLeft}>
+            <View style={styles.overviewTitleRow}>
+              <Text style={styles.overviewTitle}>Daily Logging Progress</Text>
+              {isAllComplete && (
+                <Sparkles size={14} color={palette.success} strokeWidth={2.4} />
+              )}
+            </View>
+            <Text style={styles.overviewSubtitle}>
+              {completedCategoriesCount} of {totalCategoriesCount} categories completed
+            </Text>
+          </View>
+
+          <View style={[styles.overviewBadge, isAllComplete && styles.overviewBadgeComplete]}>
+            {isAllComplete ? (
+              <Check size={12} color="#FFFFFF" strokeWidth={3} />
+            ) : null}
+            <Text style={[styles.overviewBadgeText, isAllComplete && styles.overviewBadgeTextComplete]}>
+              {overallPercentage}%
+            </Text>
+          </View>
+        </View>
+
+        {/* Overview Bar */}
+        <View style={styles.overviewTrack}>
+          <View
+            style={[
+              styles.overviewFill,
+              {
+                width: `${overallPercentage}%`,
+                backgroundColor: isAllComplete ? palette.success : palette.primary,
+              },
+            ]}
+          />
+        </View>
+      </View>
+
       <FlatList
         data={grouped}
         keyExtractor={g => g.role}
@@ -89,7 +137,7 @@ export default function LogCategoryPicker() {
               <CategoryRow
                 key={cat._id}
                 category={cat}
-                status={getCategoryStatus(cat._id)}
+                progressInfo={getCategoryProgress(cat._id)}
                 onPress={() =>
                   router.push({
                     pathname: `/log/${cat._id}`,
@@ -107,43 +155,83 @@ export default function LogCategoryPicker() {
 
 function CategoryRow({
   category,
-  status,
+  progressInfo,
   onPress,
 }: {
   category: ICategory;
-  status: CategoryLogStatus;
+  progressInfo: CategoryProgressInfo;
   onPress: () => void;
 }) {
   const { palette } = useTheme();
   const styles = useStyles();
 
+  const {
+    percentage,
+    progress,
+    isComplete,
+    isLoggedToday,
+    answeredQuestions,
+    totalQuestions,
+    count,
+    latestTimeStr,
+  } = progressInfo;
+
   return (
     <TouchableOpacity
       style={[
         styles.row,
-        status.isLoggedToday && styles.rowLogged,
+        isComplete && styles.rowComplete,
       ]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Log ${category.name}${status.isLoggedToday ? ', already logged today' : ''}`}
+      accessibilityLabel={`Log ${category.name}, progress ${percentage} percent${isComplete ? ', complete' : ''}`}
+      activeOpacity={0.75}
     >
-      <View style={[styles.dot, { backgroundColor: category.color || palette.primary }]}>
-        <Text style={styles.dotIcon}>{category.icon}</Text>
-      </View>
-      <Text style={styles.rowLabel}>{category.name}</Text>
+      <View style={styles.rowMain}>
+        <View style={[styles.dot, { backgroundColor: category.color || palette.primary }]}>
+          <Text style={styles.dotIcon}>{category.icon}</Text>
+        </View>
 
-      {status.isLoggedToday ? (
-        <View style={styles.loggedBadge}>
-          <Check size={11} color={palette.success} strokeWidth={2.8} />
-          <Text style={styles.loggedBadgeText}>
-            {status.count > 1 ? `${status.count}x • ${status.latestTimeStr}` : `Logged ${status.latestTimeStr}`}
+        <View style={styles.titleColumn}>
+          <Text style={styles.rowLabel}>{category.name}</Text>
+          <Text style={styles.progressSubtitle}>
+            {totalQuestions > 0
+              ? `${answeredQuestions} of ${totalQuestions} questions answered`
+              : (isLoggedToday ? (count > 1 ? `${count}x • ${latestTimeStr || 'logged'}` : 'Logged today') : 'Not logged today')}
           </Text>
         </View>
-      ) : (
-        <Text style={styles.notLoggedText}>Not logged</Text>
-      )}
 
-      <Text style={styles.chevron}>›</Text>
+        {/* Status / Percentage Badge */}
+        {isComplete ? (
+          <View style={styles.loggedBadge}>
+            <Check size={11} color={palette.success} strokeWidth={2.8} />
+            <Text style={styles.loggedBadgeText}>100%</Text>
+          </View>
+        ) : progress > 0 ? (
+          <View style={styles.inProgressBadge}>
+            <Text style={styles.inProgressBadgeText}>{percentage}%</Text>
+          </View>
+        ) : (
+          <View style={styles.notLoggedBadge}>
+            <Text style={styles.notLoggedText}>0%</Text>
+          </View>
+        )}
+
+        <Text style={styles.chevron}>›</Text>
+      </View>
+
+      {/* Sleek Horizontal Progress Bar along the bottom of the card */}
+      <View style={styles.progressBarTrack}>
+        <View
+          style={[
+            styles.progressBarFill,
+            {
+              width: `${percentage}%`,
+              backgroundColor: isComplete ? palette.success : (category.color || palette.primary),
+            },
+          ]}
+        />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -175,8 +263,88 @@ const useStyles = createThemedStyles(palette => ({
     color: palette.primary,
     fontWeight: '800',
   },
+
+  // Daily Progress Overview Card
+  overviewCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+    gap: 10,
+  },
+  overviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  overviewLeft: {
+    gap: 2,
+    flex: 1,
+  },
+  overviewTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  overviewTitle: {
+    ...typography.smallBold,
+    fontSize: 13.5,
+    color: palette.text,
+    fontWeight: '700',
+  },
+  overviewSubtitle: {
+    ...typography.caption,
+    fontSize: 12,
+    color: palette.textSecondary,
+    fontWeight: '500',
+  },
+  overviewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: palette.primary + '16',
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+  },
+  overviewBadgeComplete: {
+    backgroundColor: palette.success,
+    borderColor: palette.success,
+  },
+  overviewBadgeText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.primary,
+  },
+  overviewBadgeTextComplete: {
+    color: '#FFFFFF',
+  },
+  overviewTrack: {
+    height: 6,
+    width: '100%',
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  overviewFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+
   list: { padding: 16, gap: 20 },
-  section: { gap: 6 },
+  section: { gap: 8 },
   sectionLabel: {
     ...typography.label,
     color: palette.textSecondary,
@@ -186,21 +354,58 @@ const useStyles = createThemedStyles(palette => ({
     marginLeft: 4,
   },
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: palette.surface,
-    borderRadius: 14, borderWidth: 1, borderColor: palette.border,
-    paddingHorizontal: 14, paddingVertical: 14,
-    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  rowLogged: {
+  rowComplete: {
     borderColor: palette.success + '40',
   },
-  dot: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
+  rowMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  dotIcon: { fontSize: 18 },
-  rowLabel: { ...typography.body, color: palette.text, flex: 1 },
+  dot: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotIcon: { fontSize: 19 },
+  titleColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  rowLabel: {
+    ...typography.body,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  progressSubtitle: {
+    ...typography.caption,
+    fontSize: 11.5,
+    color: palette.textSecondary,
+    fontWeight: '500',
+  },
+  progressBarTrack: {
+    height: 3.5,
+    width: '100%',
+    backgroundColor: palette.surfaceAlt,
+  },
+  progressBarFill: {
+    height: '100%',
+  },
   loggedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -208,18 +413,43 @@ const useStyles = createThemedStyles(palette => ({
     backgroundColor: palette.success + '16',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: palette.success + '30',
   },
   loggedBadgeText: {
     ...typography.caption,
     color: palette.success,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 11.5,
+  },
+  inProgressBadge: {
+    backgroundColor: palette.primary + '16',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: palette.primary + '30',
+  },
+  inProgressBadgeText: {
+    ...typography.caption,
+    color: palette.primary,
+    fontWeight: '700',
+    fontSize: 11.5,
+  },
+  notLoggedBadge: {
+    backgroundColor: palette.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   notLoggedText: {
     ...typography.caption,
     color: palette.textDisabled,
+    fontWeight: '600',
+    fontSize: 11.5,
   },
-  chevron: { ...typography.h4, color: palette.textDisabled },
+  chevron: { ...typography.h4, color: palette.textDisabled, marginLeft: 2 },
 }));

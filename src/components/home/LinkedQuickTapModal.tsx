@@ -33,6 +33,7 @@ import { QuickActionIcon } from '../QuickActionIcon';
 import { DynamicField } from '../fields/DynamicField';
 import AppDateTimePicker from '../common/AppDateTimePicker';
 import { uuidv4 } from '../../utils/uuid';
+import { isWithinDayBoundary } from '../../utils/dayBoundary';
 
 interface Props {
   visible: boolean;
@@ -126,37 +127,45 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
       // Grab quick location snapshot
       const location = await logLocationService.getFastLocationSnapshot().catch(() => null);
 
+      const clientId = uuidv4();
       const nowIso = occurredAt.toISOString();
 
       // Submit clinical log entry
       const logRes = await api.post<{ _id: string }>('/logs', {
+        clientId,
         source: 'quick_action',
         quickActionId: action._id,
         categoryId: linkedQuestion.categoryId,
         occurredAt: nowIso,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         answers: processedAnswers,
+        mediaIds: [],
         note: note.trim() || undefined,
         ...(location ? { location } : {}),
       });
 
-      // Update Today's Quick Log Store count optimistically
-      const { todayTaps } = useQuickLogStore.getState();
-      const prev = todayTaps[action._id];
-      const newCount = (prev?.count ?? 0) + 1;
-      const updatedEntry = {
-        id: logRes._id || uuidv4(),
-        quickActionId: action._id,
-        occurredAt: nowIso,
-        count: newCount,
-        lastAt: nowIso,
-        serverId: logRes._id,
-        synced: true,
-      };
+      // Update Today's Quick Log Store count optimistically (respecting Day Reset Boundary)
+      const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+      const isToday = isWithinDayBoundary(nowIso, boundaryHour, new Date());
+      if (isToday) {
+        const { todayTaps } = useQuickLogStore.getState();
+        const prev = todayTaps[action._id];
+        const isPrevValid = prev && prev.lastAt && isWithinDayBoundary(prev.lastAt, boundaryHour, occurredAt);
+        const newCount = isPrevValid ? (prev?.count ?? 0) + 1 : 1;
+        const updatedEntry = {
+          id: clientId,
+          quickActionId: action._id,
+          occurredAt: nowIso,
+          count: newCount,
+          lastAt: nowIso,
+          serverId: logRes._id,
+          synced: true,
+        };
 
-      useQuickLogStore.setState({
-        todayTaps: { ...todayTaps, [action._id]: updatedEntry },
-      });
+        useQuickLogStore.setState({
+          todayTaps: { ...todayTaps, [action._id]: updatedEntry },
+        });
+      }
 
       // Invalidate relevant React Query caches
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });

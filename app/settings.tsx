@@ -62,6 +62,7 @@ import {
 
 import { useTheme } from '../src/theme/ThemeContext';
 import { useAuthStore } from '../src/store/authStore';
+import { useQuickLogStore } from '../src/store/quickLogStore';
 import { usePhotoVaultStore } from '../src/store/photoVaultStore';
 import { logLocationService } from '../src/services/logLocationService';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
@@ -391,6 +392,7 @@ export default function SettingsScreen() {
     Haptics.selectionAsync();
     try {
       await updateProfile({ preferences: { dayBoundaryHour } });
+      useQuickLogStore.getState().fetchTodayTaps(dayBoundaryHour).catch(() => {});
     } catch {}
   };
 

@@ -62,6 +62,7 @@ import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCar
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
 import { AccountSwitcherModal } from '../../src/components/auth/AccountSwitcherModal';
 import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
+import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 
 export default function TodayScreen() {
   const { palette } = useTheme();
@@ -112,13 +113,38 @@ export default function TodayScreen() {
     return now.getHours() * 60 + now.getMinutes();
   });
 
+  const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+  const currentTrackingDayRef = useRef(getTrackingDayDateString(new Date(), boundaryHour));
+
+  const loadData = useCallback(async () => {
+    await Promise.allSettled([
+      fetchProfile(),
+      fetchConfig(),
+      fetchTodaySession(),
+      fetchTodaySummary(),
+      fetchReminders(),
+      fetchTodayTaps(boundaryHour),
+      fetchGlanceConfig(),
+      loadSleepState(),
+      initWeather(),
+    ]);
+  }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, fetchGlanceConfig, loadSleepState, initWeather]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       setCurrentTimeMinutes(now.getHours() * 60 + now.getMinutes());
+
+      // Auto-prune stale taps and check if day reset boundary has passed
+      useQuickLogStore.getState().pruneStaleTaps(boundaryHour);
+      const trackingDayNow = getTrackingDayDateString(now, boundaryHour);
+      if (trackingDayNow !== currentTrackingDayRef.current) {
+        currentTrackingDayRef.current = trackingDayNow;
+        loadData();
+      }
     }, 30000); // 30-second live check
     return () => clearInterval(interval);
-  }, []);
+  }, [boundaryHour, loadData]);
 
   // Daytime active mode: Awake (not sleeping) AND before 9:30 PM (21:30 = 1290 minutes)
   const isDaytimeMode = useMemo(() => {
@@ -129,20 +155,6 @@ export default function TodayScreen() {
     if (currentTimeMinutes < 240 && !lastSleepRecord?.wakeTime) return false;
     return true;
   }, [isSleeping, currentTimeMinutes, lastSleepRecord]);
-
-  const loadData = useCallback(async () => {
-    await Promise.allSettled([
-      fetchProfile(),
-      fetchConfig(),
-      fetchTodaySession(),
-      fetchTodaySummary(),
-      fetchReminders(),
-      fetchTodayTaps(),
-      fetchGlanceConfig(),
-      loadSleepState(),
-      initWeather(),
-    ]);
-  }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, fetchGlanceConfig, loadSleepState, initWeather]);
 
   useEffect(() => {
     loadData();
@@ -865,7 +877,7 @@ export default function TodayScreen() {
         onClose={() => setWaterModalVisible(false)}
         quickActionId={selectedWaterActionId || waterAction?._id}
         onLogged={() => {
-          fetchTodayTaps();
+          fetchTodayTaps(boundaryHour);
         }}
       />
 
@@ -876,7 +888,7 @@ export default function TodayScreen() {
         onClose={() => setSelectedLinkedAction(null)}
         onSuccess={() => {
           setSelectedLinkedAction(null);
-          fetchTodayTaps();
+          fetchTodayTaps(boundaryHour);
         }}
       />
 
@@ -894,7 +906,7 @@ export default function TodayScreen() {
           fetchProfile().catch(() => {});
           fetchConfig().catch(() => {});
           fetchTodaySession().catch(() => {});
-          fetchTodayTaps().catch(() => {});
+          fetchTodayTaps(boundaryHour).catch(() => {});
           fetchTodaySummary().catch(() => {});
           fetchReminders().catch(() => {});
         }}

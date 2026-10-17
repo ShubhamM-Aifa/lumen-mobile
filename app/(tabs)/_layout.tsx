@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Home,
   CalendarDays,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../src/theme/ThemeContext';
+import { useCategoryProgress } from '../../src/hooks/useCategoryProgress';
 
 export default function TabLayout() {
   const { palette } = useTheme();
@@ -195,31 +197,31 @@ function CurvedTabBarBackground({ tabHeight }: { tabHeight?: number }) {
   const insets = useSafeAreaInsets();
 
   const barHeight = tabHeight ?? (60 + insets.bottom);
-  const notchHalfWidth = 50;
-  const notchDepth = 37;
+  const notchHalfWidth = 62;
+  const notchDepth = 40;
   const cx = width / 2;
 
   const leftX = cx - notchHalfWidth;
   const rightX = cx + notchHalfWidth;
 
-  // Smooth cubic bezier curved scoop that sweeps down around the elevated + button
+  // Organic smooth Bezier cradle that elegantly cradles the elevated central FAB
   const fillPath = `
     M 0 0
     L ${leftX} 0
-    C ${cx - 28} 0, ${cx - 23} ${notchDepth}, ${cx} ${notchDepth}
-    C ${cx + 23} ${notchDepth}, ${cx + 28} 0, ${rightX} 0
+    C ${cx - 42} 0, ${cx - 36} ${notchDepth}, ${cx} ${notchDepth}
+    C ${cx + 36} ${notchDepth}, ${cx + 42} 0, ${rightX} 0
     L ${width} 0
     L ${width} ${barHeight}
     L 0 ${barHeight}
     Z
   `;
 
-  // Continuous border stroke along the top edge, curving down around the notch
+  // Continuous 1px subtle border accentuating the curved notch
   const strokePath = `
     M 0 0.5
     L ${leftX} 0.5
-    C ${cx - 28} 0.5, ${cx - 23} ${notchDepth + 0.5}, ${cx} ${notchDepth + 0.5}
-    C ${cx + 23} ${notchDepth + 0.5}, ${cx + 28} 0.5, ${rightX} 0.5
+    C ${cx - 42} 0.5, ${cx - 36} ${notchDepth + 0.5}, ${cx} ${notchDepth + 0.5}
+    C ${cx + 36} ${notchDepth + 0.5}, ${cx + 42} 0.5, ${rightX} 0.5
     L ${width} 0.5
   `;
 
@@ -249,40 +251,22 @@ function CenterAddButton({ onPress }: { onPress: () => void }) {
   const { palette } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const { overallProgress, overallPercentage } = useCategoryProgress();
 
-  useEffect(() => {
-    // Ambient gentle breathing halo
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.18,
-          duration: 1800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1800,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [pulseAnim]);
+  const isComplete = overallProgress >= 1;
 
   const handlePressIn = () => {
     Animated.parallel([
       Animated.spring(scaleAnim, {
-        toValue: 0.88,
+        toValue: 0.90,
         friction: 6,
-        tension: 180,
+        tension: 200,
         useNativeDriver: true,
       }),
       Animated.spring(rotateAnim, {
         toValue: 1,
         friction: 6,
-        tension: 180,
+        tension: 200,
         useNativeDriver: true,
       }),
     ]).start();
@@ -293,13 +277,13 @@ function CenterAddButton({ onPress }: { onPress: () => void }) {
       Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 4,
-        tension: 90,
+        tension: 110,
         useNativeDriver: true,
       }),
       Animated.spring(rotateAnim, {
         toValue: 0,
         friction: 5,
-        tension: 100,
+        tension: 120,
         useNativeDriver: true,
       }),
     ]).start();
@@ -310,45 +294,86 @@ function CenterAddButton({ onPress }: { onPress: () => void }) {
     outputRange: ['0deg', '45deg'],
   });
 
+  const ringSize = 64;
+  const center = ringSize / 2; // 32
+  const strokeWidth = 3.2;
+  const radius = 28.5; // Inner stroke edge is 26.9, button outer edge is 25 -> clean 1.9px floating gap
+  const circumference = 2 * Math.PI * radius; // ~179.07
+  const strokeDashoffset = circumference * (1 - Math.min(1, overallProgress));
+
   return (
     <View style={styles.centerButtonContainer} pointerEvents="box-none">
-      {/* Ambient breathing halo ring */}
-      <Animated.View
-        style={[
-          styles.ambientHalo,
-          {
-            backgroundColor: palette.primary,
-            transform: [{ scale: pulseAnim }],
-            opacity: pulseAnim.interpolate({
-              inputRange: [1, 1.18],
-              outputRange: [0.26, 0.05],
-            }),
-          },
-        ]}
-      />
-
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <Pressable
-          style={[
-            styles.centerButton,
-            {
-              backgroundColor: palette.primary,
-              shadowColor: palette.primary,
-            },
-          ]}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            onPress();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Log a new metric"
-        >
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Plus size={26} color="#FFFFFF" strokeWidth={2.8} />
-          </Animated.View>
-        </Pressable>
+        <View style={styles.centerButtonWrap}>
+          {/* Dynamic Orbital Progress Ring */}
+          <Svg width={ringSize} height={ringSize} style={styles.progressRingSvg} pointerEvents="none">
+            <Defs>
+              <SvgLinearGradient id="centerProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#FFA07A" />
+                <Stop offset="100%" stopColor="#FF4500" />
+              </SvgLinearGradient>
+              <SvgLinearGradient id="completeProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#34D399" />
+                <Stop offset="100%" stopColor="#059669" />
+              </SvgLinearGradient>
+            </Defs>
+
+            {/* Background Track */}
+            <Circle
+              cx={center}
+              cy={center}
+              r={radius}
+              stroke={palette.primary + '18'}
+              strokeWidth={2.5}
+              fill="transparent"
+            />
+
+            {/* Active Progress Fill */}
+            {overallProgress > 0 && (
+              <Circle
+                cx={center}
+                cy={center}
+                r={radius}
+                stroke={isComplete ? 'url(#completeProgressGrad)' : 'url(#centerProgressGrad)'}
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                fill="transparent"
+                transform={`rotate(-90 ${center} ${center})`}
+              />
+            )}
+          </Svg>
+
+          {/* Elevated Central Action Button with Jewel Gradient & Specular Rim */}
+          <Pressable
+            style={[
+              styles.centerButton,
+              {
+                shadowColor: isComplete ? '#10B981' : '#FF5722',
+              },
+            ]}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              onPress();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Log a new metric. Daily progress: ${overallPercentage}%`}
+          >
+            <LinearGradient
+              colors={isComplete ? ['#34D399', '#059669'] : ['#FF7A45', '#F04E23']}
+              start={{ x: 0.1, y: 0.1 }}
+              end={{ x: 0.9, y: 0.9 }}
+              style={styles.gradientSurface}
+            >
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Plus size={25} color="#FFFFFF" strokeWidth={2.8} />
+              </Animated.View>
+            </LinearGradient>
+          </Pressable>
+        </View>
       </Animated.View>
     </View>
   );
@@ -375,21 +400,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
-  ambientHalo: {
+  centerButtonWrap: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressRingSvg: {
     position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    top: 0,
+    left: 0,
   },
   centerButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.38,
+    shadowRadius: 10,
     elevation: 8,
+  },
+  gradientSurface: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
   },
 });

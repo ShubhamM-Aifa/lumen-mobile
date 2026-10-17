@@ -1,9 +1,11 @@
 /**
- * CalendarHeatMap — month grid or compact week strip with per-day symptom severity colouring.
+ * CalendarHeatMap — month grid or compact week strip with per-day symptom severity colouring
+ * and circular progress rings indicating daily question completion.
  * Tap a day to select it; toggle between Week and Month view.
  */
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
@@ -14,6 +16,13 @@ export interface DaySeverity {
   date: string; // 'YYYY-MM-DD'
   maxSeverity: number; // 0–10; 0 means logged but no severity; -1 means no data
   hasLogs: boolean;
+  progress?: number; // 0.0 to 1.0
+  percentage?: number; // 0 to 100
+  answeredCount?: number;
+  totalQuestions?: number;
+  completedCategoriesCount?: number;
+  totalCategoriesCount?: number;
+  isComplete?: boolean;
 }
 
 interface Props {
@@ -188,6 +197,8 @@ export function CalendarHeatMap({
               const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
               const isToday = item.iso === todayStr;
               const isSelected = item.iso === selectedDate;
+              const progress = info?.progress ?? 0;
+              const isComplete = info?.isComplete ?? (progress >= 1);
 
               return (
                 <PressableScale
@@ -197,7 +208,7 @@ export function CalendarHeatMap({
                   haptic="selection"
                   activeScale={0.92}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}`}
+                  accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}, progress ${info?.percentage ?? 0} percent`}
                 >
                   <Text
                     style={[
@@ -212,10 +223,36 @@ export function CalendarHeatMap({
                     style={[
                       styles.dayCell,
                       { backgroundColor: bg },
-                      isToday && styles.today,
+                      isToday && !isSelected && styles.today,
                       isSelected && styles.selected,
                     ]}
                   >
+                    {/* Circular Progress Ring along perimeter */}
+                    {progress > 0 && (
+                      <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
+                        <Circle
+                          cx={18}
+                          cy={18}
+                          r={15.5}
+                          stroke={isComplete ? '#10B98126' : (isSelected ? 'rgba(255,255,255,0.25)' : palette.primary + '20')}
+                          strokeWidth={2}
+                          fill="transparent"
+                        />
+                        <Circle
+                          cx={18}
+                          cy={18}
+                          r={15.5}
+                          stroke={isComplete ? '#10B981' : (isSelected ? '#FFFFFF' : palette.primary)}
+                          strokeWidth={2.5}
+                          strokeDasharray="97.39"
+                          strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
+                          strokeLinecap="round"
+                          fill="transparent"
+                          transform="rotate(-90 18 18)"
+                        />
+                      </Svg>
+                    )}
+
                     <Text
                       style={[
                         styles.dayNum,
@@ -225,7 +262,7 @@ export function CalendarHeatMap({
                     >
                       {item.dayNum}
                     </Text>
-                    {info?.hasLogs && !isSelected && <View style={styles.dot} />}
+                    {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
                   </View>
                 </PressableScale>
               );
@@ -256,6 +293,8 @@ export function CalendarHeatMap({
                 const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
                 const isToday = iso === todayStr;
                 const isSelected = iso === selectedDate;
+                const progress = info?.progress ?? 0;
+                const isComplete = info?.isComplete ?? (progress >= 1);
 
                 return (
                   <TouchableOpacity
@@ -263,16 +302,42 @@ export function CalendarHeatMap({
                     style={styles.cell}
                     onPress={() => onSelectDate(iso)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${day} ${MONTH_NAMES[month]}`}
+                    accessibilityLabel={`${day} ${MONTH_NAMES[month]}, progress ${info?.percentage ?? 0} percent`}
                   >
                     <View
                       style={[
                         styles.dayCell,
                         { backgroundColor: bg },
-                        isToday && styles.today,
+                        isToday && !isSelected && styles.today,
                         isSelected && styles.selected,
                       ]}
                     >
+                      {/* Circular Progress Ring along perimeter */}
+                      {progress > 0 && (
+                        <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
+                          <Circle
+                            cx={18}
+                            cy={18}
+                            r={15.5}
+                            stroke={isComplete ? '#10B98126' : (isSelected ? 'rgba(255,255,255,0.25)' : palette.primary + '20')}
+                            strokeWidth={2}
+                            fill="transparent"
+                          />
+                          <Circle
+                            cx={18}
+                            cy={18}
+                            r={15.5}
+                            stroke={isComplete ? '#10B981' : (isSelected ? '#FFFFFF' : palette.primary)}
+                            strokeWidth={2.5}
+                            strokeDasharray="97.39"
+                            strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
+                            strokeLinecap="round"
+                            fill="transparent"
+                            transform="rotate(-90 18 18)"
+                          />
+                        </Svg>
+                      )}
+
                       <Text
                         style={[
                           styles.dayNum,
@@ -282,7 +347,7 @@ export function CalendarHeatMap({
                       >
                         {day}
                       </Text>
-                      {info?.hasLogs && !isSelected && <View style={styles.dot} />}
+                      {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
                     </View>
                   </TouchableOpacity>
                 );
@@ -290,19 +355,31 @@ export function CalendarHeatMap({
             </View>
           ))}
 
-          {/* Legend for month view */}
-          <View style={styles.legend}>
-            <Text style={styles.legendLabel}>Severity: </Text>
-            {[0, 3, 5, 7, 10].map(s => (
-              <View
-                key={s}
-                style={[
-                  styles.legendDot,
-                  { backgroundColor: s === 0 ? palette.primary + '22' : severityColor(s, palette.primary) },
-                ]}
-              />
-            ))}
-            <Text style={styles.legendLabel}> None → High</Text>
+          {/* Enhanced Legend for Month View */}
+          <View style={styles.legendContainer}>
+            <View style={styles.legend}>
+              <Text style={styles.legendLabel}>Severity: </Text>
+              {[0, 3, 5, 7, 10].map(s => (
+                <View
+                  key={s}
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: s === 0 ? palette.primary + '22' : severityColor(s, palette.primary) },
+                  ]}
+                />
+              ))}
+              <Text style={styles.legendLabel}> None → High</Text>
+            </View>
+
+            <View style={styles.legendDivider} />
+
+            <View style={styles.legend}>
+              <Text style={styles.legendLabel}>Progress: </Text>
+              <View style={[styles.legendRingPreview, { borderColor: palette.primary }]} />
+              <Text style={styles.legendLabel}>In progress</Text>
+              <View style={[styles.legendRingPreview, { borderColor: '#10B981' }]} />
+              <Text style={styles.legendLabel}>100% Done</Text>
+            </View>
           </View>
         </View>
       )}
@@ -394,7 +471,19 @@ const useStyles = createThemedStyles(palette => ({
   dayHeader: { ...typography.caption, color: palette.textSecondary, fontWeight: '600', fontSize: 11.5 },
   dayHeaderToday: { color: palette.primary, fontWeight: '700' },
   dayHeaderSelected: { color: palette.primary, fontWeight: '800' },
-  dayCell: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  dayCell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  cellProgressRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
   today: { borderWidth: 1.5, borderColor: palette.primary, backgroundColor: palette.primary + '10' },
   selected: {
     backgroundColor: palette.primary,
@@ -408,7 +497,26 @@ const useStyles = createThemedStyles(palette => ({
   dayNumSelected: { color: '#FFFFFF', fontWeight: '800' },
   dayNumToday: { color: palette.primary, fontWeight: '700' },
   dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.primary, position: 'absolute', bottom: 3 },
-  legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, gap: 3 },
+  legendContainer: {
+    marginTop: 10,
+    gap: 5,
+  },
+  legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  legendDivider: {
+    height: 1,
+    backgroundColor: palette.border,
+    opacity: 0.5,
+    marginHorizontal: 20,
+    marginVertical: 2,
+  },
   legendLabel: { ...typography.caption, color: palette.textDisabled, fontSize: 11 },
   legendDot: { width: 10, height: 10, borderRadius: 3 },
+  legendRingPreview: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+    marginLeft: 4,
+  },
 }));

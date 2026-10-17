@@ -16,6 +16,8 @@ import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { useQuickLogStore } from '../store/quickLogStore';
+import { useAuthStore } from '../store/authStore';
+import { isWithinDayBoundary } from '../utils/dayBoundary';
 import { IQuickAction } from '@lumen/shared';
 import { QuickActionIcon } from './QuickActionIcon';
 
@@ -29,10 +31,13 @@ interface Props {
 export function QuickActionButton({ action, onLongPress, onPressOverride, width }: Props): React.ReactElement {
   const { palette } = useTheme();
   const styles = useStyles();
+  const { user } = useAuthStore();
+  const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
   const { todayTaps, tap } = useQuickLogStore();
   const tapData = todayTaps[action._id];
-  const count = tapData?.count ?? 0;
-  const lastAt = tapData?.lastAt
+  const isTapValidForToday = tapData?.lastAt ? isWithinDayBoundary(tapData.lastAt, boundaryHour) : false;
+  const count = isTapValidForToday ? (tapData?.count ?? 0) : 0;
+  const lastAt = isTapValidForToday && tapData?.lastAt
     ? new Date(tapData.lastAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null;
 
@@ -88,8 +93,8 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
       return;
     }
 
-    await tap(action._id);
-  }, [action._id, tap, onPressOverride]);
+    await tap(action._id, undefined, boundaryHour);
+  }, [action._id, tap, onPressOverride, boundaryHour]);
 
   return (
     <Animated.View style={[styles.wrapper, width !== undefined ? { width } : null, { transform: [{ scale: scaleAnim }] }]}>

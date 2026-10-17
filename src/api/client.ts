@@ -218,7 +218,18 @@ export async function apiDownload(
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => 'Request failed');
-    throw new ApiError(resp.status, text);
+    let msg = text;
+    try {
+      const json = JSON.parse(text);
+      if (json.message) {
+        msg = json.message;
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          msg += ': ' + json.errors.map((e: any) => `${e.field ? e.field + ': ' : ''}${e.message || JSON.stringify(e)}`).join(', ');
+        }
+      }
+    } catch {}
+    console.error(`[apiDownload Error ${resp.status}] ${path}:`, msg);
+    throw new ApiError(resp.status, msg);
   }
 
   const contentType = resp.headers.get('Content-Type') ?? 'application/octet-stream';
