@@ -16,6 +16,7 @@ import {
   Switch,
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { useConfigStore } from '../../src/store/configStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
@@ -53,6 +54,7 @@ interface CommunityResponse {
 const CONDITION_FILTERS = ['All', 'Long COVID', 'POTS', 'Migraine', 'IBS', 'Chronic Pain', 'Fatigue'];
 
 export default function TemplatesScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { config, invalidate, fetchConfig } = useConfigStore();
@@ -527,7 +529,7 @@ export default function TemplatesScreen() {
             </View>
           ) : (
             <FlatList
-              contentContainerStyle={styles.list}
+              contentContainerStyle={[styles.list, { paddingBottom: 60 + insets.bottom }]}
               ListHeaderComponent={
                 <View style={styles.header}>
                   <Text style={styles.headerTitle}>Clinically Designed Packs</Text>
@@ -586,7 +588,7 @@ export default function TemplatesScreen() {
               <Text style={styles.searchIcon}>🔍</Text>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search symptoms, conditions (e.g. POTS, IBS)"
+                placeholder="Search conditions (e.g. POTS, IBS)"
                 placeholderTextColor={palette.textDisabled}
                 value={communitySearch}
                 onChangeText={setCommunitySearch}
@@ -655,7 +657,7 @@ export default function TemplatesScreen() {
             </View>
           ) : (
             <FlatList
-              contentContainerStyle={styles.communityList}
+              contentContainerStyle={[styles.communityList, { paddingBottom: 60 + insets.bottom }]}
               data={communityTemplates}
               keyExtractor={(t) => t._id}
               renderItem={renderCommunityCard}
@@ -1002,7 +1004,7 @@ const useStyles = createThemedStyles((palette) => ({
   iconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   icon: { fontSize: 22 },
   cardText: { flex: 1 },
-  cardName: { ...typography.bodyBold, color: palette.text, fontSize: 16 },
+  cardName: { ...typography.bodyBold, color: palette.text, fontSize: 16, flexShrink: 1 },
   cardDesc: { ...typography.small, color: palette.textSecondary, marginTop: 3, lineHeight: 18 },
   cardMeta: { ...typography.caption, color: palette.textDisabled, marginTop: 4 },
   addBtn: { ...typography.bodyBold, color: palette.primary, paddingHorizontal: 4 },
@@ -1108,8 +1110,9 @@ const useStyles = createThemedStyles((palette) => ({
   },
   cardHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   headerInfo: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap' },
   verifiedBadge: {
+    flexShrink: 0,
     backgroundColor: '#059669' + '22',
     paddingHorizontal: 6,
     paddingVertical: 2,

@@ -252,16 +252,16 @@ export function QuestionCard({
                   <View style={styles.historyHeaderRow}>
                     <View style={styles.historyTag}>
                       <CheckCircle2 size={13} color="#059669" />
-                      <Text style={styles.historyTagText}>
+                      <Text style={styles.historyTagText} numberOfLines={1} ellipsizeMode="tail">
                         {todayHistory.length === 1
-                          ? (isToday ? 'Logged today (1 entry)' : `Logged for ${targetDayLabel || 'selected day'} (1 entry)`)
-                          : (isToday ? `Logged today (${todayHistory.length} entries)` : `Logged for ${targetDayLabel || 'selected day'} (${todayHistory.length} entries)`)}
+                          ? (isToday ? 'Logged today (1 entry)' : `Logged for ${targetDayLabel ? targetDayLabel.replace(/, \d{4}$/, '') : 'selected day'} (1 entry)`)
+                          : (isToday ? `Logged today (${todayHistory.length} entries)` : `Logged for ${targetDayLabel ? targetDayLabel.replace(/, \d{4}$/, '') : 'selected day'} (${todayHistory.length} entries)`)}
                       </Text>
                     </View>
 
                     <View style={styles.dayCycleBadge}>
                       <Text style={styles.dayCycleBadgeText}>
-                        {isToday ? 'Current day cycle' : (targetDayLabel ? `${targetDayLabel} cycle` : 'Selected day cycle')}
+                        {isToday ? 'Active cycle' : 'Historical'}
                       </Text>
                     </View>
                   </View>
@@ -724,9 +724,11 @@ const useStyles = createThemedStyles(palette => ({
     paddingHorizontal: 2,
   },
   historyTag: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    marginRight: 8,
   },
   historyTagText: {
     ...typography.caption,
@@ -735,6 +737,7 @@ const useStyles = createThemedStyles(palette => ({
     fontSize: 12,
   },
   dayCycleBadge: {
+    flexShrink: 0,
     backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#D1FAE5' : '#065F4630',
     paddingHorizontal: 7,
     paddingVertical: 2,

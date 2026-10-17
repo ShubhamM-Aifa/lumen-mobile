@@ -104,6 +104,37 @@ function formatSingleFieldValue(val: unknown, key?: string, dataType?: string): 
   return str;
 }
 
+export function formatValueWithUnit(val: unknown, unit?: string, fieldKey?: string, dataType?: string): string {
+  if (val === undefined || val === null || val === '') return '';
+  if (isPhotoFieldOrValue(fieldKey, dataType, val)) {
+    return '📷 Attached';
+  }
+
+  // Duration in seconds (e.g. 3600 seconds -> 1 hr)
+  const isSeconds = unit === 'seconds' || unit === 'sec' || unit === 's' || (fieldKey && fieldKey.toLowerCase().includes('duration'));
+  const numVal = typeof val === 'number' ? val : Number(val);
+  if (isSeconds && !isNaN(numVal)) {
+    if (numVal >= 3600) {
+      const hrs = Math.floor(numVal / 3600);
+      const remMins = Math.round((numVal % 3600) / 60);
+      return remMins > 0 ? `${hrs}h ${remMins}m` : (hrs === 1 ? '1 hr' : `${hrs} hrs`);
+    } else if (numVal >= 60) {
+      const mins = Math.round(numVal / 60);
+      return `${mins} min`;
+    } else if (numVal > 0) {
+      return `${numVal}s`;
+    }
+  }
+
+  // Severity rating (e.g. 3 -> Severity 3)
+  if (fieldKey && fieldKey.toLowerCase().includes('severity') && !isNaN(numVal)) {
+    return `Severity: ${numVal}`;
+  }
+
+  const formattedVal = formatSingleFieldValue(val, fieldKey, dataType);
+  return unit ? `${formattedVal} ${unit}` : formattedVal;
+}
+
 export function formatAnswerSummary(answers: Answer[], options: IOption[]): string {
   if (!answers || answers.length === 0) return '';
   const parts = answers.map(ans => {
@@ -125,8 +156,8 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
           } else if (fv.fieldKey && fv.fieldKey.toLowerCase().includes('bristol')) {
             fieldParts.push(`Type ${fv.value}`);
           } else {
-            const formattedVal = formatSingleFieldValue(fv.value, fv.fieldKey, fv.dataType || fieldDef?.dataType);
-            fieldParts.push(fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal);
+            const displayVal = formatValueWithUnit(fv.value, fv.unit, fv.fieldKey, fv.dataType || fieldDef?.dataType);
+            fieldParts.push(displayVal);
           }
         }
       }
@@ -254,12 +285,12 @@ export function useTodayCategoryLogs(customDateStr?: string) {
                 const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
                 const isPhoto = isPhotoFieldOrValue(fv.fieldKey, fv.dataType || fieldDef?.dataType, fv.value);
                 const label = isPhoto ? 'Photo' : (fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value'));
-                const formattedVal = formatSingleFieldValue(fv.value, fv.fieldKey, fv.dataType || fieldDef?.dataType);
+                const displayVal = formatValueWithUnit(fv.value, fv.unit, fv.fieldKey, fv.dataType || fieldDef?.dataType);
                 fields.push({
                   key: fv.fieldKey,
                   label,
                   value: fv.value,
-                  displayValue: isPhoto ? '📷 Attached' : (fv.unit ? `${formattedVal} ${fv.unit}` : formattedVal),
+                  displayValue: isPhoto ? '📷 Attached' : displayVal,
                   unit: fv.unit,
                   dataType: fv.dataType || fieldDef?.dataType,
                   isImage: isPhoto,

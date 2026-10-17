@@ -11,6 +11,7 @@ import {
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import { AppDateTimePicker } from '../../src/components/common/AppDateTimePicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { RotateCcw, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -43,6 +44,7 @@ function fmtDateOnly(d: Date): string {
 }
 
 export default function QuestionSheet() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { categoryId, date } = useLocalSearchParams<{ categoryId: string; date?: string }>();
@@ -598,11 +600,11 @@ export default function QuestionSheet() {
           />
         </View>
 
-        <View style={styles.spacer} />
+        <View style={{ height: 84 + Math.max(insets.bottom, 16) }} />
       </ScrollView>
 
       {/* Submit button pinned to bottom */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -883,9 +885,10 @@ const useStyles = createThemedStyles(palette => ({
   spacer: { height: 100 },
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16, paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingHorizontal: 16, paddingTop: 12,
     backgroundColor: palette.surface,
     borderTopWidth: 1, borderTopColor: palette.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 8,
   },
   submitBtn: {
     backgroundColor: palette.primary,
