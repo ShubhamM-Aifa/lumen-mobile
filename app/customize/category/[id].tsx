@@ -209,8 +209,26 @@ export default function CategoryEditor() {
             >
               <Text style={styles.questionsLinkText}>📋  Manage questions →</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.questionsLink,
+                {
+                  marginTop: 10,
+                  borderColor: palette.primary + '50',
+                  backgroundColor: palette.primary + '0C',
+                },
+              ]}
+              onPress={() => router.push('/customize/templates')}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.questionsLinkText, { color: palette.primary }]}>
+                🌍  Publish or Browse Community Templates →
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
+
 
         {!isNew && (
           <View style={styles.actionSection}>
