@@ -1,12 +1,14 @@
 /**
  * Quick action editor — create or edit a home-screen one-tap button.
  * Mode: counter | timer | toggle
+ * Support linking to a Question & Option for in-place flare/symptom logging.
  */
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Link2, Unlink, Check, Sparkles } from 'lucide-react-native';
 import { safeGoBack } from '../../../src/utils/navigation';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
@@ -41,6 +43,11 @@ export default function QuickActionEditorScreen() {
   const [dailyGoal, setDailyGoal] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Linked question and option state
+  const [linkedQuestionId, setLinkedQuestionId] = useState<string | null>(null);
+  const [linkedOptionId, setLinkedOptionId] = useState<string | null>(null);
+  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+
   useEffect(() => { fetchConfig(); }, []);
 
   useEffect(() => {
@@ -54,9 +61,30 @@ export default function QuickActionEditorScreen() {
         setUnit(action.unit ?? '');
         setDefaultValue(action.defaultValue != null ? String(action.defaultValue) : '1');
         setDailyGoal(action.dailyGoal != null ? String(action.dailyGoal) : '');
+        setLinkedQuestionId(action.linkedQuestionId ?? null);
+        setLinkedOptionId(action.linkedOptionId ?? null);
+
+        if (action.linkedQuestionId && config.questions) {
+          const q = config.questions.find(item => item._id === action.linkedQuestionId);
+          if (q) {
+            setSelectedCatId(q.categoryId);
+          }
+        }
       }
     }
   }, [id, config]);
+
+  const activeCategories = config?.categories?.filter(c => c.isActive) ?? [];
+  const availableQuestions = config?.questions?.filter(
+    q => q.isActive && (!selectedCatId || q.categoryId === selectedCatId)
+  ) ?? [];
+  const availableOptions = config?.options?.filter(
+    o => o.isActive && o.questionId === linkedQuestionId
+  ) ?? [];
+
+  const currentLinkedOption = config?.options?.find(o => o._id === linkedOptionId);
+  const currentLinkedQuestion = config?.questions?.find(q => q._id === linkedQuestionId);
+  const currentLinkedCategory = config?.categories?.find(c => c._id === currentLinkedQuestion?.categoryId);
 
   const validate = () => {
     if (!label.trim()) { Alert.alert('Name required', 'Give this button a name.'); return false; }
@@ -72,6 +100,8 @@ export default function QuickActionEditorScreen() {
         unit: unit.trim() || undefined,
         defaultValue: defaultValue !== '' ? Number(defaultValue) : undefined,
         dailyGoal: dailyGoal !== '' ? Number(dailyGoal) : undefined,
+        linkedQuestionId: linkedQuestionId || null,
+        linkedOptionId: linkedOptionId || null,
       };
       if (isNew) {
         await api.post('/quick-actions', body);
@@ -186,7 +216,7 @@ export default function QuickActionEditorScreen() {
           style={styles.input}
           value={label}
           onChangeText={setLabel}
-          placeholder="e.g. Water, Walked, Medication"
+          placeholder="e.g. Flare now!, Burning, Water"
           placeholderTextColor={palette.textDisabled}
           autoFocus={isNew}
           accessibilityLabel="Button name"
@@ -197,6 +227,180 @@ export default function QuickActionEditorScreen() {
 
         <Text style={styles.sectionLabel}>Color</Text>
         <ColorSwatchPicker value={color} onChange={setColor} />
+
+        {/* Link to Log Option Section */}
+        <View style={styles.linkSectionCard}>
+          <View style={styles.linkSectionHeader}>
+            <View style={styles.linkHeaderLeft}>
+              <View style={[styles.linkIconCircle, { backgroundColor: color + '18' }]}>
+                <Link2 size={16} color={color} strokeWidth={2.4} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.linkSectionTitle}>Link to Log Option</Text>
+                <Text style={styles.linkSectionDesc}>
+                  Open an in-place modal on Today to log this symptom or option with body map & notes.
+                </Text>
+              </View>
+            </View>
+
+            {currentLinkedOption && (
+              <TouchableOpacity
+                style={styles.unlinkBtn}
+                onPress={() => {
+                  setLinkedOptionId(null);
+                  setLinkedQuestionId(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Unlink option"
+              >
+                <Unlink size={13} color={palette.error} />
+                <Text style={styles.unlinkBtnText}>Unlink</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Current Linked Status Banner */}
+          {currentLinkedOption && currentLinkedQuestion ? (
+            <View style={[styles.linkedActiveCard, { borderColor: color + '40', backgroundColor: color + '0D' }]}>
+              <View style={styles.linkedBadgeRow}>
+                <View style={styles.linkedPill}>
+                  <Text style={styles.linkedPillText}>
+                    {currentLinkedCategory?.icon || '📁'} {currentLinkedCategory?.name || 'Category'}
+                  </Text>
+                </View>
+                <Text style={styles.linkedArrow}>→</Text>
+                <View style={[styles.linkedPill, { maxWidth: 140 }]}>
+                  <Text style={styles.linkedPillText} numberOfLines={1}>
+                    {currentLinkedQuestion.title}
+                  </Text>
+                </View>
+                <Text style={styles.linkedArrow}>→</Text>
+                <View style={[styles.linkedPillActive, { borderColor: color, backgroundColor: color + '22' }]}>
+                  <Text style={[styles.linkedPillActiveText, { color }]}>
+                    {currentLinkedOption.icon ? `${currentLinkedOption.icon} ` : ''}
+                    {currentLinkedOption.label}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Quick Preset label & icon button */}
+              <TouchableOpacity
+                style={styles.useOptionDetailsBtn}
+                onPress={() => {
+                  setLabel(currentLinkedOption.label);
+                  if (currentLinkedOption.icon) setIcon(currentLinkedOption.icon);
+                }}
+              >
+                <Sparkles size={12} color={color} />
+                <Text style={[styles.useOptionDetailsText, { color }]}>
+                  Copy option label ("{currentLinkedOption.label}") to button
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.noLinkHint}>
+              Select a category, question, and option below to link this button to an interactive log option.
+            </Text>
+          )}
+
+          {/* Step 1: Category */}
+          <Text style={styles.subStepTitle}>1. Select Category</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+            {activeCategories.map(cat => (
+              <TouchableOpacity
+                key={cat._id}
+                style={[
+                  styles.catChip,
+                  selectedCatId === cat._id && { borderColor: cat.color, backgroundColor: cat.color + '1C' },
+                ]}
+                onPress={() => {
+                  setSelectedCatId(cat._id);
+                  if (linkedQuestionId && currentLinkedQuestion?.categoryId !== cat._id) {
+                    setLinkedQuestionId(null);
+                    setLinkedOptionId(null);
+                  }
+                }}
+              >
+                <Text style={styles.catChipIcon}>{cat.icon || '📁'}</Text>
+                <Text style={[styles.catChipText, selectedCatId === cat._id && { color: cat.color, fontWeight: '700' }]}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Step 2: Question */}
+          {selectedCatId && (
+            <>
+              <Text style={styles.subStepTitle}>2. Select Question</Text>
+              {availableQuestions.length === 0 ? (
+                <Text style={styles.emptyQuestionsText}>No questions found in this category.</Text>
+              ) : (
+                <View style={styles.questionList}>
+                  {availableQuestions.map(q => (
+                    <TouchableOpacity
+                      key={q._id}
+                      style={[
+                        styles.questionCard,
+                        linkedQuestionId === q._id && { borderColor: palette.primary, backgroundColor: palette.primary + '10' },
+                      ]}
+                      onPress={() => {
+                        setLinkedQuestionId(q._id);
+                        if (linkedOptionId && currentLinkedOption?.questionId !== q._id) {
+                          setLinkedOptionId(null);
+                        }
+                      }}
+                    >
+                      <Text style={[styles.questionCardTitle, linkedQuestionId === q._id && { color: palette.primary, fontWeight: '700' }]}>
+                        {q.icon ? `${q.icon} ` : ''}{q.title}
+                      </Text>
+                      {linkedQuestionId === q._id && (
+                        <Check size={16} color={palette.primary} strokeWidth={2.6} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Step 3: Option */}
+          {linkedQuestionId && (
+            <>
+              <Text style={styles.subStepTitle}>3. Select Option to Link</Text>
+              {availableOptions.length === 0 ? (
+                <Text style={styles.emptyQuestionsText}>No options configured for this question.</Text>
+              ) : (
+                <View style={styles.optionsGrid}>
+                  {availableOptions.map(opt => (
+                    <TouchableOpacity
+                      key={opt._id}
+                      style={[
+                        styles.optionPill,
+                        linkedOptionId === opt._id && { borderColor: color, backgroundColor: color + '1A' },
+                      ]}
+                      onPress={() => {
+                        setLinkedOptionId(opt._id);
+                        if (!label || label === 'Button name') {
+                          setLabel(opt.label);
+                          if (opt.icon) setIcon(opt.icon);
+                        }
+                      }}
+                    >
+                      {opt.icon ? <Text style={styles.optionPillIcon}>{opt.icon}</Text> : null}
+                      <Text style={[styles.optionPillText, linkedOptionId === opt._id && { color, fontWeight: '700' }]}>
+                        {opt.label}
+                      </Text>
+                      {linkedOptionId === opt._id && (
+                        <Check size={13} color={color} strokeWidth={2.8} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+        </View>
 
         <Text style={styles.sectionLabel}>Mode</Text>
         <View style={styles.modeList}>
@@ -308,6 +512,207 @@ const useStyles = createThemedStyles((palette) => ({
   radioInner: { width: 12, height: 12, borderRadius: 6 },
   saveBtn: { ...typography.bodyBold, color: palette.primary, paddingHorizontal: 4 },
   saveBtnDim: { opacity: 0.4 },
+
+  // Link Section Card
+  linkSectionCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 16,
+    gap: 12,
+    marginTop: 16,
+  },
+  linkSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  linkHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  linkIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkSectionTitle: {
+    ...typography.bodyBold,
+    fontSize: 15,
+    color: palette.text,
+  },
+  linkSectionDesc: {
+    ...typography.caption,
+    fontSize: 12,
+    color: palette.textSecondary,
+    marginTop: 1,
+  },
+  unlinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: palette.error + '14',
+  },
+  unlinkBtnText: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: palette.error,
+  },
+  linkedActiveCard: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 12,
+    gap: 8,
+  },
+  linkedBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  linkedPill: {
+    backgroundColor: palette.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  linkedPillText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  linkedArrow: {
+    fontSize: 13,
+    color: palette.textSecondary,
+    fontWeight: '700',
+  },
+  linkedPillActive: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  linkedPillActiveText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  useOptionDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 2,
+  },
+  useOptionDetailsText: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  noLinkHint: {
+    ...typography.caption,
+    fontSize: 12,
+    color: palette.textSecondary,
+    fontStyle: 'italic',
+  },
+  subStepTitle: {
+    ...typography.caption,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: palette.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 6,
+  },
+  chipsRow: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  catChipIcon: {
+    fontSize: 14,
+  },
+  catChipText: {
+    ...typography.caption,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  questionList: {
+    gap: 6,
+  },
+  questionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  questionCardTitle: {
+    ...typography.body,
+    fontSize: 13.5,
+    color: palette.text,
+    flex: 1,
+  },
+  emptyQuestionsText: {
+    ...typography.caption,
+    fontSize: 12,
+    color: palette.textSecondary,
+    fontStyle: 'italic',
+    paddingVertical: 4,
+  },
+  optionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  optionPillIcon: {
+    fontSize: 15,
+  },
+  optionPillText: {
+    ...typography.caption,
+    fontSize: 13,
+    fontWeight: '600',
+    color: palette.text,
+  },
+
   actionSection: { gap: 10, marginTop: 32 },
   unarchiveBtn: {
     backgroundColor: palette.secondary + '18', borderRadius: 12,

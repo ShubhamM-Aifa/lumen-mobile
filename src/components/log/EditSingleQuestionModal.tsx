@@ -19,7 +19,7 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '../common/AppDateTimePicker';
 import { X, Check, Clock, Trash2, AlertCircle, Edit3 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
@@ -110,10 +110,6 @@ export function EditSingleQuestionModal({
 
   if (!visible || !question) return null;
 
-  const onPickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (selectedDate) setOccurredAt(selectedDate);
-  };
 
   const handleSave = async () => {
     if (!existingLog || !logId) return;
@@ -278,15 +274,13 @@ export function EditSingleQuestionModal({
                 </TouchableOpacity>
               </View>
 
-              {showDatePicker && (
-                <DateTimePicker
-                  value={occurredAt}
-                  mode="datetime"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  maximumDate={new Date()}
-                  onChange={onPickerChange}
-                />
-              )}
+              <AppDateTimePicker
+                visible={showDatePicker}
+                onClose={() => setShowDatePicker(false)}
+                value={occurredAt}
+                onChange={(d) => setOccurredAt(d)}
+                maximumDate={new Date()}
+              />
 
               {/* Question Help Text */}
               {question.helpText ? (

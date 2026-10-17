@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Check,
 } from 'lucide-react-native';
 import { IQuestion, IOption, Answer } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../theme/ThemeContext';
@@ -20,6 +21,14 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+export interface QuestionPreviousEntry {
+  logId: string;
+  occurredAt: string;
+  dateBadge: string;
+  answers: Answer[];
+  summaryText: string;
+}
+
 interface Props {
   question: IQuestion;
   options: IOption[];
@@ -29,10 +38,13 @@ interface Props {
   onChange: (answers: Answer[]) => void;
   tempPrefUnit?: 'C' | 'F';
   todayHistory?: QuestionTodayHistoryEntry[];
+  previousEntry?: QuestionPreviousEntry | null;
   onReuseAnswers?: (answers: Answer[]) => void;
   onEditLog?: (logId: string) => void;
   defaultExpanded?: boolean;
   forceExpanded?: boolean | null;
+  isToday?: boolean;
+  targetDayLabel?: string;
 }
 
 function isVisible(question: IQuestion, sessionAnswers: Answer[]): boolean {
@@ -51,10 +63,13 @@ export function QuestionCard({
   onChange,
   tempPrefUnit = 'C',
   todayHistory,
+  previousEntry,
   onReuseAnswers,
   onEditLog,
   defaultExpanded = true,
   forceExpanded,
+  isToday = true,
+  targetDayLabel,
 }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
@@ -67,6 +82,17 @@ export function QuestionCard({
 
   // Per-entry options values expansion state (logId -> boolean)
   const [expandedLogIds, setExpandedLogIds] = useState<Record<string, boolean>>({});
+
+  // Quick applied visual confirmation state for previous log copy
+  const [justAppliedPrev, setJustAppliedPrev] = useState(false);
+
+  const handleApplyPrevious = () => {
+    if (!previousEntry || !onReuseAnswers) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onReuseAnswers(previousEntry.answers);
+    setJustAppliedPrev(true);
+    setTimeout(() => setJustAppliedPrev(false), 2500);
+  };
 
   // Sync with controlled forceExpanded override from parent if provided
   useEffect(() => {
@@ -133,7 +159,9 @@ export function QuestionCard({
             ) : hasHistory ? (
               <View style={styles.collapsedHistoryBadge}>
                 <Text style={styles.collapsedHistoryBadgeText}>
-                  {todayHistory.length === 1 ? 'Logged today' : `Logged (${todayHistory.length})`}
+                  {todayHistory.length === 1
+                    ? (isToday ? 'Logged today' : `Logged on ${targetDayLabel || 'this day'}`)
+                    : `Logged (${todayHistory.length})`}
                 </Text>
               </View>
             ) : (
@@ -224,13 +252,15 @@ export function QuestionCard({
                       <CheckCircle2 size={13} color="#059669" />
                       <Text style={styles.historyTagText}>
                         {todayHistory.length === 1
-                          ? 'Logged today (1 entry)'
-                          : `Logged today (${todayHistory.length} entries)`}
+                          ? (isToday ? 'Logged today (1 entry)' : `Logged for ${targetDayLabel || 'selected day'} (1 entry)`)
+                          : (isToday ? `Logged today (${todayHistory.length} entries)` : `Logged for ${targetDayLabel || 'selected day'} (${todayHistory.length} entries)`)}
                       </Text>
                     </View>
 
                     <View style={styles.dayCycleBadge}>
-                      <Text style={styles.dayCycleBadgeText}>Current day cycle</Text>
+                      <Text style={styles.dayCycleBadgeText}>
+                        {isToday ? 'Current day cycle' : (targetDayLabel ? `${targetDayLabel} cycle` : 'Selected day cycle')}
+                      </Text>
                     </View>
                   </View>
 
@@ -448,6 +478,61 @@ export function QuestionCard({
                       )}
                     </TouchableOpacity>
                   )}
+                </View>
+              )}
+
+              {/* Previous Log Option Copy Bar for this specific Question */}
+              {previousEntry && (
+                <View style={styles.questionPrevLogCard}>
+                  <View style={styles.questionPrevLogLeft}>
+                    <View
+                      style={[
+                        styles.questionPrevLogIconBox,
+                        justAppliedPrev && styles.questionPrevLogIconBoxApplied,
+                      ]}
+                    >
+                      {justAppliedPrev ? (
+                        <Check size={14} color="#059669" strokeWidth={2.5} />
+                      ) : (
+                        <RotateCcw size={14} color={palette.primary} strokeWidth={2.2} />
+                      )}
+                    </View>
+
+                    <View style={styles.questionPrevLogInfo}>
+                      <View style={styles.questionPrevLogRow}>
+                        <Text style={styles.questionPrevLogTitle}>
+                          {justAppliedPrev ? 'Applied to question!' : 'Copy previous answer'}
+                        </Text>
+                        <View style={styles.questionPrevLogBadge}>
+                          <Text style={styles.questionPrevLogBadgeText}>{previousEntry.dateBadge}</Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.questionPrevLogSummary} numberOfLines={1}>
+                        {justAppliedPrev ? 'Answer populated' : previousEntry.summaryText}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.questionPrevLogApplyBtn,
+                      justAppliedPrev && styles.questionPrevLogApplyBtnApplied,
+                    ]}
+                    onPress={handleApplyPrevious}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Copy previous answer from ${previousEntry.dateBadge}: ${previousEntry.summaryText}`}
+                  >
+                    <Text
+                      style={[
+                        styles.questionPrevLogApplyText,
+                        justAppliedPrev && styles.questionPrevLogApplyTextApplied,
+                      ]}
+                    >
+                      {justAppliedPrev ? 'Applied' : 'Fill'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -1010,5 +1095,95 @@ const useStyles = createThemedStyles(palette => ({
   expandedContent: {
     gap: 14,
     marginTop: 4,
+  },
+
+  // Per-question previous log quick copy card
+  questionPrevLogCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#FFF9F5' : `${palette.surface}F0`,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${palette.primary}33`,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    gap: 8,
+  },
+  questionPrevLogLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  questionPrevLogIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: `${palette.primary}18`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questionPrevLogIconBoxApplied: {
+    backgroundColor: '#05966922',
+  },
+  questionPrevLogInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  questionPrevLogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  questionPrevLogTitle: {
+    ...typography.caption,
+    fontWeight: '700',
+    color: palette.text,
+    fontSize: 12,
+  },
+  questionPrevLogBadge: {
+    backgroundColor: `${palette.primary}12`,
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: `${palette.primary}24`,
+  },
+  questionPrevLogBadgeText: {
+    ...typography.caption,
+    fontSize: 10,
+    color: palette.primary,
+    fontWeight: '600',
+  },
+  questionPrevLogSummary: {
+    ...typography.caption,
+    color: palette.textSecondary,
+    fontSize: 11.5,
+  },
+  questionPrevLogApplyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: `${palette.primary}16`,
+    borderWidth: 1,
+    borderColor: `${palette.primary}44`,
+  },
+  questionPrevLogApplyBtnApplied: {
+    backgroundColor: '#05966920',
+    borderColor: '#05966966',
+  },
+  questionPrevLogApplyText: {
+    ...typography.caption,
+    fontWeight: '700',
+    color: palette.primary,
+    fontSize: 11.5,
+  },
+  questionPrevLogApplyTextApplied: {
+    color: '#059669',
   },
 }));

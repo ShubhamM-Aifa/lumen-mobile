@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '../src/components/common/AppDateTimePicker';
 import { ChevronLeft, SlidersHorizontal, Clock, Check, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { uuidv4 } from '../src/utils/uuid';
@@ -147,10 +147,6 @@ export default function QuickLogScreen() {
     }
   };
 
-  const onPickerChange = (_e: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (date) setOccurredAt(date);
-  };
 
   return (
     <View style={styles.screen}>
@@ -200,15 +196,14 @@ export default function QuickLogScreen() {
           <Text style={styles.timeEditBadge}>Change</Text>
         </TouchableOpacity>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={occurredAt}
-            mode="time"
-            is24Hour={false}
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={onPickerChange}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          value={occurredAt}
+          onChange={(d) => setOccurredAt(d)}
+          maximumDate={new Date()}
+          mode="time"
+        />
 
         {/* Empty state if user deselected all questions */}
         {quickLogQuestions.length === 0 && !isConfigLoading && (

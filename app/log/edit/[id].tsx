@@ -19,8 +19,8 @@ import {
   Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { ChevronLeft, Check, Clock, AlertCircle } from 'lucide-react-native';
+import { AppDateTimePicker } from '../../../src/components/common/AppDateTimePicker';
+import { ChevronLeft, Check, Clock, Calendar, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { safeGoBack } from '../../../src/utils/navigation';
@@ -34,13 +34,15 @@ import { QuestionCard } from '../../../src/components/QuestionCard';
 import { validateAnswers } from '../../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../../src/utils/uploadAnswerImages';
 
-function fmtDate(d: Date): string {
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, '0');
-  const period = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${dateStr} at ${h12}:${m} ${period}`;
+function fmtDateOnly(d: Date): string {
+  const isToday = new Date().toDateString() === d.toDateString();
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  const isYesterday = y.toDateString() === d.toDateString();
+  const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  if (isToday) return `Today (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+  if (isYesterday) return `Yesterday (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+  return dateStr;
 }
 
 export default function EditLogScreen() {
@@ -142,10 +144,6 @@ export default function EditLogScreen() {
     setAnswersByQuestion((prev) => ({ ...prev, [questionId]: answers }));
   }, []);
 
-  const onPickerChange = (_e: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (date) setOccurredAt(date);
-  };
 
   const validate = (): string | null => {
     for (const q of questions) {
@@ -265,35 +263,35 @@ export default function EditLogScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Date / Time Backdating row */}
+        {/* Date Backdating row */}
         <View style={styles.dateTimeCard}>
           <View style={styles.dateLabelRow}>
-            <Clock size={16} color={palette.primary} />
-            <Text style={styles.dateTimeHeading}>Time Logged</Text>
+            <Calendar size={16} color={palette.primary} strokeWidth={2.2} />
+            <Text style={styles.dateTimeHeading}>Date Logged</Text>
           </View>
           <TouchableOpacity
             style={styles.datePickerBtn}
             onPress={() => setShowDatePicker(true)}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Change log time"
+            accessibilityLabel="Change log date"
           >
             <Text style={[styles.datePickerText, { color: palette.text }]}>
-              {fmtDate(occurredAt)}
+              {fmtDateOnly(occurredAt)}
             </Text>
             <Text style={[styles.changeTimeHint, { color: palette.primary }]}>Change</Text>
           </TouchableOpacity>
         </View>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={occurredAt}
-            mode="datetime"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            maximumDate={new Date()}
-            onChange={onPickerChange}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          value={occurredAt}
+          onChange={(d) => setOccurredAt(d)}
+          maximumDate={new Date()}
+          mode="date"
+          title="When did this happen?"
+        />
 
         {/* Question cards with full interactive option pickers, body maps, and photos */}
         {questions.length === 0 ? (

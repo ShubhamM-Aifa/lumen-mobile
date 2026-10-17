@@ -39,6 +39,7 @@ import {
   Pin,
 } from 'lucide-react-native';
 
+import { IQuickAction } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { useAuthStore } from '../../src/store/authStore';
@@ -60,6 +61,7 @@ import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
 import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
 import { AccountSwitcherModal } from '../../src/components/auth/AccountSwitcherModal';
+import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
 
 export default function TodayScreen() {
   const { palette } = useTheme();
@@ -67,6 +69,7 @@ export default function TodayScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const { user, fetchProfile, savedAccounts } = useAuthStore();
   const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
+  const [selectedLinkedAction, setSelectedLinkedAction] = useState<IQuickAction | null>(null);
   const { config, fetchConfig } = useConfigStore();
   const { todaySession, fetchTodaySession } = useDaySessionStore();
   const { todayTaps, fetchTodayTaps, tap } = useQuickLogStore();
@@ -491,6 +494,8 @@ export default function TodayScreen() {
                           setSelectedWaterActionId(action._id);
                           setWaterModalVisible(true);
                         }
+                      : (action.linkedOptionId && action.linkedQuestionId)
+                      ? () => setSelectedLinkedAction(action)
                       : undefined
                   }
                 />
@@ -860,6 +865,17 @@ export default function TodayScreen() {
         onClose={() => setWaterModalVisible(false)}
         quickActionId={selectedWaterActionId || waterAction?._id}
         onLogged={() => {
+          fetchTodayTaps();
+        }}
+      />
+
+      {/* Linked Quick Tap In-Place Modal */}
+      <LinkedQuickTapModal
+        visible={!!selectedLinkedAction}
+        action={selectedLinkedAction}
+        onClose={() => setSelectedLinkedAction(null)}
+        onSuccess={() => {
+          setSelectedLinkedAction(null);
           fetchTodayTaps();
         }}
       />

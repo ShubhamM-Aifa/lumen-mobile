@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '../../src/components/common/AppDateTimePicker';
 import * as Haptics from 'expo-haptics';
 import { RotateCcw, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
-import { QuestionCard } from '../../src/components/QuestionCard';
+import { QuestionCard, QuestionPreviousEntry } from '../../src/components/QuestionCard';
 import { EditSingleQuestionModal } from '../../src/components/log/EditSingleQuestionModal';
 import { validateAnswers } from '../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../src/utils/uploadAnswerImages';
@@ -31,14 +31,15 @@ import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTo
 import { getDayBoundaryWindow, getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { logLocationService } from '../../src/services/logLocationService';
 
-function fmt(d: Date): string {
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, '0');
-  const period = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  const date = `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+function fmtDateOnly(d: Date): string {
   const isToday = new Date().toDateString() === d.toDateString();
-  return isToday ? `Today at ${h12}:${m} ${period}` : `${date} at ${h12}:${m} ${period}`;
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  const isYesterday = y.toDateString() === d.toDateString();
+  const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  if (isToday) return `Today (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+  if (isYesterday) return `Yesterday (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+  return dateStr;
 }
 
 export default function QuestionSheet() {
@@ -48,8 +49,6 @@ export default function QuestionSheet() {
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
-  const { getQuestionTodayHistory, refetch: refetchTodayLogs } = useTodayCategoryLogs(date);
-
   const initialOccurredAt = useMemo(() => {
     if (!date) return new Date();
     const parts = date.split('-');
@@ -61,16 +60,6 @@ export default function QuestionSheet() {
       return new Date(y, m, d, now.getHours(), now.getMinutes(), 0);
     }
     return new Date();
-  }, [date]);
-
-  const formattedTargetDate = useMemo(() => {
-    if (!date) return null;
-    const parts = date.split('-');
-    if (parts.length === 3) {
-      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0);
-      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    }
-    return date;
   }, [date]);
 
   const [editingTarget, setEditingTarget] = useState<{
@@ -88,6 +77,31 @@ export default function QuestionSheet() {
   useEffect(() => {
     setOccurredAt(initialOccurredAt);
   }, [initialOccurredAt]);
+
+  const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+
+  const currentTodayDateStr = useMemo(() => {
+    return getTrackingDayDateString(new Date(), boundaryHour);
+  }, [boundaryHour]);
+
+  const activeTrackingDateStr = useMemo(() => {
+    return getTrackingDayDateString(occurredAt, boundaryHour);
+  }, [occurredAt, boundaryHour]);
+
+  const isLoggingForToday = activeTrackingDateStr === currentTodayDateStr;
+
+  // Dynamically fetch and organize logs for the currently selected tracking day!
+  const { getQuestionTodayHistory, refetch: refetchTodayLogs } = useTodayCategoryLogs(activeTrackingDateStr);
+
+  const formattedTargetDate = useMemo(() => {
+    if (isLoggingForToday) return null;
+    return occurredAt.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }, [isLoggingForToday, occurredAt]);
 
   const category: ICategory | undefined = config?.categories.find(c => c._id === categoryId);
   const questions: IQuestion[] = (config?.questions ?? [])
@@ -148,26 +162,30 @@ export default function QuestionSheet() {
     if (targetLog.note) setNote(targetLog.note);
   };
 
-  const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
-  const currentBoundaryWindow = useMemo(() => getDayBoundaryWindow(boundaryHour), [boundaryHour]);
+  // Boundary window for the tracking day containing occurredAt
+  const currentBoundaryWindow = useMemo(() => {
+    return getDayBoundaryWindow(boundaryHour, occurredAt);
+  }, [boundaryHour, occurredAt]);
 
-  // Fetch the most recent log entry before today's cycle (smart fallback to yesterday or previous entry)
-  const { data: previousLog } = useQuery<ILogEntry | null>({
-    queryKey: ['previous-category-log', categoryId, currentBoundaryWindow.start.toISOString()],
+  // Fetch recent log entries before this tracking day's window (up to 25 to cover individual questions)
+  const { data: previousLogs = [] } = useQuery<ILogEntry[]>({
+    queryKey: ['previous-category-logs', categoryId, currentBoundaryWindow.start.toISOString()],
     queryFn: async () => {
-      if (!categoryId) return null;
+      if (!categoryId) return [];
       const res = await api.get<any>('/logs', {
         params: {
           to: currentBoundaryWindow.start.toISOString(),
           category: categoryId,
-          limit: 1,
+          limit: 25,
         },
       });
       const entries: ILogEntry[] = Array.isArray(res) ? res : (res?.logs ?? res?.data ?? []);
-      return entries.length > 0 ? entries[0] : null;
+      return entries;
     },
     staleTime: 60 * 1000,
   });
+
+  const previousLog = previousLogs.length > 0 ? previousLogs[0] : null;
 
   const isYesterdayLog = useMemo(() => {
     if (!previousLog) return false;
@@ -177,21 +195,56 @@ export default function QuestionSheet() {
     return prevTime >= yesterdayWindow.start.getTime() && prevTime <= yesterdayWindow.end.getTime();
   }, [previousLog, currentBoundaryWindow.start, boundaryHour]);
 
+  const formatBadgeDate = useCallback(
+    (dateIso: string) => {
+      const d = new Date(dateIso);
+      const yesterdayRef = new Date(currentBoundaryWindow.start.getTime() - 1000);
+      const yesterdayWindow = getDayBoundaryWindow(boundaryHour, yesterdayRef);
+      const prevTime = d.getTime();
+      const isYesterday = prevTime >= yesterdayWindow.start.getTime() && prevTime <= yesterdayWindow.end.getTime();
+      const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (isLoggingForToday && isYesterday) {
+        return `Yesterday at ${timeStr}`;
+      }
+      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `${monthDay} at ${timeStr}`;
+    },
+    [currentBoundaryWindow.start, boundaryHour, isLoggingForToday],
+  );
+
   const previousDateBadge = useMemo(() => {
     if (!previousLog) return '';
-    const d = new Date(previousLog.occurredAt);
-    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    if (isYesterdayLog) {
-      return `Yesterday at ${timeStr}`;
-    }
-    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${monthDay} at ${timeStr}`;
-  }, [previousLog, isYesterdayLog]);
+    return formatBadgeDate(previousLog.occurredAt);
+  }, [previousLog, formatBadgeDate]);
 
   const previousSummaryStr = useMemo(() => {
     if (!previousLog || !config?.options) return '';
     return formatAnswerSummary(previousLog.answers ?? [], config.options);
   }, [previousLog, config?.options]);
+
+  // Lookup previous entry for each specific question
+  const getQuestionPreviousEntry = useCallback(
+    (questionId: string, qOptions: IOption[]): QuestionPreviousEntry | null => {
+      if (!previousLogs || previousLogs.length === 0 || qOptions.length === 0) return null;
+      const optionIdSet = new Set(qOptions.map(o => o._id));
+
+      for (const log of previousLogs) {
+        const matchingAnswers = (log.answers ?? []).filter(a => optionIdSet.has(a.optionId));
+        if (matchingAnswers.length > 0) {
+          const summary = formatAnswerSummary(matchingAnswers, qOptions);
+          return {
+            logId: log._id,
+            occurredAt: log.occurredAt,
+            dateBadge: formatBadgeDate(log.occurredAt),
+            answers: matchingAnswers,
+            summaryText: summary,
+          };
+        }
+      }
+      return null;
+    },
+    [previousLogs, formatBadgeDate],
+  );
 
   const [justApplied, setJustApplied] = useState(false);
 
@@ -252,24 +305,53 @@ export default function QuestionSheet() {
         : (mealPrefix || undefined);
 
       const primaryAnsweredQuestion = questions.find(q => (answersByQuestion[q._id] ?? []).length > 0) ?? questions[0];
+      const cleanCategoryId = Array.isArray(categoryId) ? categoryId[0] : categoryId;
 
-      const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
-      const curToday = getTrackingDayDateString(new Date(), boundaryHour);
-      const logDay = getTrackingDayDateString(occurredAt, boundaryHour);
-      const isLoggingForToday = logDay === curToday;
+      // Sanitize answers to guarantee valid optionLabelSnapshot and no nulls from Mongo
+      const sanitizedAnswers = allAns.map(ans => {
+        const opt = config?.options.find(o => o._id === ans.optionId);
+        return {
+          optionId: ans.optionId,
+          optionLabelSnapshot: ans.optionLabelSnapshot || opt?.label || 'Selected',
+          values: (ans.values ?? []).map(v => ({
+            fieldKey: v.fieldKey,
+            dataType: v.dataType,
+            value: v.value,
+            ...(v.unit ? { unit: v.unit } : {}),
+            ...(v.canonicalValue !== undefined && v.canonicalValue !== null ? { canonicalValue: v.canonicalValue } : {}),
+          })),
+          ...(ans.comment ? { comment: ans.comment } : {}),
+          ...(ans.otherText ? { otherText: ans.otherText } : {}),
+        };
+      });
+
+      // Sanitize location snapshot (strip any null/undefined fields)
+      let sanitizedLocation: any = undefined;
+      if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+        sanitizedLocation = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          ...(typeof location.accuracy === 'number' ? { accuracy: location.accuracy } : {}),
+          ...(location.name ? { name: location.name } : {}),
+          ...(location.city ? { city: location.city } : {}),
+          ...(location.region ? { region: location.region } : {}),
+          ...(location.country ? { country: location.country } : {}),
+          ...(location.formattedAddress ? { formattedAddress: location.formattedAddress } : {}),
+        };
+      }
 
       await api.post('/logs', {
         clientId: uuidv4(),
-        daySessionId: isLoggingForToday ? todaySession?._id : undefined,
+        daySessionId: isLoggingForToday && todaySession?._id ? String(todaySession._id) : undefined,
         source: 'questionnaire',
-        categoryId,
+        categoryId: cleanCategoryId,
         questionId: primaryAnsweredQuestion?._id,
         questionVersion: primaryAnsweredQuestion?.version ?? 1,
-        occurredAt: occurredAt.toISOString(),
+        occurredAt: occurredAt instanceof Date && !isNaN(occurredAt.getTime()) ? occurredAt.toISOString() : new Date().toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        answers: allAns,
+        answers: sanitizedAnswers,
         note: finalNote,
-        ...(location ? { location } : {}),
+        ...(sanitizedLocation ? { location: sanitizedLocation } : {}),
       });
       queryClient.invalidateQueries({ queryKey: ['today-logs'] });
       queryClient.invalidateQueries({ queryKey: ['day-entries'] });
@@ -280,16 +362,12 @@ export default function QuestionSheet() {
         safeGoBack('/(tabs)/today');
       }
     } catch (err: unknown) {
+      console.error('[QuestionSheet] Submit failed:', err);
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       Alert.alert('Log failed', msg);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const onPickerChange = (_e: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (date) setOccurredAt(date);
   };
 
   if (!category) {
@@ -320,15 +398,15 @@ export default function QuestionSheet() {
           </View>
         )}
 
-        {/* Log time row */}
+        {/* Log date row */}
         <TouchableOpacity
           style={styles.timeRow}
           onPress={() => setShowDatePicker(true)}
-          accessibilityLabel={`Log time: ${fmt(occurredAt)}`}
+          accessibilityLabel={`Log date: ${fmtDateOnly(occurredAt)}`}
           accessibilityRole="button"
         >
-          <Text style={styles.timeIcon}>🕐</Text>
-          <Text style={styles.timeText}>{fmt(occurredAt)}</Text>
+          <Calendar size={16} color={palette.primary} strokeWidth={2.2} />
+          <Text style={styles.timeText}>{fmtDateOnly(occurredAt)}</Text>
           <Text style={styles.timeEdit}>Change</Text>
         </TouchableOpacity>
 
@@ -405,7 +483,7 @@ export default function QuestionSheet() {
                 <Text style={styles.previousLogTitle}>
                   {justApplied
                     ? 'Applied to form!'
-                    : (isYesterdayLog ? 'Same as yesterday' : 'Copy previous log')}
+                    : (isLoggingForToday && isYesterdayLog ? 'Same as yesterday' : 'Copy previous log')}
                 </Text>
                 <View style={styles.previousLogBadge}>
                   <Text style={styles.previousLogBadgeText}>{previousDateBadge}</Text>
@@ -483,6 +561,7 @@ export default function QuestionSheet() {
             onChange={(ans) => setQAnswers(q._id, ans)}
             tempPrefUnit={tempPrefUnit}
             todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [], categoryId)}
+            previousEntry={getQuestionPreviousEntry(q._id, optionsByQuestion[q._id] ?? [])}
             onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
             onEditLog={(logId) =>
               setEditingTarget({
@@ -492,6 +571,8 @@ export default function QuestionSheet() {
               })
             }
             forceExpanded={allQuestionsExpanded}
+            isToday={isLoggingForToday}
+            targetDayLabel={formattedTargetDate || undefined}
           />
         ))}
 
@@ -535,38 +616,16 @@ export default function QuestionSheet() {
         </TouchableOpacity>
       </View>
 
-      {/* Date/time picker — iOS modal, Android native */}
-      {Platform.OS === 'ios' && showDatePicker && (
-        <Modal transparent animationType="slide">
-          <Pressable style={styles.overlay} onPress={() => setShowDatePicker(false)}>
-            <View style={styles.pickerSheet}>
-              <View style={styles.pickerHeader}>
-                <Text style={styles.pickerTitle}>When did this happen?</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                  <Text style={styles.pickerDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={occurredAt}
-                mode="datetime"
-                display="spinner"
-                onChange={onPickerChange}
-                maximumDate={new Date()}
-                textColor={palette.text}
-              />
-            </View>
-          </Pressable>
-        </Modal>
-      )}
-      {Platform.OS === 'android' && showDatePicker && (
-        <DateTimePicker
-          value={occurredAt}
-          mode="datetime"
-          display="default"
-          onChange={onPickerChange}
-          maximumDate={new Date()}
-        />
-      )}
+      {/* Date picker — iOS modal, Android native, Web responsive sheet */}
+      <AppDateTimePicker
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        value={occurredAt}
+        onChange={(d) => setOccurredAt(d)}
+        maximumDate={new Date()}
+        mode="date"
+        title="When did this happen?"
+      />
 
       {/* Focused Single-Question Edit Modal */}
       <EditSingleQuestionModal

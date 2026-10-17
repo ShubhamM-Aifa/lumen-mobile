@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
@@ -26,10 +26,28 @@ export default function ExportScreen() {
     setExporting(true);
     try {
       const res: any = await api.get('/config/export');
-      const json = JSON.stringify(res.data, null, 2);
+      // res is already the unwrapped data payload from api.get
+      const exportData = res?.data !== undefined ? res.data : res;
+      const json = JSON.stringify(exportData, null, 2);
       const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `lumen-config-${timestamp}.json`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        Alert.alert('Export successful', 'Config exported and downloaded to your device.');
+        return;
+      }
+
       const cacheDir = (FileSystem as any).cacheDirectory || (FileSystem as any).documentDirectory || '';
-      const path = `${cacheDir}lumen-config-${timestamp}.json`;
+      const path = `${cacheDir}${filename}`;
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
@@ -37,9 +55,12 @@ export default function ExportScreen() {
       } else {
         Alert.alert('Exported', `Saved to:\n${path}`);
       }
-    } catch (err) {
-      Alert.alert('Export failed', 'Could not export your config. Please try again.');
-    } finally { setExporting(false); }
+    } catch (err: any) {
+      console.error('Export error:', err);
+      Alert.alert('Export failed', err?.message || 'Could not export your config. Please try again.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const importConfig = async () => {
@@ -49,7 +70,8 @@ export default function ExportScreen() {
         type: 'application/json',
         copyToCacheDirectory: true,
       });
-    } catch {
+    } catch (err: any) {
+      console.error('Document picker error:', err);
       return;
     }
     if (result.canceled || !result.assets?.[0]) return;
@@ -65,14 +87,30 @@ export default function ExportScreen() {
           onPress: async () => {
             setImporting(true);
             try {
-              const json = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+              let json: string;
+              if (Platform.OS === 'web') {
+                if ((asset as any).file) {
+                  json = await (asset as any).file.text();
+                } else {
+                  const resp = await fetch(asset.uri);
+                  json = await resp.text();
+                }
+              } else {
+                json = await FileSystem.readAsStringAsync(asset.uri, {
+                  encoding: FileSystem.EncodingType.UTF8,
+                });
+              }
               const body = JSON.parse(json);
               await api.post('/config/import', body);
-              invalidate(); await fetchConfig();
+              invalidate();
+              await fetchConfig();
               Alert.alert('Done', 'Config imported successfully.');
-            } catch {
-              Alert.alert('Import failed', 'The file could not be read or contained invalid data.');
-            } finally { setImporting(false); }
+            } catch (err: any) {
+              console.error('Import error:', err);
+              Alert.alert('Import failed', err?.message || 'The file could not be read or contained invalid data.');
+            } finally {
+              setImporting(false);
+            }
           },
         },
       ],

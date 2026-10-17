@@ -4,9 +4,9 @@
  */
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Pressable,
+  View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { AppDateTimePicker } from '../common/AppDateTimePicker';
 import { FieldDefinition } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
@@ -43,11 +43,6 @@ export function TimeField({ field, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const date = value ? parseHHmm(value) : new Date();
 
-  const onPickerChange = (_evt: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS === 'android') setOpen(false);
-    if (selected) onChange(toHHmm(selected));
-  };
-
   const display = value ? fmt12(value) : 'Tap to set time';
 
   return (
@@ -72,38 +67,14 @@ export function TimeField({ field, value, onChange }: Props) {
       </TouchableOpacity>
       {field.helpText ? <Text style={styles.hint}>{field.helpText}</Text> : null}
 
-      {/* iOS: show in a modal sheet */}
-      {Platform.OS === 'ios' && open && (
-        <Modal transparent animationType="slide">
-          <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
-            <View style={styles.iosSheet}>
-              <View style={styles.iosHeader}>
-                <Text style={styles.iosTitle}>{field.label}</Text>
-                <TouchableOpacity onPress={() => setOpen(false)} accessibilityLabel="Done">
-                  <Text style={styles.iosDone}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={date}
-                mode="time"
-                display="spinner"
-                onChange={onPickerChange}
-                textColor={palette.text}
-              />
-            </View>
-          </Pressable>
-        </Modal>
-      )}
-
-      {/* Android: inline picker */}
-      {Platform.OS === 'android' && open && (
-        <DateTimePicker
-          value={date}
-          mode="time"
-          display="default"
-          onChange={onPickerChange}
-        />
-      )}
+      <AppDateTimePicker
+        visible={open}
+        onClose={() => setOpen(false)}
+        value={date}
+        mode="time"
+        title={field.label}
+        onChange={(selected) => onChange(toHHmm(selected))}
+      />
     </View>
   );
 }
