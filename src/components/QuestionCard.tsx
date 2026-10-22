@@ -16,6 +16,7 @@ import { typography } from '../theme/typography';
 import { OptionSelector } from './OptionSelector';
 import { QuestionTodayHistoryEntry } from '../hooks/useTodayCategoryLogs';
 import { LogPhotoGallery } from './timeline/LogPhotoGallery';
+import { useAuthStore } from '../store/authStore';
 
 
 // Enable LayoutAnimation on Android
@@ -75,6 +76,7 @@ export function QuestionCard({
 }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
+  const user = useAuthStore((s) => s.user);
 
   // Collapsible question card state
   const [isCardExpanded, setIsCardExpanded] = useState<boolean>(defaultExpanded);
@@ -227,10 +229,167 @@ export function QuestionCard({
                 <Text style={styles.completedDayTimeText}>{latestHistory.timeFormatted}</Text>
               </View>
 
-              <View style={styles.completedDayContent}>
-                <Text style={styles.completedDayAnswerLabel}>Your recorded answer:</Text>
-                <Text style={styles.completedDayAnswerText}>{latestHistory.summaryText}</Text>
-              </View>
+              {(() => {
+                const latestDetails = latestHistory.details ?? [];
+                const latestAllFields = latestDetails.flatMap(d => d.fields ?? []);
+                const latestPhotoFields = latestAllFields.filter(f => f.isImage && f.value);
+                const hasLatestNonPhotoFields = latestAllFields.some(f => !f.isImage);
+                const hasLatestDetails = latestAllFields.length > 0 || latestDetails.some(d => !!d.comment || !!d.otherText);
+                const isLatestEntryExpanded = !!expandedLogIds[latestHistory.logId];
+
+                return (
+                  <View style={styles.completedDayContent}>
+                    <View style={styles.completedDaySummaryRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.completedDayAnswerLabel}>Your recorded answer:</Text>
+                        <Text style={styles.completedDayAnswerText}>{latestHistory.summaryText}</Text>
+                      </View>
+
+                      {hasLatestDetails && (
+                        <TouchableOpacity
+                          style={styles.entryDetailsToggle}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
+                              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                            }
+                            setExpandedLogIds(prev => ({
+                              ...prev,
+                              [latestHistory.logId]: !prev[latestHistory.logId],
+                            }));
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={isLatestEntryExpanded ? 'Hide option values' : 'See option values'}
+                        >
+                          <Text style={styles.entryDetailsToggleText}>
+                            {isLatestEntryExpanded ? 'Hide values' : 'See values'}
+                          </Text>
+                          {isLatestEntryExpanded ? (
+                            <ChevronUp size={12} color={palette.primary} strokeWidth={2.2} />
+                          ) : (
+                            <ChevronDown size={12} color={palette.primary} strokeWidth={2.2} />
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Direct Photo Gallery preview when collapsed */}
+                    {!isLatestEntryExpanded && latestPhotoFields.length > 0 && (
+                      <View style={{ width: '100%', marginTop: 8 }}>
+                        {latestPhotoFields.map((field, pIdx) => (
+                          <View
+                            key={`latest-photo-${field.key || pIdx}`}
+                            style={{ width: '100%', marginBottom: pIdx < latestPhotoFields.length - 1 ? 6 : 0 }}
+                          >
+                            <LogPhotoGallery
+                              uris={field.value as string}
+                              isSensitive={Boolean(user?.hasPhotoPin)}
+                              fieldLabel={field.label || 'Photo'}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Compact non-photo fields preview when collapsed */}
+                    {!isLatestEntryExpanded && hasLatestNonPhotoFields && (
+                      <View style={[styles.inlineValuesRow, { marginTop: 6 }]}>
+                        {latestAllFields.filter(f => !f.isImage).map((f, fIdx) => (
+                          <TouchableOpacity
+                            key={`latest-chip-${f.key || fIdx}`}
+                            style={styles.inlineValueChip}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                              }
+                              setExpandedLogIds(prev => ({
+                                ...prev,
+                                [latestHistory.logId]: true,
+                              }));
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`View ${f.label} details`}
+                          >
+                            <Text style={styles.inlineValueChipText} numberOfLines={2} ellipsizeMode="tail">
+                              <Text style={styles.inlineValueChipLabel}>{`${f.label}: `}</Text>
+                              <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Expanded Full Option Breakdown */}
+                    {isLatestEntryExpanded && (
+                      <View style={[styles.detailedValuesCard, { marginTop: 8 }]}>
+                        {latestDetails.map((detail, dIdx) => (
+                          <View key={`detail-${dIdx}`} style={styles.detailBlock}>
+                            <View style={styles.detailOptionHeader}>
+                              <View
+                                style={[
+                                  styles.detailColorDot,
+                                  { backgroundColor: detail.color || palette.primary },
+                                ]}
+                              />
+                              <Text style={styles.detailOptionLabel}>
+                                {detail.optionLabel}
+                              </Text>
+                            </View>
+
+                            {detail.fields.length > 0 ? (
+                              <View style={styles.detailFieldsGrid}>
+                                {detail.fields.map((field, fIdx) => (
+                                  field.isImage ? (
+                                    <View key={fIdx} style={{ width: '100%', marginTop: 6, marginBottom: 4 }}>
+                                      <LogPhotoGallery
+                                        uris={field.value as string}
+                                        isSensitive={Boolean(user?.hasPhotoPin)}
+                                        fieldLabel={field.label || 'Photo'}
+                                      />
+                                    </View>
+                                  ) : (
+                                    <View key={fIdx} style={styles.detailFieldRow}>
+                                      <Text style={styles.detailFieldLabel}>{field.label}</Text>
+                                      <View style={styles.detailFieldValueBadge}>
+                                        <Text style={styles.detailFieldValueText}>
+                                          {field.displayValue}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                  )
+                                ))}
+                              </View>
+                            ) : (
+                              <Text style={styles.detailNoFieldsText}>
+                                Selection recorded without additional parameters.
+                              </Text>
+                            )}
+
+                            {detail.comment ? (
+                              <View style={styles.detailCommentBox}>
+                                <MessageSquare size={12} color={palette.primary} style={{ marginTop: 2 }} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.detailCommentLabel}>Note</Text>
+                                  <Text style={styles.detailCommentText}>"{detail.comment}"</Text>
+                                </View>
+                              </View>
+                            ) : null}
+
+                            {detail.otherText ? (
+                              <View style={styles.detailCommentBox}>
+                                <Text style={styles.detailCommentLabel}>Custom entry</Text>
+                                <Text style={styles.detailCommentText}>{detail.otherText}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
 
               {onEditLog && (
                 <TouchableOpacity
@@ -369,14 +528,30 @@ export function QuestionCard({
                           {!isEntryExpanded && allFields.length > 0 && (
                             <View style={styles.inlineValuesRow}>
                               {allFields.map((f, fIdx) => (
-                                <View key={`${f.key || fIdx}`} style={styles.inlineValueChip}>
+                                <TouchableOpacity
+                                  key={`${f.key || fIdx}`}
+                                  style={styles.inlineValueChip}
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
+                                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                    }
+                                    setExpandedLogIds(prev => ({
+                                      ...prev,
+                                      [item.logId]: true,
+                                    }));
+                                  }}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`View ${f.label} details`}
+                                >
                                   <Text style={styles.inlineValueChipText} numberOfLines={4} ellipsizeMode="tail">
                                     <Text style={styles.inlineValueChipLabel}>
                                       {f.isImage ? '📷 Photo: ' : `${f.label}: `}
                                     </Text>
                                     <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
                                   </Text>
-                                </View>
+                                </TouchableOpacity>
                               ))}
                               {hasComment && (
                                 <View style={styles.inlineCommentPill}>
@@ -413,7 +588,7 @@ export function QuestionCard({
                                             <View key={fIdx} style={{ width: '100%', marginTop: 6, marginBottom: 4 }}>
                                               <LogPhotoGallery
                                                 uris={field.value as string}
-                                                isSensitive={true}
+                                                isSensitive={Boolean(user?.hasPhotoPin)}
                                                 fieldLabel={field.label || 'Photo'}
                                               />
                                             </View>
@@ -679,6 +854,12 @@ const useStyles = createThemedStyles(palette => ({
     borderWidth: 1,
     borderColor: palette.border,
     gap: 3,
+  },
+  completedDaySummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   completedDayAnswerLabel: {
     ...typography.caption,
