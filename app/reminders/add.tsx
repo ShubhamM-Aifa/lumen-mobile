@@ -136,7 +136,7 @@ export default function AddReminderScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Top Bar */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>

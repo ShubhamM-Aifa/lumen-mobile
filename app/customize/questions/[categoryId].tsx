@@ -7,6 +7,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IQuestion } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
@@ -19,6 +20,7 @@ const FREQ_LABEL: Record<string, string> = {
 };
 
 export default function QuestionsScreen() {
+  const insets = useSafeAreaInsets();
   const styles = useStyles();
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
   const { config, fetchConfig, invalidate } = useConfigStore();
@@ -140,7 +142,7 @@ export default function QuestionsScreen() {
       <FlatList
         data={active}
         keyExtractor={q => q._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No questions yet.</Text>
@@ -189,7 +191,7 @@ export default function QuestionsScreen() {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => router.push(`/customize/question/new?categoryId=${categoryId}`)}
         accessibilityRole="button"
         accessibilityLabel="New question"

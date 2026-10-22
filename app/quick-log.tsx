@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
 import { AppDateTimePicker } from '../src/components/common/AppDateTimePicker';
@@ -41,6 +42,7 @@ function fmt(d: Date): string {
 }
 
 export default function QuickLogScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { config, fetchConfig, isLoading: isConfigLoading } = useConfigStore();
@@ -266,12 +268,12 @@ export default function QuickLogScreen() {
           </View>
         ) : null}
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 20 + insets.bottom }} />
       </ScrollView>
 
       {/* Submit Button Bar */}
       {quickLogQuestions.length > 0 ? (
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity
             style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
             onPress={handleSubmit}

@@ -507,7 +507,7 @@ export default function SettingsScreen() {
   const userConditions = user?.conditions || [];
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       {/* Header Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity

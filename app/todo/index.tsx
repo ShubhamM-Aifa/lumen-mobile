@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -41,6 +41,7 @@ import { ITask, TaskEnergyCost } from '../../src/shared/types';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 
 export default function TodoHubScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
@@ -477,11 +478,20 @@ export default function TodoHubScreen() {
             </>
           )}
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: 110 + insets.bottom }} />
         </ScrollView>
 
         {/* Sticky Task Creation Bar */}
-        <View style={[styles.stickyBottomBar, { backgroundColor: palette.surface, borderTopColor: 'rgba(255, 255, 255, 0.08)' }]}>
+        <View
+          style={[
+            styles.stickyBottomBar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+              paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 14),
+            },
+          ]}
+        >
           {/* Quick Tag Options Row (Energy & Star) */}
           <View style={styles.quickTagsRow}>
             <TouchableOpacity

@@ -11,7 +11,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -54,6 +54,7 @@ const COVER_GRADIENTS = [
 const QUICK_EMOJIS = ['📝', '🩺', '⚡', '💊', '🧠', '🫀', '🔬', '📋', '🌿', '💡'];
 
 export default function NoteEditorScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { palette } = useTheme();
 
@@ -324,7 +325,16 @@ export default function NoteEditorScreen() {
         </ScrollView>
 
         {/* Sticky Mobile Formatting Toolbar (Above Keyboard) */}
-        <View style={[styles.stickyToolbar, { backgroundColor: palette.surface, borderTopColor: 'rgba(255, 255, 255, 0.08)' }]}>
+        <View
+          style={[
+            styles.stickyToolbar,
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+              paddingBottom: Math.max(insets.bottom, 8),
+            },
+          ]}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarScroll}>
             <TouchableOpacity
               style={styles.toolBtn}

@@ -600,11 +600,11 @@ export default function QuestionSheet() {
           />
         </View>
 
-        <View style={{ height: 84 + Math.max(insets.bottom, 16) }} />
+        <View style={{ height: 84 + Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 16) }} />
       </ScrollView>
 
       {/* Submit button pinned to bottom */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 16) }]}>
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}

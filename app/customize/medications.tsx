@@ -7,6 +7,7 @@ import {
   Pressable, Switch, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -21,6 +22,7 @@ interface IMedication {
 }
 
 export default function MedicationsScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const [meds, setMeds] = useState<IMedication[]>([]);
@@ -66,7 +68,7 @@ export default function MedicationsScreen() {
       <FlatList
         data={active}
         keyExtractor={m => m._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
         ListHeaderComponent={<Text style={styles.hint}>Track what you take so Lumen can include it in your logs and insights.</Text>}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>No medications yet.</Text></View>}
         ListFooterComponent={inactive.length > 0 ? (
@@ -95,7 +97,7 @@ export default function MedicationsScreen() {
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setEditing({ active: true, name: '' })} accessibilityRole="button" accessibilityLabel="Add medication">
+      <TouchableOpacity style={[styles.fab, { bottom: 20 + insets.bottom }]} onPress={() => setEditing({ active: true, name: '' })} accessibilityRole="button" accessibilityLabel="Add medication">
         <Text style={styles.fabText}>＋ Add medication</Text>
       </TouchableOpacity>
 

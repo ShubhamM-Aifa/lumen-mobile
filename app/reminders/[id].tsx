@@ -118,7 +118,7 @@ export default function EditReminderScreen() {
 
   if (!reminder) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
             <ChevronLeft size={24} color={palette.text} />
@@ -215,7 +215,7 @@ export default function EditReminderScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Top Bar */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>

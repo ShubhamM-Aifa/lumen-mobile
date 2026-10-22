@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -22,20 +22,26 @@ import {
   ListTodo,
   ClipboardList,
   ShieldAlert,
-  Info,
+  MessageSquare,
+  CornerDownRight,
+  Bookmark,
 } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useTheme } from '../../src/theme/ThemeContext';
-import { typography } from '../../src/theme/typography';
 import { NoteEmbedCard } from '../../src/components/community/NoteEmbedCard';
 import { TodoEmbedCard } from '../../src/components/community/TodoEmbedCard';
 import { LogTemplateEmbedCard } from '../../src/components/community/LogTemplateEmbedCard';
 import { EmpathyReactionBar } from '../../src/components/community/EmpathyReactionBar';
 import { AttachArtifactModal } from '../../src/components/community/AttachArtifactModal';
+import { DiscordInlineReplyBanner } from '../../src/components/community/DiscordInlineReplyBanner';
+import { DiscordProfilePopoutModal } from '../../src/components/community/DiscordProfilePopoutModal';
+import { DiscordThreadModal } from '../../src/components/community/DiscordThreadModal';
+import { DiscordForumView } from '../../src/components/community/DiscordForumView';
 import { formatTimeRelative } from '../../src/utils/dayBoundary';
-import { CommunityEmbedType } from '../../src/shared/types';
+import { CommunityEmbedType, ICommunityMessage, IForumPost } from '../../src/shared/types';
 
 export default function ChannelChatScreen() {
+  const insets = useSafeAreaInsets();
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
   const { palette } = useTheme();
 
@@ -49,6 +55,17 @@ export default function ChannelChatScreen() {
     isAnonymous,
     toggleAnonymous,
     isLoading,
+    replyingTo,
+    setReplyingTo,
+    popoutUser,
+    fetchUserPopout,
+    clearUserPopout,
+    activeThreadParent,
+    activeThreadReplies,
+    openThread,
+    closeThread,
+    sendThreadReply,
+    forumPosts,
   } = useCommunityStore();
 
   const [inputText, setInputText] = useState('');
@@ -101,14 +118,28 @@ export default function ChannelChatScreen() {
     setPendingEmbed({ type, data });
   };
 
+  const handleOpenProfile = async (userId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await fetchUserPopout(userId);
+  };
+
+  const handleReplyMessage = (msg: ICommunityMessage) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReplyingTo({
+      messageId: msg._id,
+      senderDisplayName: msg.senderDisplayName,
+      snippet: msg.content || 'Shared an artifact',
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <KeyboardAvoidingView
-        style={styles.keyboardContainer}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Channel Navbar */}
-        <View style={[styles.topBar, { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
+        {/* Channel Header */}
+        <View style={[styles.header, { borderBottomColor: palette.border }]}>
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => router.back()}
@@ -118,34 +149,42 @@ export default function ChannelChatScreen() {
             <ArrowLeft size={22} color={palette.text} />
           </TouchableOpacity>
 
-          <View style={styles.topBarInfo}>
-            <View style={styles.channelTitleRow}>
-              <Text style={styles.channelIcon}>{channel?.icon || '💬'}</Text>
-              <Text style={[styles.channelTitle, { color: palette.text }]} numberOfLines={1}>
-                #{channel?.slug || channel?.name || 'community-channel'}
+          <View style={styles.headerTitleBox}>
+            <View style={styles.channelNameRow}>
+              <Text style={{ fontSize: 16, marginRight: 4 }}>
+                {channel?.icon || (channel?.type === 'forum' ? '🏷️' : '💬')}
               </Text>
+              <Text style={[styles.channelTitle, { color: palette.text }]} numberOfLines={1}>
+                #{channel?.slug || channel?.name || 'Channel'}
+              </Text>
+              {channel?.type === 'forum' && (
+                <View style={[styles.typeBadge, { backgroundColor: `${palette.primary}25` }]}>
+                  <Text style={[styles.typeBadgeText, { color: palette.primary }]}>Forum</Text>
+                </View>
+              )}
             </View>
             <Text style={[styles.channelTopic, { color: palette.textSecondary }]} numberOfLines={1}>
-              {channel?.topic || channel?.description || 'Community peer discussion'}
+              {channel?.topic || channel?.description}
             </Text>
           </View>
 
-          {/* Anonymous Spoonie Toggle in Navbar */}
+          {/* Anonymous Spoonie Toggle */}
           <TouchableOpacity
             style={[
-              styles.anonToggleBtn,
-              isAnonymous
-                ? { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderColor: '#F59E0B' }
-                : { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)' },
+              styles.anonToggle,
+              {
+                backgroundColor: isAnonymous ? 'rgba(245, 158, 11, 0.2)' : palette.surface,
+                borderColor: isAnonymous ? '#F59E0B' : palette.border,
+              },
             ]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               toggleAnonymous();
             }}
             accessibilityRole="button"
-            accessibilityLabel="Toggle Anonymous Spoonie"
+            accessibilityLabel="Toggle anonymous spoonie mode"
           >
-            <Text style={styles.anonToggleIcon}>{isAnonymous ? '🥄' : '👤'}</Text>
+            <Text style={styles.anonToggleEmoji}>{isAnonymous ? '🥄' : '👤'}</Text>
             <Text
               style={[
                 styles.anonToggleText,
@@ -157,176 +196,314 @@ export default function ChannelChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Message Stream */}
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesList}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
-        >
-          {/* Welcome Message at top of channel */}
-          <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
-            <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
-            <Text style={[styles.welcomeTitle, { color: palette.text }]}>
-              Welcome to #{channel?.name || 'Channel'}!
-            </Text>
-            <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
-              This is a safe, moderated chronic illness space. Feel free to share your health stories, ask questions, or attach Lumen Notes, To-Do routines, and Tracking Templates.
-            </Text>
-          </View>
+        {/* Discord Forum Channel Mode vs Discord Text Chat Mode */}
+        {channel?.type === 'forum' ? (
+          <DiscordForumView
+            channel={channel}
+            posts={forumPosts}
+            onSelectPost={(post) => {
+              // Open post as thread
+              openThread({
+                _id: post._id,
+                channelId: post.channelId,
+                senderId: post.author.senderId,
+                senderDisplayName: post.author.senderDisplayName,
+                senderAvatarEmoji: post.author.senderAvatarEmoji,
+                senderRoleColor: post.author.senderRoleColor,
+                senderRoleBadges: post.author.senderRoleBadges,
+                isAnonymous: post.author.isAnonymous,
+                content: `${post.title}\n\n${post.content}`,
+                reactions: { spoon: post.stats.spoonsCount },
+                cloneCount: post.stats.cloneCount,
+                createdAt: post.createdAt,
+                updatedAt: post.updatedAt,
+              });
+            }}
+          />
+        ) : (
+          <>
+            {/* Text Message Stream */}
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.messagesList}
+              contentContainerStyle={styles.messagesContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
+            >
+              {/* Channel Welcome Banner */}
+              <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
+                <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
+                <Text style={[styles.welcomeTitle, { color: palette.text }]}>
+                  Welcome to #{channel?.name || 'Channel'}!
+                </Text>
+                <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
+                  This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
+                </Text>
+              </View>
 
-          {isLoading && messages.length === 0 ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color={palette.primary} />
-            </View>
-          ) : (
-            messages.map((msg) => (
-              <View key={msg._id} style={styles.messageRow}>
-                {/* Avatar */}
-                <View
-                  style={[
-                    styles.avatarWell,
-                    {
-                      backgroundColor: msg.isAnonymous
-                        ? 'rgba(245, 158, 11, 0.15)'
-                        : 'rgba(56, 189, 248, 0.15)',
-                    },
-                  ]}
-                >
-                  <Text style={styles.avatarEmoji}>{msg.senderAvatarEmoji || (msg.isAnonymous ? '🥄' : '🌟')}</Text>
+              {isLoading && messages.length === 0 ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator size="small" color={palette.primary} />
                 </View>
-
-                {/* Message Body */}
-                <View style={styles.messageBody}>
-                  {/* Sender & Timestamp */}
-                  <View style={styles.senderRow}>
-                    <Text
-                      style={[
-                        styles.senderName,
-                        { color: msg.isAnonymous ? '#F59E0B' : palette.text },
-                      ]}
-                    >
-                      {msg.senderDisplayName}
-                    </Text>
-                    {msg.isAnonymous && (
-                      <View style={styles.anonBadge}>
-                        <Text style={styles.anonBadgeText}>ANON</Text>
+              ) : (
+                messages.map((msg) => (
+                  <View key={msg._id} style={styles.messageRow}>
+                    {/* Inline Reply Header Banner if this message is replying to another */}
+                    {msg.replyTo && (
+                      <View style={styles.replyHeaderRow}>
+                        <CornerDownRight size={12} color={palette.textDisabled} style={{ marginRight: 4 }} />
+                        <Text style={[styles.replyHeaderUser, { color: palette.primary }]}>
+                          @{msg.replyTo.senderDisplayName}
+                        </Text>
+                        <Text style={[styles.replyHeaderSnippet, { color: palette.textDisabled }]} numberOfLines={1}>
+                          "{msg.replyTo.snippet}"
+                        </Text>
                       </View>
                     )}
-                    <Text style={[styles.timeText, { color: palette.textDisabled }]}>
-                      {formatTimeRelative(msg.createdAt)}
-                    </Text>
+
+                    <View style={styles.messageMainRow}>
+                      {/* Avatar with tap to open profile popout */}
+                      <TouchableOpacity
+                        onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
+                        style={[
+                          styles.avatarWell,
+                          {
+                            backgroundColor: msg.isAnonymous
+                              ? 'rgba(245, 158, 11, 0.15)'
+                              : 'rgba(56, 189, 248, 0.15)',
+                          },
+                        ]}
+                      >
+                        <Text style={styles.avatarEmoji}>
+                          {msg.senderAvatarEmoji || (msg.isAnonymous ? '🥄' : '🌟')}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Message Body */}
+                      <View style={styles.messageBody}>
+                        {/* Sender & Badges & Timestamp */}
+                        <View style={styles.senderRow}>
+                          <TouchableOpacity
+                            onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
+                          >
+                            <Text
+                              style={[
+                                styles.senderName,
+                                {
+                                  color: msg.isAnonymous
+                                    ? '#F59E0B'
+                                    : msg.senderRoleColor || palette.text,
+                                },
+                              ]}
+                            >
+                              {msg.senderDisplayName}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {msg.isAnonymous ? (
+                            <View style={styles.anonBadge}>
+                              <Text style={styles.anonBadgeText}>ANON</Text>
+                            </View>
+                          ) : (
+                            msg.senderRoleBadges?.[0] && (
+                              <View
+                                style={[
+                                  styles.roleBadge,
+                                  { backgroundColor: `${msg.senderRoleColor || palette.primary}20` },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.roleBadgeText,
+                                    { color: msg.senderRoleColor || palette.primary },
+                                  ]}
+                                >
+                                  {msg.senderRoleBadges[0]}
+                                </Text>
+                              </View>
+                            )
+                          )}
+
+                          <Text style={[styles.timeText, { color: palette.textDisabled }]}>
+                            {formatTimeRelative(msg.createdAt)}
+                          </Text>
+                        </View>
+
+                        {/* Plain Text Content with Long-Press to Reply */}
+                        {msg.content.length > 0 && (
+                          <TouchableOpacity
+                            onLongPress={() => handleReplyMessage(msg)}
+                            activeOpacity={0.9}
+                          >
+                            <Text style={[styles.messageText, { color: palette.text }]}>
+                              {msg.content}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {/* Discord Left-Accent Rich Embed Cards */}
+                        {msg.embedType === 'note' && msg.embedData?.note && (
+                          <NoteEmbedCard embed={msg.embedData.note} messageId={msg._id} />
+                        )}
+
+                        {msg.embedType === 'todo_list' && msg.embedData?.todo && (
+                          <TodoEmbedCard embed={msg.embedData.todo} messageId={msg._id} />
+                        )}
+
+                        {msg.embedType === 'log_template' && msg.embedData?.logTemplate && (
+                          <LogTemplateEmbedCard embed={msg.embedData.logTemplate} messageId={msg._id} />
+                        )}
+
+                        {/* Footer: Empathy Reactions & Reply / Thread Buttons */}
+                        <View style={styles.footerRow}>
+                          <EmpathyReactionBar
+                            messageId={msg._id}
+                            reactions={msg.reactions || {}}
+                            userReactions={msg.userReactions || []}
+                          />
+
+                          <View style={styles.msgActionsRight}>
+                            <TouchableOpacity
+                              onPress={() => handleReplyMessage(msg)}
+                              style={styles.replyIconBtn}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <CornerDownRight size={14} color={palette.textDisabled} />
+                              <Text style={[styles.actionBtnLabel, { color: palette.textDisabled }]}>
+                                Reply
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              onPress={() => openThread(msg)}
+                              style={styles.threadIconBtn}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <MessageSquare size={14} color={palette.primary} />
+                              <Text style={[styles.threadBtnLabel, { color: palette.primary }]}>
+                                {msg.threadMeta?.replyCount ? `${msg.threadMeta.replyCount} replies` : 'Thread'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
                   </View>
+                ))
+              )}
+            </ScrollView>
 
-                  {/* Plain Text Content */}
-                  {msg.content.length > 0 && (
-                    <Text style={[styles.messageText, { color: palette.text }]}>
-                      {msg.content}
-                    </Text>
-                  )}
-
-                  {/* Rich Artifact Embed Cards */}
-                  {msg.embedType === 'note' && msg.embedData?.note && (
-                    <NoteEmbedCard embed={msg.embedData.note} messageId={msg._id} />
-                  )}
-
-                  {msg.embedType === 'todo_list' && msg.embedData?.todo && (
-                    <TodoEmbedCard embed={msg.embedData.todo} messageId={msg._id} />
-                  )}
-
-                  {msg.embedType === 'log_template' && msg.embedData?.logTemplate && (
-                    <LogTemplateEmbedCard embed={msg.embedData.logTemplate} messageId={msg._id} />
-                  )}
-
-                  {/* Chronic Empathy Reaction Bar */}
-                  <EmpathyReactionBar
-                    messageId={msg._id}
-                    reactions={msg.reactions || {}}
-                    userReactions={msg.userReactions || []}
-                  />
+            {/* Pending Attachment Preview */}
+            {pendingEmbed && (
+              <View style={[styles.pendingAttachmentBar, { backgroundColor: palette.surface }]}>
+                <View style={styles.pendingAttachmentLeft}>
+                  {pendingEmbed.type === 'note' && <FileText size={15} color="#A855F7" />}
+                  {pendingEmbed.type === 'todo_list' && <ListTodo size={15} color="#10B981" />}
+                  {pendingEmbed.type === 'log_template' && <ClipboardList size={15} color="#F97316" />}
+                  <Text style={[styles.pendingAttachmentText, { color: palette.text }]} numberOfLines={1}>
+                    Attached:{' '}
+                    {pendingEmbed.type === 'note'
+                      ? pendingEmbed.data.note?.title
+                      : pendingEmbed.type === 'todo_list'
+                      ? pendingEmbed.data.todo?.listName
+                      : 'Tracking Template'}
+                  </Text>
                 </View>
+                <TouchableOpacity onPress={() => setPendingEmbed(null)}>
+                  <X size={16} color={palette.textSecondary} />
+                </TouchableOpacity>
               </View>
-            ))
-          )}
-        </ScrollView>
+            )}
 
-        {/* Pending Attachment Preview (Above Composer) */}
-        {pendingEmbed && (
-          <View style={[styles.pendingAttachmentBar, { backgroundColor: palette.surface }]}>
-            <View style={styles.pendingAttachmentLeft}>
-              {pendingEmbed.type === 'note' && <FileText size={15} color="#38BDF8" />}
-              {pendingEmbed.type === 'todo_list' && <ListTodo size={15} color="#10B981" />}
-              {pendingEmbed.type === 'log_template' && <ClipboardList size={15} color="#A855F7" />}
-              <Text style={[styles.pendingAttachmentText, { color: palette.text }]} numberOfLines={1}>
-                Attached:{' '}
-                {pendingEmbed.type === 'note'
-                  ? pendingEmbed.data.note?.title
-                  : pendingEmbed.type === 'todo_list'
-                  ? pendingEmbed.data.todo?.listName
-                  : 'Tracking Template'}
-              </Text>
+            {/* Inline Reply Banner (Above Composer) */}
+            {replyingTo && (
+              <DiscordInlineReplyBanner
+                reply={replyingTo}
+                onDismiss={() => setReplyingTo(null)}
+              />
+            )}
+
+            {/* Composer Row */}
+            <View
+              style={[
+                styles.composerContainer,
+                {
+                  backgroundColor: palette.surface,
+                  borderTopColor: palette.border,
+                  paddingBottom: Math.max(insets.bottom, 10),
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.attachBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setAttachModalOpen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Attach Lumen Note or Routine"
+              >
+                <Paperclip size={20} color={palette.textSecondary} />
+              </TouchableOpacity>
+
+              <TextInput
+                style={[styles.input, { color: palette.text }]}
+                placeholder={
+                  isAnonymous
+                    ? 'Message as Anonymous Spoonie 🥄...'
+                    : `Message #${channel?.slug || channel?.name || 'chat'}...`
+                }
+                placeholderTextColor={palette.textDisabled}
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                maxLength={3000}
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.sendBtn,
+                  {
+                    backgroundColor:
+                      inputText.trim().length > 0 || pendingEmbed ? palette.primary : palette.border,
+                  },
+                ]}
+                onPress={handleSend}
+                disabled={inputText.trim().length === 0 && !pendingEmbed}
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
+              >
+                <Send size={16} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => setPendingEmbed(null)}>
-              <X size={16} color={palette.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          </>
         )}
-
-        {/* Sticky Message Composer */}
-        <View style={[styles.composerContainer, { backgroundColor: palette.surface, borderTopColor: 'rgba(255, 255, 255, 0.08)' }]}>
-          {/* Attach Artifact Button */}
-          <TouchableOpacity
-            style={styles.attachBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setAttachModalOpen(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Attach Lumen Note or Routine"
-          >
-            <Paperclip size={20} color={palette.textSecondary} />
-          </TouchableOpacity>
-
-          {/* Text Input */}
-          <TextInput
-            style={[styles.input, { color: palette.text }]}
-            placeholder={
-              isAnonymous
-                ? 'Share story or tips as Anonymous Spoonie 🥄...'
-                : 'Share your story, question, or tips...'
-            }
-            placeholderTextColor={palette.textDisabled}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={3000}
-          />
-
-          {/* Send Button */}
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              inputText.trim().length > 0 || pendingEmbed
-                ? { backgroundColor: palette.primary }
-                : { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-            ]}
-            onPress={handleSend}
-            disabled={!inputText.trim() && !pendingEmbed}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-          >
-            <Send size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Attach Artifact Modal */}
-        <AttachArtifactModal
-          visible={attachModalOpen}
-          onClose={() => setAttachModalOpen(false)}
-          onAttach={handleAttachArtifact}
-        />
       </KeyboardAvoidingView>
+
+      {/* Attach Artifact Modal */}
+      <AttachArtifactModal
+        visible={attachModalOpen}
+        onClose={() => setAttachModalOpen(false)}
+        onAttach={handleAttachArtifact}
+      />
+
+      {/* Discord Profile Popout Modal */}
+      <DiscordProfilePopoutModal
+        visible={Boolean(popoutUser)}
+        user={popoutUser}
+        onClose={clearUserPopout}
+        onMention={(name) => setInputText((prev) => `@${name} ${prev}`)}
+      />
+
+      {/* Discord Thread Modal */}
+      <DiscordThreadModal
+        visible={Boolean(activeThreadParent)}
+        parent={activeThreadParent}
+        replies={activeThreadReplies}
+        onClose={closeThread}
+        onSendReply={sendThreadReply}
+        onPressProfile={handleOpenProfile}
+      />
     </SafeAreaView>
   );
 }
@@ -335,51 +512,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  keyboardContainer: {
-    flex: 1,
-  },
-  topBar: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
   },
   backBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
   },
-  topBarInfo: {
+  headerTitleBox: {
     flex: 1,
   },
-  channelTitleRow: {
+  channelNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  channelIcon: {
-    fontSize: 16,
   },
   channelTitle: {
     fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  typeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  typeBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
   },
   channelTopic: {
     fontSize: 11,
     marginTop: 1,
   },
-  anonToggleBtn: {
+  anonToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     borderWidth: 1,
   },
-  anonToggleIcon: {
-    fontSize: 12,
+  anonToggleEmoji: {
+    fontSize: 13,
+    marginRight: 4,
   },
   anonToggleText: {
     fontSize: 11,
@@ -389,47 +573,63 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    padding: 16,
+    paddingBottom: 24,
   },
   channelWelcomeCard: {
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 16,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
   },
   welcomeEmoji: {
-    fontSize: 28,
-    marginBottom: 8,
+    fontSize: 32,
+    marginBottom: 6,
   },
   welcomeTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 4,
   },
   welcomeDesc: {
     fontSize: 12,
+    textAlign: 'center',
     lineHeight: 17,
   },
   loadingBox: {
-    paddingVertical: 40,
+    padding: 24,
     alignItems: 'center',
   },
   messageRow: {
+    marginBottom: 16,
+  },
+  replyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 42,
+    marginBottom: 3,
+  },
+  replyHeaderUser: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: 6,
+  },
+  replyHeaderSnippet: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  messageMainRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
-    gap: 10,
   },
   avatarWell: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
-    marginTop: 2,
+    alignItems: 'center',
+    marginRight: 10,
   },
   avatarEmoji: {
     fontSize: 18,
@@ -440,74 +640,122 @@ const styles = StyleSheet.create({
   senderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
     marginBottom: 3,
   },
   senderName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   anonBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
   },
   anonBadgeText: {
     fontSize: 9,
     fontWeight: '800',
     color: '#F59E0B',
   },
+  roleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  roleBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
   timeText: {
-    fontSize: 11,
-    marginLeft: 4,
+    fontSize: 10,
   },
   messageText: {
     fontSize: 14,
     lineHeight: 20,
+    marginTop: 2,
+    marginBottom: 6,
   },
-  pendingAttachmentBar: {
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    marginTop: 6,
+  },
+  msgActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  replyIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
+  },
+  actionBtnLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  threadIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
+  },
+  threadBtnLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  pendingAttachmentBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    marginHorizontal: 12,
   },
   pendingAttachmentLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     flex: 1,
   },
   pendingAttachmentText: {
     fontSize: 12,
     fontWeight: '600',
-    flex: 1,
+    marginLeft: 6,
   },
   composerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderTopWidth: 1,
-    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   attachBtn: {
-    padding: 6,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   input: {
     flex: 1,
-    fontSize: 14,
     maxHeight: 100,
-    paddingVertical: 4,
+    fontSize: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   sendBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
 });

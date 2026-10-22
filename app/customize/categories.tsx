@@ -8,6 +8,7 @@ import {
   Alert, ActivityIndicator,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ICategory } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
 import { api } from '../../src/api/client';
@@ -21,6 +22,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function CategoriesScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { config, fetchConfig, invalidate, isLoading } = useConfigStore();
@@ -160,7 +162,7 @@ export default function CategoriesScreen() {
       <FlatList
         data={active}
         keyExtractor={c => c._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
         ListHeaderComponent={
           isLoading ? <ActivityIndicator color={palette.primary} style={{ marginBottom: 16 }} /> : null
         }
@@ -208,7 +210,7 @@ export default function CategoriesScreen() {
 
       {/* Add new category FAB */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => router.push('/customize/category/new')}
         accessibilityRole="button"
         accessibilityLabel="New category"

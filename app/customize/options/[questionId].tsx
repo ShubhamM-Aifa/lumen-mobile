@@ -7,6 +7,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IOption } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
@@ -14,6 +15,7 @@ import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
 
 export default function OptionsScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { questionId } = useLocalSearchParams<{ questionId: string }>();
@@ -124,7 +126,7 @@ export default function OptionsScreen() {
       <FlatList
         data={active}
         keyExtractor={o => o._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No options yet.</Text>
@@ -173,7 +175,7 @@ export default function OptionsScreen() {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => router.push(`/customize/option/new?questionId=${questionId}`)}
         accessibilityRole="button"
         accessibilityLabel="New option"

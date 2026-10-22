@@ -370,10 +370,12 @@ export function QuestionCard({
                             <View style={styles.inlineValuesRow}>
                               {allFields.map((f, fIdx) => (
                                 <View key={`${f.key || fIdx}`} style={styles.inlineValueChip}>
-                                  <Text style={styles.inlineValueChipLabel}>
-                                    {f.isImage ? '📷 Photo:' : `${f.label}:`}
+                                  <Text style={styles.inlineValueChipText} numberOfLines={4} ellipsizeMode="tail">
+                                    <Text style={styles.inlineValueChipLabel}>
+                                      {f.isImage ? '📷 Photo: ' : `${f.label}: `}
+                                    </Text>
+                                    <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
                                   </Text>
-                                  <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
                                 </View>
                               ))}
                               {hasComment && (
@@ -384,6 +386,7 @@ export function QuestionCard({
                               )}
                             </View>
                           )}
+
 
                           {/* Expanded Full Option Values Breakdown */}
                           {isEntryExpanded && (
@@ -759,7 +762,9 @@ const useStyles = createThemedStyles(palette => ({
     borderWidth: 1,
     borderColor: palette.border,
     gap: 4,
+    overflow: 'hidden',
   },
+
   historyItemCardLatest: {
     borderColor: palette.surfaceAlt === '#F5F0EB' ? '#A7F3D0' : '#05966950',
     backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#FFFFFF' : `${palette.surface}E0`,
@@ -891,23 +896,30 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 5,
-    paddingLeft: 11,
+    marginLeft: 11,
     marginTop: 4,
+    maxWidth: '96%',
   },
   inlineValueChip: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    alignItems: 'flex-start',
     backgroundColor: palette.surfaceAlt,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: palette.border,
+    maxWidth: '100%',
+    flexShrink: 1,
+  },
+  inlineValueChipText: {
+    fontSize: 10,
+    lineHeight: 14,
+    flexShrink: 1,
   },
   inlineValueChipLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     color: palette.textSecondary,
   },
   inlineValueChipValue: {
@@ -937,10 +949,14 @@ const useStyles = createThemedStyles(palette => ({
     padding: 10,
     marginTop: 6,
     marginLeft: 11,
+    marginRight: 2,
     gap: 8,
+    overflow: 'hidden',
+    maxWidth: '96%',
   },
   detailBlock: {
     gap: 6,
+    maxWidth: '100%',
   },
   detailOptionHeader: {
     flexDirection: 'row',
@@ -965,30 +981,37 @@ const useStyles = createThemedStyles(palette => ({
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 6,
+    maxWidth: '100%',
   },
   detailFieldRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
+    maxWidth: '100%',
   },
   detailFieldLabel: {
     ...typography.caption,
     fontSize: 11,
     fontWeight: '600',
     color: palette.textSecondary,
+    flexShrink: 0,
+    marginTop: 2,
   },
   detailFieldValueBadge: {
     backgroundColor: `${palette.primary}14`,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
     borderRadius: 6,
+    maxWidth: '75%',
+    flexShrink: 1,
   },
   detailFieldValueText: {
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
     color: palette.primary,
+    flexWrap: 'wrap',
   },
   detailNoFieldsText: {
     ...typography.caption,

@@ -6,6 +6,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Switch,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IQuickAction } from '@lumen/shared';
 import { useConfigStore } from '../../src/store/configStore';
 import { api } from '../../src/api/client';
@@ -18,6 +19,7 @@ const MODE_LABEL: Record<string, string> = {
 };
 
 export default function QuickActionsScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { config, fetchConfig, invalidate } = useConfigStore();
@@ -114,7 +116,7 @@ export default function QuickActionsScreen() {
       <FlatList
         data={visible}
         keyExtractor={a => a._id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
         ListHeaderComponent={<Text style={styles.hint}>Toggle the switch to show/hide on your home screen.</Text>}
         ListFooterComponent={
           hidden.length > 0 ? (
@@ -149,7 +151,7 @@ export default function QuickActionsScreen() {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => router.push('/customize/quick-action/new')}
         accessibilityRole="button"
         accessibilityLabel="New quick action"

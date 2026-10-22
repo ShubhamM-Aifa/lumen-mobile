@@ -127,8 +127,18 @@ export function formatValueWithUnit(val: unknown, unit?: string, fieldKey?: stri
   }
 
   // Severity rating (e.g. 3 -> Severity 3)
+  // Severity rating (e.g. 3 -> Severity 3)
   if (fieldKey && fieldKey.toLowerCase().includes('severity') && !isNaN(numVal)) {
     return `Severity: ${numVal}`;
+  }
+
+  // Bristol scale rating (e.g. 4 -> Type 4)
+  const isBristol =
+    (fieldKey && fieldKey.toLowerCase().includes('bristol')) ||
+    (fieldKey && fieldKey.toLowerCase() === 'type' && ['1', '2', '3', '4', '5', '6', '7'].includes(String(val)));
+  if (isBristol) {
+    const valStr = String(val);
+    return valStr.toLowerCase().startsWith('type') ? valStr : `Type ${valStr}`;
   }
 
   const formattedVal = formatSingleFieldValue(val, fieldKey, dataType);
@@ -151,10 +161,17 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
         if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
           const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
           const isPhoto = isPhotoFieldOrValue(fv.fieldKey, fv.dataType || fieldDef?.dataType, fv.value);
+          const isBristol =
+            (fv.fieldKey && fv.fieldKey.toLowerCase().includes('bristol')) ||
+            (fieldDef?.label && fieldDef.label.toLowerCase().includes('bristol')) ||
+            (fieldDef?.key && fieldDef.key.toLowerCase().includes('bristol')) ||
+            (fv.fieldKey === 'type' && ['1', '2', '3', '4', '5', '6', '7'].includes(String(fv.value)));
+
           if (isPhoto) {
             fieldParts.push('📷 Photo');
-          } else if (fv.fieldKey && fv.fieldKey.toLowerCase().includes('bristol')) {
-            fieldParts.push(`Type ${fv.value}`);
+          } else if (isBristol) {
+            const valStr = String(fv.value);
+            fieldParts.push(valStr.toLowerCase().startsWith('type') ? valStr : `Type ${valStr}`);
           } else {
             const displayVal = formatValueWithUnit(fv.value, fv.unit, fv.fieldKey, fv.dataType || fieldDef?.dataType);
             fieldParts.push(displayVal);
@@ -165,6 +182,7 @@ export function formatAnswerSummary(answers: Answer[], options: IOption[]): stri
       const formattedVal = formatSingleFieldValue((ans as any).value);
       fieldParts.push(formattedVal);
     }
+
     if (fieldParts.length > 0) {
       return `${baseLabel} (${fieldParts.join(', ')})`;
     }
@@ -284,7 +302,16 @@ export function useTodayCategoryLogs(customDateStr?: string) {
               if (fv.value !== undefined && fv.value !== null && fv.value !== '') {
                 const fieldDef = option?.fields?.find(f => f.key === fv.fieldKey);
                 const isPhoto = isPhotoFieldOrValue(fv.fieldKey, fv.dataType || fieldDef?.dataType, fv.value);
-                const label = isPhoto ? 'Photo' : (fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value'));
+                const isBristol =
+                  (fv.fieldKey && fv.fieldKey.toLowerCase().includes('bristol')) ||
+                  (fieldDef?.label && fieldDef.label.toLowerCase().includes('bristol')) ||
+                  (fieldDef?.key && fieldDef.key.toLowerCase().includes('bristol')) ||
+                  (fv.fieldKey === 'type' && ['1', '2', '3', '4', '5', '6', '7'].includes(String(fv.value)));
+                const label = isPhoto
+                  ? 'Photo'
+                  : isBristol
+                  ? 'Bristol type'
+                  : (fieldDef?.label || (fv.fieldKey ? humanizeFieldKey(fv.fieldKey) : 'Value'));
                 const displayVal = formatValueWithUnit(fv.value, fv.unit, fv.fieldKey, fv.dataType || fieldDef?.dataType);
                 fields.push({
                   key: fv.fieldKey,
@@ -295,6 +322,7 @@ export function useTodayCategoryLogs(customDateStr?: string) {
                   dataType: fv.dataType || fieldDef?.dataType,
                   isImage: isPhoto,
                 });
+
               }
             }
           } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {

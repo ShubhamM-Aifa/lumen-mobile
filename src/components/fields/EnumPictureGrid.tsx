@@ -19,14 +19,23 @@ export function EnumPictureGrid({ field, value, onChange }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
   const { width } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = React.useState<number>(0);
   const items: EnumValue[] = field.enumValues ?? [];
   const cols = items.length <= 4 ? 2 : 3;
-  const gap = 10;
-  const sidePad = 0;
-  const cardW = (width - sidePad * 2 - gap * (cols - 1)) / cols;
+  const gap = 8;
+  const availableWidth = containerWidth > 0 ? containerWidth : Math.max(180, width - 64);
+  const cardW = Math.max(70, Math.floor((availableWidth - gap * (cols - 1)) / cols));
 
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={styles.wrapper}
+      onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        if (w > 0 && Math.abs(w - containerWidth) > 2) {
+          setContainerWidth(w);
+        }
+      }}
+    >
       <View style={[styles.grid, { gap }]}>
         {items.map((item) => {
           const selected = value === item.value;

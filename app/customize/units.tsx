@@ -7,6 +7,7 @@ import {
   Modal, Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -25,6 +26,7 @@ const BUILT_IN_UNITS = [
 ];
 
 export default function UnitsScreen() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const [customUnits, setCustomUnits] = useState<ICustomUnit[]>([]);
@@ -97,10 +99,10 @@ export default function UnitsScreen() {
             </TouchableOpacity>
           </View>
         )}
-        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListFooterComponent={<View style={{ height: 100 + insets.bottom }} />}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setEditing({ symbol: '', name: '' })} accessibilityRole="button" accessibilityLabel="Add custom unit">
+      <TouchableOpacity style={[styles.fab, { bottom: 20 + insets.bottom }]} onPress={() => setEditing({ symbol: '', name: '' })} accessibilityRole="button" accessibilityLabel="Add custom unit">
         <Text style={styles.fabText}>＋ Add unit</Text>
       </TouchableOpacity>
 

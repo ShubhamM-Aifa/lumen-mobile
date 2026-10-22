@@ -9,6 +9,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Switch,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '../../../src/utils/navigation';
 import { IQuestion, QuestionFrequency, SelectionType } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
@@ -26,6 +27,7 @@ const FREQ_OPTIONS: { value: QuestionFrequency; label: string }[] = [
 ];
 
 export default function QuestionEditor() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { id, categoryId } = useLocalSearchParams<{ id: string; categoryId: string }>();
@@ -248,10 +250,10 @@ export default function QuestionEditor() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 60 + insets.bottom }} />
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save question</Text>}
         </TouchableOpacity>

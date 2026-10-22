@@ -8,6 +8,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uuidv4 } from '../src/utils/uuid';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
@@ -40,6 +41,7 @@ const META: Record<string, { emoji: string; title: string; subtitle: string }> =
 };
 
 export default function CheckInModal() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { type = 'morning', date } = useLocalSearchParams<{ type: string; date?: string }>();
@@ -240,11 +242,18 @@ export default function CheckInModal() {
           ))
         )}
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 100 + Math.max(insets.bottom, 16) }} />
       </ScrollView>
 
       {/* Footer buttons */}
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 28 : 16),
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.skipBtn}
           onPress={handleSkip}

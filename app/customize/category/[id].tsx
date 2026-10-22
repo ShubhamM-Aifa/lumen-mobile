@@ -10,6 +10,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Switch,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ICategory, CategoryRole } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
@@ -25,6 +26,7 @@ const ROLES: { value: CategoryRole; label: string; desc: string }[] = [
 ];
 
 export default function CategoryEditor() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -248,10 +250,10 @@ export default function CategoryEditor() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 60 + insets.bottom }} />
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={handleSave}

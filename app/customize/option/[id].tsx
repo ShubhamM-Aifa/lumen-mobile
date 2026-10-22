@@ -10,6 +10,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Switch, Modal, Pressable,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '../../../src/utils/navigation';
 import { IOption, CaptureTime, FieldDefinition, EnumValue } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
@@ -35,6 +36,7 @@ const DATA_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function OptionEditor() {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const sectionStyles = useSectionStyles();
@@ -258,7 +260,7 @@ export default function OptionEditor() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 60 + insets.bottom }} />
       </ScrollView>
 
       {/* Inline field editor modal */}
@@ -270,7 +272,7 @@ export default function OptionEditor() {
         />
       )}
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save option</Text>}
         </TouchableOpacity>
