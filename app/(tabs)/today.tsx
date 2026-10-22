@@ -37,6 +37,8 @@ import {
   ArrowLeftRight,
   GripVertical,
   Pin,
+  FileText,
+  Users,
 } from 'lucide-react-native';
 
 import { IQuickAction } from '@lumen/shared';
@@ -51,6 +53,7 @@ import { useReminderStore } from '../../src/store/reminderStore';
 import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceConfigStore';
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
 import { useWeatherStore } from '../../src/store/weatherStore';
+import { useTaskStore } from '../../src/store/taskStore';
 
 import { DayClockCard } from '../../src/components/DayClockCard';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
@@ -62,6 +65,7 @@ import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCar
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
 import { AccountSwitcherModal } from '../../src/components/auth/AccountSwitcherModal';
 import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
+import { MyDayCard } from '../../src/components/todo/MyDayCard';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 
 export default function TodayScreen() {
@@ -127,6 +131,8 @@ export default function TodayScreen() {
       fetchGlanceConfig(),
       loadSleepState(),
       initWeather(),
+      useTaskStore.getState().fetchTasks(),
+      useTaskStore.getState().fetchLists(),
     ]);
   }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, fetchGlanceConfig, loadSleepState, initWeather]);
 
@@ -137,6 +143,7 @@ export default function TodayScreen() {
 
       // Auto-prune stale taps and check if day reset boundary has passed
       useQuickLogStore.getState().pruneStaleTaps(boundaryHour);
+      useTaskStore.getState().pruneDayBoundary(boundaryHour);
       const trackingDayNow = getTrackingDayDateString(now, boundaryHour);
       if (trackingDayNow !== currentTrackingDayRef.current) {
         currentTrackingDayRef.current = trackingDayNow;
@@ -399,6 +406,24 @@ export default function TodayScreen() {
             <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
           </View>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.reminderIconBtn}
+              onPress={() => router.push('/community')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Community Chat & Stories"
+            >
+              <Users size={20} color={palette.text} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.reminderIconBtn}
+              onPress={() => router.push('/notes')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Notes & Documents"
+            >
+              <FileText size={20} color={palette.text} />
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.reminderIconBtn}
               onPress={() => router.push('/reminders')}
@@ -824,6 +849,11 @@ export default function TodayScreen() {
               )}
             </View>
           )}
+        </View>
+
+        {/* My Day To-Do Focus Hub Card */}
+        <View style={styles.section}>
+          <MyDayCard boundaryHour={boundaryHour} />
         </View>
 
         {/* Active Reminders Card */}
