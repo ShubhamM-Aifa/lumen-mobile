@@ -21,9 +21,11 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  title?: string;
+  subtitle?: string;
 }
 
-export function PhotoPinModal({ visible, onClose, onSuccess }: Props) {
+export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: Props) {
   const { palette } = useTheme();
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess }: Props) {
       setPin('');
       setErrorMessage(null);
       if (isPrimaryUser && isBiometricEnabled && hasHardware && isEnrolled) {
-        authenticateBiometrics().then((ok) => {
+        authenticateBiometrics(subtitle || 'Unlock Sensitive Photos').then((ok) => {
           if (ok) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onSuccess();
@@ -51,7 +53,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess }: Props) {
         });
       }
     }
-  }, [visible, isPrimaryUser, isBiometricEnabled, hasHardware, isEnrolled]);
+  }, [visible, isPrimaryUser, isBiometricEnabled, hasHardware, isEnrolled, subtitle]);
 
   const triggerShake = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -124,11 +126,11 @@ export function PhotoPinModal({ visible, onClose, onSuccess }: Props) {
             <Lock size={26} color={palette.primary} strokeWidth={2.4} />
           </View>
 
-          <Text style={[styles.title, { color: palette.text }]}>Photo Vault Locked</Text>
+          <Text style={[styles.title, { color: palette.text }]}>{title || 'Photo Vault Locked'}</Text>
           <Text style={[styles.subtitle, { color: palette.textSecondary }]}>
-            {isPrimaryUser
+            {subtitle || (isPrimaryUser
               ? 'Enter your 4-digit PIN to view protected health photos'
-              : "Enter the Primary Owner's 4-digit PIN to view protected health photos"}
+              : "Enter the Primary Owner's 4-digit PIN to view protected health photos")}
           </Text>
 
           {/* PIN Indicators */}
