@@ -2,29 +2,64 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { CheckSquare, Check, ArrowDownToLine, ListTodo } from 'lucide-react-native';
+import { CheckSquare, Check, ArrowDownToLine, ListTodo, Eye } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { ITodoEmbedPayload } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { useTaskStore } from '../../store/taskStore';
+import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface TodoEmbedCardProps {
   embed: ITodoEmbedPayload;
   messageId?: string;
+  senderId?: string;
+  isAuthor?: boolean;
 }
 
 export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
   embed,
   messageId,
+  senderId,
+  isAuthor,
 }) => {
   const { palette } = useTheme();
+  const { user } = useAuthStore();
+  const { lists, setActiveFilter } = useTaskStore();
   const { cloneTodoToPersonal } = useCommunityStore();
-  const [imported, setImported] = useState(false);
+
+  const [savedListId, setSavedListId] = useState<string | null>(null);
+
+  // Check if current user is author of routine share
+  const isSender = Boolean(isAuthor) || (Boolean(user?._id) && Boolean(senderId) && user?._id === senderId);
+
+  // Check if routine already exists in user's lists
+  const existingList = lists.find(
+    (l) =>
+      (embed.listId && l._id === embed.listId) ||
+      (l.name && embed.listName && l.name.trim().toLowerCase() === embed.listName.trim().toLowerCase())
+  );
+
+  const isSaved = Boolean(existingList) || Boolean(savedListId);
+
+  const handleOpenRoutine = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const targetListId = savedListId || existingList?._id || embed.listId;
+    if (targetListId) {
+      setActiveFilter(targetListId);
+      router.push({ pathname: '/todo', params: { listId: targetListId } } as any);
+    } else {
+      router.push('/todo' as any);
+    }
+  };
 
   const handleClone = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await cloneTodoToPersonal(embed, messageId);
-    setImported(true);
+    const list = await cloneTodoToPersonal(embed, messageId);
+    if (list?._id) {
+      setSavedListId(list._id);
+    }
     Alert.alert(
       'To-Do List Imported!',
       `"${embed.listName}" and its ${embed.tasks.length} tasks have been added to your To-Do Hub.`
@@ -56,7 +91,11 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
       </View>
 
       {/* Body Area */}
-      <View style={styles.body}>
+      <TouchableOpacity
+        style={styles.body}
+        activeOpacity={isSender || isSaved ? 0.75 : 1}
+        onPress={isSender || isSaved ? handleOpenRoutine : undefined}
+      >
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: palette.text }]} numberOfLines={1}>
             {embed.listName}
@@ -92,31 +131,45 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
           )}
         </View>
 
-        {/* 1-Tap Import Action Button */}
-        <TouchableOpacity
-          style={[
-            styles.actionBtn,
-            imported
-              ? { backgroundColor: 'rgba(34, 197, 94, 0.2)', borderColor: '#22C55E' }
-              : { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' },
-          ]}
-          onPress={handleClone}
-          disabled={imported}
-          activeOpacity={0.7}
-        >
-          {imported ? (
-            <>
-              <Check size={14} color="#22C55E" strokeWidth={2.5} />
-              <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Imported to To-Do</Text>
-            </>
-          ) : (
-            <>
-              <ArrowDownToLine size={14} color="#10B981" strokeWidth={2.5} />
-              <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Import to To-Do Hub</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* Context-Aware Action Button */}
+        {isSender ? (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' },
+            ]}
+            onPress={handleOpenRoutine}
+            activeOpacity={0.7}
+          >
+            <Eye size={14} color="#10B981" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#10B981' }]}>View Routine</Text>
+          </TouchableOpacity>
+        ) : isSaved ? (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: '#22C55E' },
+            ]}
+            onPress={handleOpenRoutine}
+            activeOpacity={0.7}
+          >
+            <Check size={14} color="#22C55E" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Imported • View Routine</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' },
+            ]}
+            onPress={handleClone}
+            activeOpacity={0.7}
+          >
+            <ArrowDownToLine size={14} color="#10B981" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Import to To-Do Hub</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     </View>
   );
 };

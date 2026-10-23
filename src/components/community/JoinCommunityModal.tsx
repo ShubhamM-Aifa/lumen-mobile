@@ -8,6 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, KeyRound, ArrowRight, Users, Check } from 'lucide-react-native';
@@ -63,7 +65,10 @@ export const JoinCommunityModal: React.FC<Props> = ({ visible, onClose, onJoined
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
@@ -76,7 +81,11 @@ export const JoinCommunityModal: React.FC<Props> = ({ visible, onClose, onJoined
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ padding: 16 }}>
+          <ScrollView
+            style={{ padding: 16 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Invite Code Input Box */}
             <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
               HAVE AN INVITE CODE?
@@ -158,7 +167,7 @@ export const JoinCommunityModal: React.FC<Props> = ({ visible, onClose, onJoined
             )}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

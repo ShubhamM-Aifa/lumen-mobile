@@ -242,7 +242,7 @@ export default function CheckInModal() {
           ))
         )}
 
-        <View style={{ height: 100 + Math.max(insets.bottom, 16) }} />
+        <View style={{ height: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 20) + 8) }} />
       </ScrollView>
 
       {/* Footer buttons */}
@@ -250,7 +250,7 @@ export default function CheckInModal() {
         style={[
           styles.footer,
           {
-            paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 28 : 16),
+            paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 20) + 8,
           },
         ]}
       >

@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppDateTimePicker } from '../common/AppDateTimePicker';
 import { X, Check, Clock, Trash2, AlertCircle, Edit3 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -57,6 +58,7 @@ export function EditSingleQuestionModal({
   tempPrefUnit = 'C',
   onUpdated,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -200,7 +202,7 @@ export function EditSingleQuestionModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Pressable style={styles.backdrop} onPress={onClose} />
 
@@ -334,7 +336,7 @@ export function EditSingleQuestionModal({
                 </TouchableOpacity>
               </View>
 
-              <View style={{ height: 20 }} />
+              <View style={{ height: Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 20) }} />
             </ScrollView>
           )}
         </View>

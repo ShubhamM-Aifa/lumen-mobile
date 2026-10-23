@@ -73,6 +73,8 @@ import { typography } from '../src/theme/typography';
 import { ThemeTokens } from '../src/theme/tokens';
 import { LumenLogo } from '../src/components/common/LumenLogo';
 import { DayClockCard } from '../src/components/DayClockCard';
+import { ModularAvatar } from '../src/components/avatar/ModularAvatar';
+import { AvatarStudioModal } from '../src/components/avatar/AvatarStudioModal';
 
 type ThemePref = 'system' | 'light' | 'dark';
 
@@ -145,6 +147,7 @@ export default function SettingsScreen() {
   } = useAuthStore();
 
   const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
+  const [avatarStudioVisible, setAvatarStudioVisible] = useState(false);
 
   const isPrimaryUser = user?.authMethod === 'google';
 
@@ -527,14 +530,20 @@ export default function SettingsScreen() {
       >
         {/* User Hero Profile Card */}
         <View style={styles.profileHeroCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitials}>{initials}</Text>
-            </View>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAvatarStudioVisible(true);
+            }}
+            activeOpacity={0.85}
+            {...buttonProps('Customize animated avatar')}
+          >
+            <ModularAvatar size={74} animated={true} interactive={true} />
             <View style={styles.avatarBadge}>
               <Sparkles size={13} color="#FFFFFF" />
             </View>
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.heroDetails}>
             <View style={styles.heroNameRow}>
@@ -574,6 +583,21 @@ export default function SettingsScreen() {
                 <Text style={styles.memberSinceText}>Joined {memberSince}</Text>
               ) : null}
             </View>
+
+            <TouchableOpacity
+              style={styles.customizeAvatarHeroBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setAvatarStudioVisible(true);
+              }}
+              activeOpacity={0.8}
+              {...buttonProps('Customize Animated Avatar')}
+            >
+              <Sparkles size={13} color={palette.primary} />
+              <Text style={styles.customizeAvatarHeroText}>
+                Customize Animated Avatar 🎨
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.switchAccountHeroBtn}
@@ -930,6 +954,24 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        {/* Notifications & Intelligence */}
+        <Text style={styles.sectionTitle}>Notifications & Intelligence</Text>
+        <View style={styles.accountSwitchCard}>
+          <TouchableOpacity
+            style={styles.accountSwitchRow}
+            onPress={() => router.push('/notification-settings')}
+            activeOpacity={0.7}
+            {...buttonProps('Open notifications and intelligence settings')}
+          >
+            <View style={styles.accountSwitchInfo}>
+              <Text style={styles.accountSwitchLabel}>Smart notifications & flare mode</Text>
+              <Text style={styles.accountSwitchSubLabel}>
+                Choose what Lumen tells you, how often, and when it stays quiet.
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Appearance */}
@@ -1492,6 +1534,12 @@ export default function SettingsScreen() {
         visible={accountSwitcherVisible}
         onClose={() => setAccountSwitcherVisible(false)}
       />
+
+      {/* Reddit-style Animated Avatar Studio Modal */}
+      <AvatarStudioModal
+        visible={avatarStudioVisible}
+        onClose={() => setAvatarStudioVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1639,6 +1687,25 @@ function makeStyles(palette: ThemeTokens) {
       ...typography.caption,
       fontSize: 11,
       color: palette.textDisabled,
+    },
+    customizeAvatarHeroBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      marginTop: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 10,
+      backgroundColor: palette.primary + '18',
+      borderWidth: 1,
+      borderColor: palette.primary + '40',
+    },
+    customizeAvatarHeroText: {
+      ...typography.caption,
+      fontSize: 12,
+      fontWeight: '600',
+      color: palette.primary,
     },
     switchAccountHeroBtn: {
       flexDirection: 'row',

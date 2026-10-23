@@ -210,7 +210,7 @@ const useNavStyles = createThemedStyles(palette => ({
 
 const useStyles = createThemedStyles(palette => ({
   safe:    { flex: 1, backgroundColor: palette.background },
-  content: { padding: 16, paddingBottom: 110 },
+  content: { padding: 16, paddingBottom: 125 },
   heading: { ...typography.h2, color: palette.text, marginBottom: 8 },
   sub:     { ...typography.body, color: palette.textSecondary, marginBottom: 16 },
   chips:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },

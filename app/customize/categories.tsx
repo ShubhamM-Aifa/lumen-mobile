@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -162,7 +162,7 @@ export default function CategoriesScreen() {
       <FlatList
         data={active}
         keyExtractor={c => c._id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         ListHeaderComponent={
           isLoading ? <ActivityIndicator color={palette.primary} style={{ marginBottom: 16 }} /> : null
         }
@@ -210,7 +210,7 @@ export default function CategoriesScreen() {
 
       {/* Add new category FAB */}
       <TouchableOpacity
-        style={[styles.fab, { bottom: 20 + insets.bottom }]}
+        style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         onPress={() => router.push('/customize/category/new')}
         accessibilityRole="button"
         accessibilityLabel="New category"

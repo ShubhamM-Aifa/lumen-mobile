@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, Hash, Bookmark, Plus } from 'lucide-react-native';
@@ -71,7 +73,10 @@ export const CreateChannelModal: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
@@ -84,7 +89,11 @@ export const CreateChannelModal: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ padding: 16 }}>
+          <ScrollView
+            style={{ padding: 16 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Channel Type Selector */}
             <Text style={[styles.label, { color: palette.textSecondary }]}>CHANNEL TYPE</Text>
             <View style={styles.typeRow}>
@@ -203,7 +212,7 @@ export const CreateChannelModal: React.FC<Props> = ({
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

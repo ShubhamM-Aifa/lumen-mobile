@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, Sparkles, ShieldCheck, Lock, Globe } from 'lucide-react-native';
@@ -86,7 +88,10 @@ export const CreateCommunityModal: React.FC<Props> = ({ visible, onClose, onCrea
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
@@ -99,7 +104,12 @@ export const CreateCommunityModal: React.FC<Props> = ({ visible, onClose, onCrea
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16 }}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={{ padding: 16 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Server Identity Preview */}
             <View style={styles.previewBox}>
               <View style={[styles.previewIcon, { backgroundColor: `${selectedColor}25`, borderColor: selectedColor }]}>
@@ -259,7 +269,7 @@ export const CreateCommunityModal: React.FC<Props> = ({ visible, onClose, onCrea
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

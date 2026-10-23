@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Switch,
+  StyleSheet, Alert, ActivityIndicator, Switch, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
 import { IconPicker } from '../../../src/components/customize/IconPicker';
+import { useKeyboard } from '../../../src/hooks/useKeyboard';
 
 const FREQ_OPTIONS: { value: QuestionFrequency; label: string }[] = [
   { value: 'anytime',     label: 'Any time' },
@@ -30,6 +31,7 @@ export default function QuestionEditor() {
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
+  const { isKeyboardVisible } = useKeyboard();
   const { id, categoryId } = useLocalSearchParams<{ id: string; categoryId: string }>();
   const isNew = id === 'new';
   const { config, invalidate, fetchConfig } = useConfigStore();
@@ -143,9 +145,17 @@ export default function QuestionEditor() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: isNew ? 'New question' : 'Edit question' }} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Stack.Screen options={{ title: isNew ? 'New question' : 'Edit question' }} />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
 
         {isArchived && (
           <View style={styles.archivedNotice}>
@@ -250,14 +260,24 @@ export default function QuestionEditor() {
           </View>
         )}
 
-        <View style={{ height: 60 + insets.bottom }} />
+        <View style={{ height: 84 + Math.max(insets.bottom, 16) }} />
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: isKeyboardVisible
+              ? 8
+              : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 16)),
+          },
+        ]}
+      >
         <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save question</Text>}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

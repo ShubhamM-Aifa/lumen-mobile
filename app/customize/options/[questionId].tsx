@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Platform,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -126,7 +126,7 @@ export default function OptionsScreen() {
       <FlatList
         data={active}
         keyExtractor={o => o._id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No options yet.</Text>
@@ -175,7 +175,7 @@ export default function OptionsScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.fab, { bottom: 20 + insets.bottom }]}
+        style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         onPress={() => router.push(`/customize/option/new?questionId=${questionId}`)}
         accessibilityRole="button"
         accessibilityLabel="New option"

@@ -7,6 +7,8 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   Plus,
@@ -201,7 +203,10 @@ export const DiscordForumView: React.FC<Props> = ({
 
       {/* Create Story Modal */}
       <Modal visible={createModalVisible} animationType="slide" transparent onRequestClose={() => setCreateModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.modalContent, { backgroundColor: palette.surface }]}>
             <View style={[styles.modalHeader, { borderBottomColor: palette.border }]}>
               <Text style={[styles.modalTitle, { color: palette.text }]}>Share Health Story</Text>
@@ -210,7 +215,11 @@ export const DiscordForumView: React.FC<Props> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ padding: 16 }}>
+            <ScrollView
+              style={{ padding: 16 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
               <Text style={[styles.inputLabel, { color: palette.textSecondary }]}>CHOOSE TOPIC TAG</Text>
               <View style={styles.modalTagsRow}>
                 {FORUM_TAGS.filter((t) => t !== 'All').map((tag) => (
@@ -262,7 +271,7 @@ export const DiscordForumView: React.FC<Props> = ({
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

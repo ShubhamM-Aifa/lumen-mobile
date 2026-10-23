@@ -46,6 +46,11 @@ export const CHANNEL_ID_ALARM = 'lumen_alarm_clock_v4';
 export const CHANNEL_ID_CLINICAL = 'lumen_clinical_flare_v2';
 export const CHANNEL_ID_HABITS = 'lumen_habits_v2';
 export const CHANNEL_ID_PACING = 'lumen_pacing_v2';
+// Intelligent-notification channels. Android freezes importance and sound at creation,
+// so these are separate from the habits channel above (which is MAX with sound).
+export const CHANNEL_ID_SAFETY = 'lumen_safety_v1';        // MAX, alarm audio, bypasses DND
+export const CHANNEL_ID_HEADS_UP = 'lumen_heads_up_v1';    // HIGH, default sound, respects DND
+export const CHANNEL_ID_INSIGHTS = 'lumen_insights_v1';    // LOW, silent
 export const CHANNEL_ID = CHANNEL_ID_ALARM; // Default high-priority alarm channel
 
 export const TRIGGER_TYPES = {
@@ -228,7 +233,38 @@ export async function ensureNotificationChannel(): Promise<void> {
         enableVibrate: true,
         lockscreenVisibility: N.AndroidNotificationVisibility?.PUBLIC ?? 1,
       }),
-      // 5. Legacy channel alias for backwards compatibility
+      // 5. Safety escalation: only ever carries "contact your care team" messages
+      createChannelSafe(CHANNEL_ID_SAFETY, {
+        name: 'Safety alerts',
+        description: 'Rare messages asking you to contact your care team about a value you logged',
+        importance: N.AndroidImportance?.MAX ?? 5,
+        vibrationPattern: [0, 500, 250, 500],
+        sound: 'default',
+        enableVibrate: true,
+        bypassDnd: true,
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PUBLIC ?? 1,
+        audioAttributes: alarmAudioAttributes,
+      }),
+      // 6. Gentle heads-ups (flare watch). Audible but never overrides Do Not Disturb.
+      createChannelSafe(CHANNEL_ID_HEADS_UP, {
+        name: 'Gentle heads-ups',
+        description: 'Occasional pattern observations from your own logs',
+        importance: N.AndroidImportance?.HIGH ?? 4,
+        vibrationPattern: [0, 250, 150, 250],
+        sound: 'default',
+        enableVibrate: true,
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
+      }),
+      // 7. Quiet insights: check-ins and suggestions, no sound or vibration
+      createChannelSafe(CHANNEL_ID_INSIGHTS, {
+        name: 'Quiet insights',
+        description: 'Silent check-ins and suggestions based on your patterns',
+        importance: N.AndroidImportance?.LOW ?? 2,
+        sound: null,
+        enableVibrate: false,
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
+      }),
+      // 8. Legacy channel alias for backwards compatibility
       createChannelSafe('lumen_reminders_v1', {
         name: 'General Reminders',
         description: 'Lumen daily reminders and health alerts',
@@ -945,5 +981,39 @@ export async function sendPacingAlertNotification(
 export async function syncReminders(reminders: IReminder[]): Promise<void> {
   for (const r of reminders) {
     await scheduleReminder(r);
+  }
+}
+
+/**
+ * Schedules one intelligent notification. Content is health-derived, so the lock screen
+ * shows only a generic title on the quiet channels (PRIVATE visibility is set on the channel).
+ * `deliverAt` null means immediately. Returns the notification id, or null if it could not be scheduled.
+ */
+export async function scheduleIntelligentNotification(opts: {
+  title: string;
+  body: string;
+  channelId: string;
+  data: Record<string, unknown>;
+  deliverAt?: number | null;
+}): Promise<string | null> {
+  if (!N || typeof N.scheduleNotificationAsync !== 'function') return null;
+  try {
+    await ensureNotificationChannel();
+    const silent = opts.channelId === CHANNEL_ID_INSIGHTS;
+    return await N.scheduleNotificationAsync({
+      content: {
+        title: opts.title,
+        body: opts.body,
+        data: opts.data,
+        sound: silent ? false : 'default',
+        ...(Platform.OS === 'android' ? { channelId: opts.channelId } : {}),
+      },
+      trigger: opts.deliverAt && opts.deliverAt > Date.now()
+        ? { type: TRIGGER_TYPES.DATE, date: new Date(opts.deliverAt) }
+        : null,
+    });
+  } catch (err) {
+    console.warn('[Notifications] Failed to schedule intelligent notification:', err);
+    return null;
   }
 }

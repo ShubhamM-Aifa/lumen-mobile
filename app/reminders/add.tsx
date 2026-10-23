@@ -8,6 +8,8 @@ import {
   TextInput,
   Switch,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -137,18 +139,27 @@ export default function AddReminderScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Top Bar */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
-          <ChevronLeft size={24} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Reminder</Text>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Top Bar */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
+            <ChevronLeft size={24} color={palette.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Reminder</Text>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+            <Text style={styles.saveBtnText}>Save</Text>
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Reminder Name */}
         <View style={styles.section}>
           <Text style={styles.label}>Reminder Name</Text>
@@ -365,6 +376,7 @@ export default function AddReminderScreen() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <ContextualPermissionModal
         visible={showNotifModal}

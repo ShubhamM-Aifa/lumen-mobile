@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Switch, Modal, Pressable,
+  StyleSheet, Alert, ActivityIndicator, Switch, Modal, Pressable, Platform,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,7 +260,7 @@ export default function OptionEditor() {
           </View>
         )}
 
-        <View style={{ height: 60 + insets.bottom }} />
+        <View style={{ height: 84 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 8) }} />
       </ScrollView>
 
       {/* Inline field editor modal */}
@@ -272,7 +272,7 @@ export default function OptionEditor() {
         />
       )}
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
+      <View style={[styles.footer, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 8 }]}>
         <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save option</Text>}
         </TouchableOpacity>

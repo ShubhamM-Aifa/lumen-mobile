@@ -61,6 +61,7 @@ export const AttachArtifactModal: React.FC<AttachArtifactModalProps> = ({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const listTasks = tasks.filter((t) => t.listId === list._id);
     const payload: ITodoEmbedPayload = {
+      listId: list._id,
       listName: list.name,
       tasks: listTasks.map((t) => ({
         title: t.title,

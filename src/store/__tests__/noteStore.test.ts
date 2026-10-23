@@ -98,4 +98,17 @@ describe('Notion-style NoteStore with Block Architecture & Health Linking', () =
     await useNoteStore.getState().toggleHealthLink(note._id, 'symptom', 'symptom_brain_fog');
     expect(useNoteStore.getState().notes[0].linkedSymptomIds).not.toContain('symptom_brain_fog');
   });
+
+  it('allows deleting/updating title to empty string without reverting', async () => {
+    const note = await useNoteStore.getState().createNote({
+      title: 'Untitled Note',
+    });
+
+    expect(note.title).toBe('Untitled Note');
+
+    // User backspaces and clears the entire title to empty string
+    await useNoteStore.getState().updateNote(note._id, { title: '' });
+    expect(useNoteStore.getState().notes[0].title).toBe('');
+    expect(useNoteStore.getState().activeNote?.title).toBe('');
+  });
 });

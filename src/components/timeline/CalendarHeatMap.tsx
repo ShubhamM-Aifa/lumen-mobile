@@ -133,6 +133,102 @@ export function CalendarHeatMap({
     }
   };
 
+  const renderDayCellContent = (
+    dayNum: number | string,
+    iso: string,
+    info: DaySeverity | undefined,
+    isToday: boolean,
+    isSelected: boolean
+  ) => {
+    const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
+    const progress = info?.progress ?? 0;
+    const isComplete = info?.isComplete ?? (progress >= 1);
+
+    // If selected and no severity background, use a sleek surface highlight
+    const effectiveBg = isSelected && bg === 'transparent'
+      ? (palette.surfaceAlt === '#F5F0EB' ? '#E5E7EB' : '#3A3330')
+      : bg;
+
+    return (
+      <View
+        style={[
+          styles.dayCell,
+          isSelected && styles.selectedGlow,
+        ]}
+      >
+        {/* Render background circle and rings in SVG for 100% vector precision without Android clipping/square bugs */}
+        <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
+          {/* 1. Geometric Circular Background (guarantees true circle on dates with logs like 19) */}
+          {effectiveBg !== 'transparent' && (
+            <Circle cx={18} cy={18} r={15.5} fill={effectiveBg} />
+          )}
+
+          {/* 2. Progress Ring when progress > 0 */}
+          {progress > 0 ? (
+            <>
+              {/* Background track */}
+              <Circle
+                cx={18}
+                cy={18}
+                r={15.5}
+                stroke={isComplete ? '#10B98126' : palette.primary + '25'}
+                strokeWidth={2.5}
+                fill="transparent"
+              />
+              {/* Active progress arc */}
+              <Circle
+                cx={18}
+                cy={18}
+                r={15.5}
+                stroke={isComplete ? '#10B981' : palette.primary}
+                strokeWidth={2.5}
+                strokeDasharray="97.39"
+                strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
+                strokeLinecap="round"
+                fill="transparent"
+                transform="rotate(-90 18 18)"
+              />
+            </>
+          ) : (
+            // 3. When progress === 0: Render clean selection border or today border without overlap
+            <>
+              {isSelected ? (
+                <Circle
+                  cx={18}
+                  cy={18}
+                  r={15.5}
+                  stroke="#FFFFFF"
+                  strokeWidth={2}
+                  fill="transparent"
+                />
+              ) : isToday ? (
+                <Circle
+                  cx={18}
+                  cy={18}
+                  r={15.5}
+                  stroke={palette.primary}
+                  strokeWidth={1.5}
+                  fill="transparent"
+                />
+              ) : null}
+            </>
+          )}
+        </Svg>
+
+        <Text
+          style={[
+            styles.dayNum,
+            isSelected && styles.dayNumSelected,
+            isToday && !isSelected && styles.dayNumToday,
+          ]}
+        >
+          {dayNum}
+        </Text>
+        {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.wrap}>
       {/* Header with Title and Mode Switcher */}
@@ -192,80 +288,31 @@ export function CalendarHeatMap({
       {viewMode === 'week' && (
         <View style={styles.weekContainer}>
           <View style={styles.row}>
-            {weekDays.map((item, i) => {
+            {weekDays.map((item) => {
               const info = dataMap[item.iso];
-              const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
               const isToday = item.iso === todayStr;
               const isSelected = item.iso === selectedDate;
-              const progress = info?.progress ?? 0;
-              const isComplete = info?.isComplete ?? (progress >= 1);
 
-                  const cellBg = isSelected && bg === 'transparent' ? (palette.surfaceAlt === '#F5F0EB' ? '#E5E7EB' : '#3A3330') : bg;
-
-                  return (
-                    <PressableScale
-                      key={item.iso}
-                      style={styles.weekCol}
-                      onPress={() => onSelectDate(item.iso)}
-                      haptic="selection"
-                      activeScale={0.92}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}, progress ${info?.percentage ?? 0} percent`}
-                    >
-                      <Text
-                        style={[
-                          styles.dayHeader,
-                          isToday && styles.dayHeaderToday,
-                          isSelected && styles.dayHeaderSelected,
-                        ]}
-                      >
-                        {item.dayOfWeek}
-                      </Text>
-                      <View
-                        style={[
-                          styles.dayCell,
-                          { backgroundColor: cellBg },
-                          isToday && !isSelected && styles.today,
-                          isSelected && styles.selected,
-                        ]}
-                      >
-                        {/* Circular Progress Ring along perimeter */}
-                        {progress > 0 && (
-                          <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
-                            <Circle
-                              cx={18}
-                              cy={18}
-                              r={15.5}
-                              stroke={isComplete ? '#10B98126' : palette.primary + '25'}
-                              strokeWidth={2}
-                              fill="transparent"
-                            />
-                            <Circle
-                              cx={18}
-                              cy={18}
-                              r={15.5}
-                              stroke={isComplete ? '#10B981' : palette.primary}
-                              strokeWidth={2.5}
-                              strokeDasharray="97.39"
-                              strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
-                              strokeLinecap="round"
-                              fill="transparent"
-                              transform="rotate(-90 18 18)"
-                            />
-                          </Svg>
-                        )}
-
-                    <Text
-                      style={[
-                        styles.dayNum,
-                        isSelected && styles.dayNumSelected,
-                        isToday && !isSelected && styles.dayNumToday,
-                      ]}
-                    >
-                      {item.dayNum}
-                    </Text>
-                    {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
-                  </View>
+              return (
+                <PressableScale
+                  key={item.iso}
+                  style={styles.weekCol}
+                  onPress={() => onSelectDate(item.iso)}
+                  haptic="selection"
+                  activeScale={0.92}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}, progress ${info?.percentage ?? 0} percent`}
+                >
+                  <Text
+                    style={[
+                      styles.dayHeader,
+                      isToday && styles.dayHeaderToday,
+                      isSelected && styles.dayHeaderSelected,
+                    ]}
+                  >
+                    {item.dayOfWeek}
+                  </Text>
+                  {renderDayCellContent(item.dayNum, item.iso, info, isToday, isSelected)}
                 </PressableScale>
               );
             })}
@@ -292,13 +339,8 @@ export function CalendarHeatMap({
                 if (day === null) return <View key={col} style={styles.cell} />;
                 const iso = isoDate(day);
                 const info = dataMap[iso];
-                const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
                 const isToday = iso === todayStr;
                 const isSelected = iso === selectedDate;
-                const progress = info?.progress ?? 0;
-                const isComplete = info?.isComplete ?? (progress >= 1);
-
-                const cellBg = isSelected && bg === 'transparent' ? (palette.surfaceAlt === '#F5F0EB' ? '#E5E7EB' : '#3A3330') : bg;
 
                 return (
                   <TouchableOpacity
@@ -308,51 +350,7 @@ export function CalendarHeatMap({
                     accessibilityRole="button"
                     accessibilityLabel={`${day} ${MONTH_NAMES[month]}, progress ${info?.percentage ?? 0} percent`}
                   >
-                    <View
-                      style={[
-                        styles.dayCell,
-                        { backgroundColor: cellBg },
-                        isToday && !isSelected && styles.today,
-                        isSelected && styles.selected,
-                      ]}
-                    >
-                      {/* Circular Progress Ring along perimeter */}
-                      {progress > 0 && (
-                        <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
-                          <Circle
-                            cx={18}
-                            cy={18}
-                            r={15.5}
-                            stroke={isComplete ? '#10B98126' : palette.primary + '25'}
-                            strokeWidth={2}
-                            fill="transparent"
-                          />
-                          <Circle
-                            cx={18}
-                            cy={18}
-                            r={15.5}
-                            stroke={isComplete ? '#10B981' : palette.primary}
-                            strokeWidth={2.5}
-                            strokeDasharray="97.39"
-                            strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
-                            strokeLinecap="round"
-                            fill="transparent"
-                            transform="rotate(-90 18 18)"
-                          />
-                        </Svg>
-                      )}
-
-                      <Text
-                        style={[
-                          styles.dayNum,
-                          isSelected && styles.dayNumSelected,
-                          isToday && !isSelected && styles.dayNumToday,
-                        ]}
-                      >
-                        {day}
-                      </Text>
-                      {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
-                    </View>
+                    {renderDayCellContent(day, iso, info, isToday, isSelected)}
                   </TouchableOpacity>
                 );
               })}
@@ -482,11 +480,20 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   cellProgressRing: {
     position: 'absolute',
     top: 0,
     left: 0,
+  },
+  selectedGlow: {
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 4,
   },
   today: { borderWidth: 1.5, borderColor: palette.primary, backgroundColor: palette.primary + '10' },
   selected: {

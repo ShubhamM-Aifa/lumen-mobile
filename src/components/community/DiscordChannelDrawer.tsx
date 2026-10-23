@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,12 @@ import {
   ShieldCheck,
   Search,
   Plus,
+  UserPlus,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityChannel, ICommunityServer } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { InviteCommunityModal } from './InviteCommunityModal';
 
 interface Props {
   channels: ICommunityChannel[];
@@ -41,6 +43,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
   const { palette } = useTheme();
   const { collapsedCategories, toggleCategoryCollapsed, isAnonymous, toggleAnonymous } =
     useCommunityStore();
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
 
   // Group channels by category
   const categories = React.useMemo(() => {
@@ -84,6 +87,13 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
               </Text>
             </View>
           </View>
+          <TouchableOpacity
+            onPress={() => setInviteModalVisible(true)}
+            style={styles.searchBtn}
+            accessibilityLabel="Invite friends to community"
+          >
+            <UserPlus size={18} color={palette.textSecondary} />
+          </TouchableOpacity>
           {onPressAddChannel && (
             <TouchableOpacity onPress={onPressAddChannel} style={styles.searchBtn} accessibilityLabel="Create new channel">
               <Plus size={18} color={palette.textSecondary} />
@@ -202,6 +212,12 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      <InviteCommunityModal
+        visible={inviteModalVisible}
+        server={activeServer || null}
+        onClose={() => setInviteModalVisible(false)}
+      />
     </View>
   );
 };

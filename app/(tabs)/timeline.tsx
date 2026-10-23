@@ -711,7 +711,7 @@ const useStyles = createThemedStyles(palette => ({
     fontSize: 12,
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 110 },
+  scrollContent: { paddingBottom: 125 },
   calWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, backgroundColor: palette.background },
   dayNavCard: {
     flexDirection: 'row',
@@ -766,6 +766,8 @@ const useStyles = createThemedStyles(palette => ({
 
   // Selected Day Progress Card
   dayProgressCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
     backgroundColor: palette.surface,
     borderRadius: 16,
     borderWidth: 1,

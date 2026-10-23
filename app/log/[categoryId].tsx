@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Alert, Platform, Modal, Pressable,
+  ActivityIndicator, Alert, Platform, Modal, Pressable, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
@@ -31,6 +31,7 @@ import { queryClient } from '../../src/api/queryClient';
 import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTodayCategoryLogs';
 import { getDayBoundaryWindow, getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { logLocationService } from '../../src/services/logLocationService';
+import { useKeyboard } from '../../src/hooks/useKeyboard';
 
 function fmtDateOnly(d: Date): string {
   const isToday = new Date().toDateString() === d.toDateString();
@@ -51,6 +52,7 @@ export default function QuestionSheet() {
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
+  const { isKeyboardVisible } = useKeyboard();
   const initialOccurredAt = useMemo(() => {
     if (!date) return new Date();
     const parts = date.split('-');
@@ -383,13 +385,21 @@ export default function QuestionSheet() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: formattedTargetDate ? `${category.name} (${formattedTargetDate})` : category.name,
-        }}
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Stack.Screen
+          options={{
+            title: formattedTargetDate ? `${category.name} (${formattedTargetDate})` : category.name,
+          }}
+        />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Past Date Context Banner */}
         {formattedTargetDate && (
           <View style={styles.pastDateBanner}>
@@ -600,11 +610,20 @@ export default function QuestionSheet() {
           />
         </View>
 
-        <View style={{ height: 84 + Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 16) }} />
+        <View style={{ height: 96 + Math.max(insets.bottom, 20) }} />
       </ScrollView>
 
       {/* Submit button pinned to bottom */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 16) }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: isKeyboardVisible
+              ? 8
+              : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 20)),
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -617,6 +636,7 @@ export default function QuestionSheet() {
             : <Text style={styles.submitText}>Log now</Text>}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
 
       {/* Date picker — iOS modal, Android native, Web responsive sheet */}
       <AppDateTimePicker

@@ -27,7 +27,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   // Dynamically account for Android 3-button navigation bar (~48dp), gesture pill (~16-24dp), and iOS Home Indicator (~34dp)
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 8);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 48 : (Platform.OS === 'ios' ? 16 : 8));
   const baseContentHeight = 56;
   const tabHeight = baseContentHeight + bottomInset;
   const tabPaddingBottom = bottomInset;

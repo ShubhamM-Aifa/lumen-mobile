@@ -9,9 +9,11 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
+import { useKeyboard } from '../src/hooks/useKeyboard';
 import { safeGoBack } from '../src/utils/navigation';
 import { AppDateTimePicker } from '../src/components/common/AppDateTimePicker';
 import { ChevronLeft, SlidersHorizontal, Clock, Check, Sparkles } from 'lucide-react-native';
@@ -45,6 +47,7 @@ export default function QuickLogScreen() {
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
+  const { isKeyboardVisible } = useKeyboard();
   const { config, fetchConfig, isLoading: isConfigLoading } = useConfigStore();
   const { todaySession } = useDaySessionStore();
   const { user } = useAuthStore();
@@ -152,40 +155,48 @@ export default function QuickLogScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Quick Log',
-          headerStyle: { backgroundColor: palette.surface },
-          headerTintColor: palette.text,
-          headerShadowVisible: false,
-          headerLeft: () => (
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => safeGoBack('/(tabs)/today')}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-            >
-              <ChevronLeft size={24} color={palette.text} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              style={styles.editConfigBtn}
-              onPress={() => router.push('/customize/quick-log-questions')}
-              accessibilityRole="button"
-              accessibilityLabel="Edit Quick Log Questions"
-            >
-              <SlidersHorizontal size={14} color={palette.primary} />
-              <Text style={styles.editConfigText}>
-                Edit ({quickLogQuestions.length}/{MAX_QUICK_LOG_QUESTIONS})
-              </Text>
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: 'Quick Log',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.text,
+            headerShadowVisible: false,
+            headerLeft: () => (
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => safeGoBack('/(tabs)/today')}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+              >
+                <ChevronLeft size={24} color={palette.text} />
+              </TouchableOpacity>
+            ),
+            headerRight: () => (
+              <TouchableOpacity
+                style={styles.editConfigBtn}
+                onPress={() => router.push('/customize/quick-log-questions')}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Quick Log Questions"
+              >
+                <SlidersHorizontal size={14} color={palette.primary} />
+                <Text style={styles.editConfigText}>
+                  Edit ({quickLogQuestions.length}/{MAX_QUICK_LOG_QUESTIONS})
+                </Text>
+              </TouchableOpacity>
+            ),
+          }}
+        />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Timestamp Bar */}
         <TouchableOpacity
           style={styles.timeBar}
@@ -268,30 +279,40 @@ export default function QuickLogScreen() {
           </View>
         ) : null}
 
-        <View style={{ height: 20 + insets.bottom }} />
+        <View style={{ height: 80 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 8) }} />
       </ScrollView>
 
-      {/* Submit Button Bar */}
-      {quickLogQuestions.length > 0 ? (
-        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity
-            style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            accessibilityRole="button"
-            accessibilityLabel="Save Quick Log"
+        {/* Submit Button Bar */}
+        {quickLogQuestions.length > 0 ? (
+          <View
+            style={[
+              styles.bottomBar,
+              {
+                paddingBottom: isKeyboardVisible
+                  ? 8
+                  : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 16)),
+              },
+            ]}
           >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
-                <Text style={styles.submitBtnText}>Save Quick Log</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      ) : null}
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Save Quick Log"
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.submitBtnText}>Save Quick Log</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </KeyboardAvoidingView>
     </View>
   );
 }

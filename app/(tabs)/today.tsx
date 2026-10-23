@@ -60,6 +60,7 @@ import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { LumenIcon } from '../../src/components/common/LumenLogo';
 import { UndoToast } from '../../src/components/UndoToast';
 import { FlareNowButton } from '../../src/components/FlareNowButton';
+import { ForYouTodayCard } from '../../src/components/home/ForYouTodayCard';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
 import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
@@ -490,6 +491,9 @@ export default function TodayScreen() {
         {!isDaytimeMode && (
           <DayClockCard />
         )}
+
+        {/* Flare mode status and observations the daily budget held back (hidden when empty) */}
+        <ForYouTodayCard />
 
         {/* Position 2: Quick Log shortcut */}
         <FlareNowButton />
@@ -1247,7 +1251,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   content: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 125,
     gap: 18,
   },
   header: {

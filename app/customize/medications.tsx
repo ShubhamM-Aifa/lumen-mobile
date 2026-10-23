@@ -68,7 +68,7 @@ export default function MedicationsScreen() {
       <FlatList
         data={active}
         keyExtractor={m => m._id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 + insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         ListHeaderComponent={<Text style={styles.hint}>Track what you take so Lumen can include it in your logs and insights.</Text>}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>No medications yet.</Text></View>}
         ListFooterComponent={inactive.length > 0 ? (
@@ -97,13 +97,13 @@ export default function MedicationsScreen() {
         )}
       />
 
-      <TouchableOpacity style={[styles.fab, { bottom: 20 + insets.bottom }]} onPress={() => setEditing({ active: true, name: '' })} accessibilityRole="button" accessibilityLabel="Add medication">
+      <TouchableOpacity style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]} onPress={() => setEditing({ active: true, name: '' })} accessibilityRole="button" accessibilityLabel="Add medication">
         <Text style={styles.fabText}>＋ Add medication</Text>
       </TouchableOpacity>
 
       {editing && (
         <Modal visible animationType="slide" transparent>
-          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>

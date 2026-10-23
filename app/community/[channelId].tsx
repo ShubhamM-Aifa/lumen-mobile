@@ -27,6 +27,7 @@ import {
   Bookmark,
 } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
+import { useAuthStore } from '../../src/store/authStore';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { NoteEmbedCard } from '../../src/components/community/NoteEmbedCard';
 import { TodoEmbedCard } from '../../src/components/community/TodoEmbedCard';
@@ -39,11 +40,14 @@ import { DiscordThreadModal } from '../../src/components/community/DiscordThread
 import { DiscordForumView } from '../../src/components/community/DiscordForumView';
 import { formatTimeRelative } from '../../src/utils/dayBoundary';
 import { CommunityEmbedType, ICommunityMessage, IForumPost } from '../../src/shared/types';
+import { useKeyboard } from '../../src/hooks/useKeyboard';
 
 export default function ChannelChatScreen() {
   const insets = useSafeAreaInsets();
   const { channelId } = useLocalSearchParams<{ channelId: string }>();
   const { palette } = useTheme();
+  const { user } = useAuthStore();
+  const { isKeyboardVisible } = useKeyboard();
 
   const {
     channels,
@@ -136,7 +140,7 @@ export default function ChannelChatScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Channel Header */}
         <View style={[styles.header, { borderBottomColor: palette.border }]}>
@@ -228,6 +232,8 @@ export default function ChannelChatScreen() {
               style={styles.messagesList}
               contentContainerStyle={styles.messagesContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
             >
               {/* Channel Welcome Banner */}
@@ -343,15 +349,30 @@ export default function ChannelChatScreen() {
 
                         {/* Discord Left-Accent Rich Embed Cards */}
                         {msg.embedType === 'note' && msg.embedData?.note && (
-                          <NoteEmbedCard embed={msg.embedData.note} messageId={msg._id} />
+                          <NoteEmbedCard
+                            embed={msg.embedData.note}
+                            messageId={msg._id}
+                            senderId={msg.senderId}
+                            isAuthor={Boolean(user?._id) && msg.senderId === user?._id}
+                          />
                         )}
 
                         {msg.embedType === 'todo_list' && msg.embedData?.todo && (
-                          <TodoEmbedCard embed={msg.embedData.todo} messageId={msg._id} />
+                          <TodoEmbedCard
+                            embed={msg.embedData.todo}
+                            messageId={msg._id}
+                            senderId={msg.senderId}
+                            isAuthor={Boolean(user?._id) && msg.senderId === user?._id}
+                          />
                         )}
 
                         {msg.embedType === 'log_template' && msg.embedData?.logTemplate && (
-                          <LogTemplateEmbedCard embed={msg.embedData.logTemplate} messageId={msg._id} />
+                          <LogTemplateEmbedCard
+                            embed={msg.embedData.logTemplate}
+                            messageId={msg._id}
+                            senderId={msg.senderId}
+                            isAuthor={Boolean(user?._id) && msg.senderId === user?._id}
+                          />
                         )}
 
                         {/* Footer: Empathy Reactions & Reply / Thread Buttons */}
@@ -430,7 +451,9 @@ export default function ChannelChatScreen() {
                 {
                   backgroundColor: palette.surface,
                   borderTopColor: palette.border,
-                  paddingBottom: Math.max(insets.bottom, 10),
+                  paddingBottom: isKeyboardVisible
+                    ? (Platform.OS === 'ios' ? 8 : 6)
+                    : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)),
                 },
               ]}
             >

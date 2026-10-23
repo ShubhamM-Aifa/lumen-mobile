@@ -17,6 +17,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -216,26 +218,35 @@ export default function EditReminderScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Top Bar */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
-          <ChevronLeft size={24} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Reminder</Text>
-        <TouchableOpacity
-          style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveBtnText}>Save</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Top Bar */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
+            <ChevronLeft size={24} color={palette.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Edit Reminder</Text>
+          <TouchableOpacity
+            style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveBtnText}>Save</Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Reminder Name */}
         <View style={styles.section}>
           <Text style={styles.label}>Reminder Name</Text>
@@ -482,6 +493,7 @@ export default function EditReminderScreen() {
 
         <View style={{ height: 48 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <ContextualPermissionModal
         visible={showNotifModal}

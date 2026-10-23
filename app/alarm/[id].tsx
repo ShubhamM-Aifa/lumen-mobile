@@ -482,7 +482,8 @@ const styles = StyleSheet.create({
   },
   dismissFooter: {
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'android' ? 36 : 14,
   },
   dismissFooterText: {
     ...typography.caption,

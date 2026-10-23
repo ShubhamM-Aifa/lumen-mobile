@@ -10,6 +10,8 @@ import {
   INoteEmbedPayload,
   ITodoEmbedPayload,
   ILogTemplateEmbedPayload,
+  INote,
+  ITaskList,
 } from '../shared/types';
 import {
   CreateCommunityServerDto,
@@ -95,11 +97,11 @@ interface CommunityState {
   cloneNoteToPersonal: (
     embed: INoteEmbedPayload,
     messageId?: string
-  ) => Promise<void>;
+  ) => Promise<INote>;
   cloneTodoToPersonal: (
     embed: ITodoEmbedPayload,
     messageId?: string
-  ) => Promise<void>;
+  ) => Promise<ITaskList>;
   cloneLogTemplateToPersonal: (
     embed: ILogTemplateEmbedPayload,
     messageId?: string
@@ -593,7 +595,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   // ────────── 1-Tap Clone Dispatchers ──────────
 
   cloneNoteToPersonal: async (embed, messageId) => {
-    await useNoteStore.getState().createNote({
+    const newNote = await useNoteStore.getState().createNote({
       title: embed.title,
       icon: embed.icon || '📝',
       coverGradient: embed.coverGradient,
@@ -604,6 +606,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     if (messageId && !messageId.startsWith('temp_')) {
       api.post(`/community/messages/${messageId}/clone`, {}).catch(() => {});
     }
+
+    return newNote;
   },
 
   cloneTodoToPersonal: async (embed, messageId) => {
@@ -627,6 +631,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     if (messageId && !messageId.startsWith('temp_')) {
       api.post(`/community/messages/${messageId}/clone`, {}).catch(() => {});
     }
+
+    return list;
   },
 
   cloneLogTemplateToPersonal: async (embed, messageId) => {

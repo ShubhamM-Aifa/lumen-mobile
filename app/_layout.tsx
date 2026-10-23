@@ -12,6 +12,7 @@ import { useNotificationSync } from '../src/hooks/useNotificationSync';
 import { flushQueue } from '../src/services/mediaUpload';
 import { useConfigStore } from '../src/store/configStore';
 import { useAuthStore } from '../src/store/authStore';
+import { useIntelligenceStore } from '../src/store/intelligenceStore';
 import { installGlobalAlert, CustomAlertModal } from '../src/components/alert';
 import { InitialPermissionsModal } from '../src/components/permissions/InitialPermissionsModal';
 import { permissionService } from '../src/services/permissionService';
@@ -56,6 +57,11 @@ function AppBootstrap() {
     if (isAuthenticated) {
       fetchConfig().catch(err => console.warn('[AppBootstrap] fetchConfig error:', err));
       flushQueue().catch(err => console.warn('[AppBootstrap] flushQueue error:', err));
+      const intel = useIntelligenceStore.getState();
+      intel.hydrate()
+        .then(() => intel.fetchPolicy())
+        .then(() => intel.evaluateFlareMode())
+        .catch(err => console.warn('[AppBootstrap] intelligence init error:', err));
     }
   }, [isAuthenticated, fetchConfig]);
 

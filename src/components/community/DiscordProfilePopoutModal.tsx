@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { X, Award, FileText, CheckSquare, Sparkles, MessageSquare } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { IDiscordUserProfile } from '../../shared/types';
+import { ModularAvatar } from '../avatar/ModularAvatar';
 
 interface Props {
   visible: boolean;
@@ -50,7 +51,7 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
               {/* Avatar Section */}
               <View style={styles.avatarRow}>
                 <View style={[styles.avatarCircle, { borderColor: palette.surface }]}>
-                  <Text style={styles.avatarText}>{user.avatarEmoji || '🌟'}</Text>
+                  <ModularAvatar size={66} animated={true} interactive={true} />
                   <View style={styles.statusDot}>
                     <Text style={{ fontSize: 9 }}>🥄</Text>
                   </View>

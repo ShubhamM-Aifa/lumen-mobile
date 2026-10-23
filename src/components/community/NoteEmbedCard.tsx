@@ -2,32 +2,66 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { BookmarkPlus, Check, ArrowDownToLine, FileText } from 'lucide-react-native';
+import { Check, ArrowDownToLine, FileText, Eye } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { INoteEmbedPayload } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { useNoteStore } from '../../store/noteStore';
+import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface NoteEmbedCardProps {
   embed: INoteEmbedPayload;
   messageId?: string;
+  senderId?: string;
+  isAuthor?: boolean;
 }
 
 export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
   embed,
   messageId,
+  senderId,
+  isAuthor,
 }) => {
   const { palette } = useTheme();
+  const { user } = useAuthStore();
+  const { notes } = useNoteStore();
   const { cloneNoteToPersonal } = useCommunityStore();
-  const [imported, setImported] = useState(false);
 
-  const handleClone = async () => {
+  const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+
+  // Check if current user is author of the message or note
+  const isSender = Boolean(isAuthor) || (Boolean(user?._id) && Boolean(senderId) && user?._id === senderId);
+
+  // Check if note is already in personal notes library
+  const existingNote = notes.find(
+    (n) =>
+      (embed.noteId && n._id === embed.noteId) ||
+      (n.title && embed.title && n.title.trim().toLowerCase() === embed.title.trim().toLowerCase())
+  );
+
+  const isSaved = Boolean(existingNote) || Boolean(savedNoteId);
+
+  const handleOpenNote = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const targetId = savedNoteId || existingNote?._id || embed.noteId;
+    if (targetId) {
+      router.push(`/notes/${targetId}` as any);
+    } else {
+      router.push('/notes' as any);
+    }
+  };
+
+  const handleSave = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await cloneNoteToPersonal(embed, messageId);
-    setImported(true);
+    const createdNote = await cloneNoteToPersonal(embed, messageId);
+    if (createdNote?._id) {
+      setSavedNoteId(createdNote._id);
+    }
     Alert.alert(
       'Note Saved!',
-      `"${embed.title}" has been saved into your personal Notes & Docs library. Tap Notes to view or customize.`
+      `"${embed.title}" has been saved into your personal Notes & Docs library.`
     );
   };
 
@@ -53,7 +87,11 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
       </View>
 
       {/* Body Area */}
-      <View style={styles.body}>
+      <TouchableOpacity
+        style={styles.body}
+        activeOpacity={isSender || isSaved ? 0.75 : 1}
+        onPress={isSender || isSaved ? handleOpenNote : undefined}
+      >
         <View style={styles.titleRow}>
           <Text style={styles.icon}>{embed.icon || '📝'}</Text>
           <Text style={[styles.title, { color: palette.text }]} numberOfLines={1}>
@@ -76,31 +114,45 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
           </View>
         )}
 
-        {/* 1-Tap Save Action Button */}
-        <TouchableOpacity
-          style={[
-            styles.actionBtn,
-            imported
-              ? { backgroundColor: 'rgba(34, 197, 94, 0.2)', borderColor: '#22C55E' }
-              : { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38BDF8' },
-          ]}
-          onPress={handleClone}
-          disabled={imported}
-          activeOpacity={0.7}
-        >
-          {imported ? (
-            <>
-              <Check size={14} color="#22C55E" strokeWidth={2.5} />
-              <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Saved to My Notes</Text>
-            </>
-          ) : (
-            <>
-              <ArrowDownToLine size={14} color="#38BDF8" strokeWidth={2.5} />
-              <Text style={[styles.actionBtnText, { color: '#38BDF8' }]}>Save to My Notes</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* Context-Aware Action Button */}
+        {isSender ? (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38BDF8' },
+            ]}
+            onPress={handleOpenNote}
+            activeOpacity={0.7}
+          >
+            <Eye size={14} color="#38BDF8" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#38BDF8' }]}>View Note</Text>
+          </TouchableOpacity>
+        ) : isSaved ? (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(34, 197, 94, 0.15)', borderColor: '#22C55E' },
+            ]}
+            onPress={handleOpenNote}
+            activeOpacity={0.7}
+          >
+            <Check size={14} color="#22C55E" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Saved • View Note</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38BDF8' },
+            ]}
+            onPress={handleSave}
+            activeOpacity={0.7}
+          >
+            <ArrowDownToLine size={14} color="#38BDF8" strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: '#38BDF8' }]}>Save to My Notes</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     </View>
   );
 };

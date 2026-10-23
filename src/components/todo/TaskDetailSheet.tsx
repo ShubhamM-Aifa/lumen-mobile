@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,10 @@ import {
   TextInput,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   X,
@@ -41,8 +44,10 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
   onClose,
   boundaryHour = 4,
 }) => {
+  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const {
+    tasks,
     updateTask,
     toggleTaskCompleted,
     toggleTaskImportant,
@@ -54,38 +59,86 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
     deferForFlare,
   } = useTaskStore();
 
+  const liveTask = (task && tasks.find((t) => t._id === task._id)) || task;
+
   const [newStepText, setNewStepText] = useState('');
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedNotes, setEditedNotes] = useState('');
 
-  // Sync state when task changes
-  React.useEffect(() => {
-    if (task) {
-      setEditedTitle(task.title);
-      setEditedNotes(task.notes || '');
+  // Sync state only when task ID changes or modal opens
+  const taskId = task?._id;
+  useEffect(() => {
+    if (liveTask && visible) {
+      setEditedTitle(liveTask.title);
+      setEditedNotes(liveTask.notes || '');
     }
-  }, [task]);
+  }, [taskId, visible]);
 
-  if (!task) return null;
+  const formatLocalDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = useMemo(() => formatLocalDate(new Date()), []);
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return formatLocalDate(d);
+  }, []);
+  const nextWeekStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return formatLocalDate(d);
+  }, []);
 
   const handleSaveTitle = () => {
-    if (editedTitle.trim() && editedTitle !== task.title) {
-      updateTask(task._id, { title: editedTitle.trim() });
+    if (!liveTask) return;
+    const trimmed = editedTitle.trim();
+    if (trimmed && trimmed !== liveTask.title) {
+      updateTask(liveTask._id, { title: trimmed });
     }
-    setIsEditingTitle(false);
   };
 
   const handleSaveNotes = () => {
-    if (editedNotes !== (task.notes || '')) {
-      updateTask(task._id, { notes: editedNotes });
+    if (!liveTask) return;
+    if (editedNotes !== (liveTask.notes || '')) {
+      updateTask(liveTask._id, { notes: editedNotes });
     }
   };
+
+  const handleClose = () => {
+    if (liveTask) {
+      const trimmed = editedTitle.trim();
+      if (trimmed && trimmed !== liveTask.title) {
+        updateTask(liveTask._id, { title: trimmed });
+      }
+      if (editedNotes !== (liveTask.notes || '')) {
+        updateTask(liveTask._id, { notes: editedNotes });
+      }
+    }
+    onClose();
+  };
+
+  if (!liveTask) return null;
+
+  const isDueToday = liveTask.dueDate === todayStr;
+  const isDueTomorrow = liveTask.dueDate === tomorrowStr;
+  const isDueNextWeek = liveTask.dueDate === nextWeekStr;
+
+  const isDaily = liveTask.repeat?.frequency === 'daily';
+  const isWeekdays = liveTask.repeat?.frequency === 'weekdays';
+  const isWeekly = liveTask.repeat?.frequency === 'weekly';
+
+  const isGentle = liveTask.energyCost === 'gentle';
+  const isModerate = liveTask.energyCost === 'moderate';
+  const isDemanding = liveTask.energyCost === 'demanding';
 
   const handleAddStep = () => {
     if (!newStepText.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addStep(task._id, newStepText.trim());
+    addStep(liveTask._id, newStepText.trim());
     setNewStepText('');
   };
 
@@ -100,7 +153,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            deleteTask(task._id);
+            deleteTask(liveTask._id);
             onClose();
           },
         },
@@ -110,7 +163,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
 
   const handleFlareDeferral = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    deferForFlare(task._id, 2);
+    deferForFlare(liveTask._id, 2);
     Alert.alert(
       'Task Postponed',
       'Pacing applied: Removed from today and postponed by 2 days. Rest up!'
@@ -120,28 +173,31 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
   const setDueDatePreset = (preset: 'today' | 'tomorrow' | 'nextWeek' | 'clear') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (preset === 'clear') {
-      updateTask(task._id, { dueDate: undefined });
+      updateTask(liveTask._id, { dueDate: undefined });
       return;
     }
-    const d = new Date();
-    if (preset === 'tomorrow') d.setDate(d.getDate() + 1);
-    if (preset === 'nextWeek') d.setDate(d.getDate() + 7);
-    const dateStr = d.toISOString().slice(0, 10);
-    updateTask(task._id, { dueDate: dateStr });
+    const targetDate =
+      preset === 'today' ? todayStr : preset === 'tomorrow' ? tomorrowStr : nextWeekStr;
+    if (liveTask.dueDate === targetDate) {
+      updateTask(liveTask._id, { dueDate: undefined });
+    } else {
+      updateTask(liveTask._id, { dueDate: targetDate });
+    }
   };
 
   const setRepeatPreset = (frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'none') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (frequency === 'none') {
-      updateTask(task._id, { repeat: undefined });
+    if (frequency === 'none' || liveTask.repeat?.frequency === frequency) {
+      updateTask(liveTask._id, { repeat: undefined });
     } else {
-      updateTask(task._id, { repeat: { frequency } });
+      updateTask(liveTask._id, { repeat: { frequency } });
     }
   };
 
   const setEnergy = (cost?: TaskEnergyCost) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateTask(task._id, { energyCost: cost });
+    const nextCost = liveTask.energyCost === cost ? undefined : cost;
+    updateTask(liveTask._id, { energyCost: nextCost });
   };
 
   return (
@@ -149,36 +205,49 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: palette.surface }]}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={handleClose}
+        />
+        <View style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: Math.max(insets.bottom, 24) }]}>
           {/* Top Bar with Close button */}
           <View style={styles.topBar}>
             <View style={styles.dragHandle} />
             <TouchableOpacity
               style={styles.closeBtn}
-              onPress={onClose}
+              onPress={handleClose}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <X size={20} color={palette.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scrollArea}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Header: Complete Checkbox + Title + Star */}
             <View style={styles.headerRow}>
               <TouchableOpacity
                 style={[
                   styles.checkbox,
                   {
-                    borderColor: task.isCompleted ? palette.primary : 'rgba(255, 255, 255, 0.4)',
-                    backgroundColor: task.isCompleted ? palette.primary : 'transparent',
+                    borderColor: liveTask.isCompleted ? palette.primary : 'rgba(255, 255, 255, 0.4)',
+                    backgroundColor: liveTask.isCompleted ? palette.primary : 'transparent',
                   },
                 ]}
-                onPress={() => toggleTaskCompleted(task._id)}
+                onPress={() => toggleTaskCompleted(liveTask._id)}
               >
-                {task.isCompleted && <Check size={16} color="#FFFFFF" strokeWidth={3} />}
+                {liveTask.isCompleted && <Check size={16} color="#FFFFFF" strokeWidth={3} />}
               </TouchableOpacity>
 
               <TextInput
@@ -186,7 +255,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
                   styles.titleInput,
                   {
                     color: palette.text,
-                    textDecorationLine: task.isCompleted ? 'line-through' : 'none',
+                    textDecorationLine: liveTask.isCompleted ? 'line-through' : 'none',
                   },
                 ]}
                 value={editedTitle}
@@ -198,12 +267,12 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
 
               <TouchableOpacity
                 style={styles.starBtn}
-                onPress={() => toggleTaskImportant(task._id)}
+                onPress={() => toggleTaskImportant(liveTask._id)}
               >
                 <Star
                   size={22}
-                  color={task.isImportant ? '#F59E0B' : 'rgba(255, 255, 255, 0.3)'}
-                  fill={task.isImportant ? '#F59E0B' : 'transparent'}
+                  color={liveTask.isImportant ? '#F59E0B' : 'rgba(255, 255, 255, 0.3)'}
+                  fill={liveTask.isImportant ? '#F59E0B' : 'transparent'}
                 />
               </TouchableOpacity>
             </View>
@@ -214,7 +283,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
                 CHECKLIST STEPS
               </Text>
 
-              {(task.steps || []).map((step) => (
+              {(liveTask.steps || []).map((step) => (
                 <View key={step.id} style={styles.stepRow}>
                   <TouchableOpacity
                     style={[
@@ -224,7 +293,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
                         backgroundColor: step.completed ? palette.primary : 'transparent',
                       },
                     ]}
-                    onPress={() => toggleStep(task._id, step.id)}
+                    onPress={() => toggleStep(liveTask._id, step.id)}
                   >
                     {step.completed && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
                   </TouchableOpacity>
@@ -240,7 +309,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
                     {step.title}
                   </Text>
                   <TouchableOpacity
-                    onPress={() => deleteStep(task._id, step.id)}
+                    onPress={() => deleteStep(liveTask._id, step.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Trash2 size={15} color="rgba(255, 255, 255, 0.3)" />
@@ -274,17 +343,17 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             <View style={[styles.actionCard, { backgroundColor: 'rgba(255, 255, 255, 0.04)' }]}>
               <TouchableOpacity
                 style={styles.actionRow}
-                onPress={() => toggleTaskMyDay(task._id, boundaryHour)}
+                onPress={() => toggleTaskMyDay(liveTask._id, boundaryHour)}
               >
-                <Sun size={20} color={task.inMyDay ? '#38BDF8' : palette.textSecondary} />
+                <Sun size={20} color={liveTask.inMyDay ? '#38BDF8' : palette.textSecondary} />
                 <View style={styles.actionTextCol}>
                   <Text
                     style={[
                       styles.actionLabel,
-                      { color: task.inMyDay ? '#38BDF8' : palette.text },
+                      { color: liveTask.inMyDay ? '#38BDF8' : palette.text },
                     ]}
                   >
-                    {task.inMyDay ? 'Added to My Day' : 'Add to My Day'}
+                    {liveTask.inMyDay ? 'Added to My Day' : 'Add to My Day'}
                   </Text>
                   <Text style={[styles.actionSub, { color: palette.textSecondary }]}>
                     Resets automatically at 4:00 AM daily
@@ -296,28 +365,34 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             {/* Action Group 2: Due Date Presets */}
             <View style={[styles.actionCard, { backgroundColor: 'rgba(255, 255, 255, 0.04)' }]}>
               <View style={styles.actionRow}>
-                <Calendar size={20} color={task.dueDate ? palette.primary : palette.textSecondary} />
+                <Calendar size={20} color={liveTask.dueDate ? palette.primary : palette.textSecondary} />
                 <View style={styles.actionTextCol}>
                   <Text style={[styles.actionLabel, { color: palette.text }]}>Due Date</Text>
                   <Text style={[styles.actionSub, { color: palette.textSecondary }]}>
-                    {task.dueDate || 'No due date set'}
+                    {liveTask.dueDate || 'No due date set'}
                   </Text>
                 </View>
               </View>
               <View style={styles.presetChipsRow}>
                 <TouchableOpacity
-                  style={[styles.chip, task.dueDate === new Date().toISOString().slice(0, 10) && styles.chipActive]}
+                  style={[styles.chip, isDueToday && styles.chipActive]}
                   onPress={() => setDueDatePreset('today')}
                 >
-                  <Text style={styles.chipText}>Today</Text>
+                  <Text style={[styles.chipText, isDueToday && styles.chipTextActive]}>Today</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.chip} onPress={() => setDueDatePreset('tomorrow')}>
-                  <Text style={styles.chipText}>Tomorrow</Text>
+                <TouchableOpacity
+                  style={[styles.chip, isDueTomorrow && styles.chipActive]}
+                  onPress={() => setDueDatePreset('tomorrow')}
+                >
+                  <Text style={[styles.chipText, isDueTomorrow && styles.chipTextActive]}>Tomorrow</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.chip} onPress={() => setDueDatePreset('nextWeek')}>
-                  <Text style={styles.chipText}>Next Week</Text>
+                <TouchableOpacity
+                  style={[styles.chip, isDueNextWeek && styles.chipActive]}
+                  onPress={() => setDueDatePreset('nextWeek')}
+                >
+                  <Text style={[styles.chipText, isDueNextWeek && styles.chipTextActive]}>Next Week</Text>
                 </TouchableOpacity>
-                {task.dueDate && (
+                {liveTask.dueDate && (
                   <TouchableOpacity style={styles.chip} onPress={() => setDueDatePreset('clear')}>
                     <Text style={[styles.chipText, { color: '#EF4444' }]}>Clear</Text>
                   </TouchableOpacity>
@@ -328,34 +403,34 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             {/* Action Group 3: Repeat Presets */}
             <View style={[styles.actionCard, { backgroundColor: 'rgba(255, 255, 255, 0.04)' }]}>
               <View style={styles.actionRow}>
-                <Repeat size={20} color={task.repeat ? palette.primary : palette.textSecondary} />
+                <Repeat size={20} color={liveTask.repeat ? palette.primary : palette.textSecondary} />
                 <View style={styles.actionTextCol}>
                   <Text style={[styles.actionLabel, { color: palette.text }]}>Repeat</Text>
                   <Text style={[styles.actionSub, { color: palette.textSecondary }]}>
-                    {task.repeat?.frequency ? `Repeats ${task.repeat.frequency}` : 'Never'}
+                    {liveTask.repeat?.frequency ? `Repeats ${liveTask.repeat.frequency}` : 'Never'}
                   </Text>
                 </View>
               </View>
               <View style={styles.presetChipsRow}>
                 <TouchableOpacity
-                  style={[styles.chip, task.repeat?.frequency === 'daily' && styles.chipActive]}
+                  style={[styles.chip, isDaily && styles.chipActive]}
                   onPress={() => setRepeatPreset('daily')}
                 >
-                  <Text style={styles.chipText}>Daily</Text>
+                  <Text style={[styles.chipText, isDaily && styles.chipTextActive]}>Daily</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.chip, task.repeat?.frequency === 'weekdays' && styles.chipActive]}
+                  style={[styles.chip, isWeekdays && styles.chipActive]}
                   onPress={() => setRepeatPreset('weekdays')}
                 >
-                  <Text style={styles.chipText}>Weekdays</Text>
+                  <Text style={[styles.chipText, isWeekdays && styles.chipTextActive]}>Weekdays</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.chip, task.repeat?.frequency === 'weekly' && styles.chipActive]}
+                  style={[styles.chip, isWeekly && styles.chipActive]}
                   onPress={() => setRepeatPreset('weekly')}
                 >
-                  <Text style={styles.chipText}>Weekly</Text>
+                  <Text style={[styles.chipText, isWeekly && styles.chipTextActive]}>Weekly</Text>
                 </TouchableOpacity>
-                {task.repeat && (
+                {liveTask.repeat && (
                   <TouchableOpacity style={styles.chip} onPress={() => setRepeatPreset('none')}>
                     <Text style={[styles.chipText, { color: '#EF4444' }]}>None</Text>
                   </TouchableOpacity>
@@ -378,22 +453,22 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
               </View>
               <View style={styles.presetChipsRow}>
                 <TouchableOpacity
-                  style={[styles.chip, task.energyCost === 'gentle' && styles.chipActiveGentle]}
-                  onPress={() => setEnergy(task.energyCost === 'gentle' ? undefined : 'gentle')}
+                  style={[styles.chip, isGentle && styles.chipActiveGentle]}
+                  onPress={() => setEnergy('gentle')}
                 >
-                  <Text style={styles.chipText}>🟢 Gentle</Text>
+                  <Text style={[styles.chipText, isGentle && styles.chipTextActiveGentle]}>🟢 Gentle</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.chip, task.energyCost === 'moderate' && styles.chipActiveModerate]}
-                  onPress={() => setEnergy(task.energyCost === 'moderate' ? undefined : 'moderate')}
+                  style={[styles.chip, isModerate && styles.chipActiveModerate]}
+                  onPress={() => setEnergy('moderate')}
                 >
-                  <Text style={styles.chipText}>🟡 Moderate</Text>
+                  <Text style={[styles.chipText, isModerate && styles.chipTextActiveModerate]}>🟡 Moderate</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.chip, task.energyCost === 'demanding' && styles.chipActiveDemanding]}
-                  onPress={() => setEnergy(task.energyCost === 'demanding' ? undefined : 'demanding')}
+                  style={[styles.chip, isDemanding && styles.chipActiveDemanding]}
+                  onPress={() => setEnergy('demanding')}
                 >
-                  <Text style={styles.chipText}>🔴 High Energy</Text>
+                  <Text style={[styles.chipText, isDemanding && styles.chipTextActiveDemanding]}>🔴 High Energy</Text>
                 </TouchableOpacity>
               </View>
 
@@ -427,7 +502,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             {/* Bottom: Created timestamp & Delete Task Button */}
             <View style={styles.footerRow}>
               <Text style={[styles.createdText, { color: palette.textDisabled }]}>
-                Created {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'recently'}
+                Created {liveTask.createdAt ? new Date(liveTask.createdAt).toLocaleDateString() : 'recently'}
               </Text>
               <TouchableOpacity
                 style={styles.deleteBtn}
@@ -440,7 +515,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -455,7 +530,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
-    paddingBottom: 24,
   },
   topBar: {
     alignItems: 'center',
@@ -577,18 +651,40 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
   chipActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.25)',
+    backgroundColor: 'rgba(56, 189, 248, 0.22)',
+    borderColor: '#38BDF8',
+  },
+  chipTextActive: {
+    color: '#38BDF8',
+    fontWeight: '700',
   },
   chipActiveGentle: {
-    backgroundColor: 'rgba(34, 197, 94, 0.25)',
+    backgroundColor: 'rgba(34, 197, 94, 0.22)',
+    borderColor: '#22C55E',
+  },
+  chipTextActiveGentle: {
+    color: '#22C55E',
+    fontWeight: '700',
   },
   chipActiveModerate: {
-    backgroundColor: 'rgba(234, 179, 8, 0.25)',
+    backgroundColor: 'rgba(245, 158, 11, 0.22)',
+    borderColor: '#F59E0B',
+  },
+  chipTextActiveModerate: {
+    color: '#F59E0B',
+    fontWeight: '700',
   },
   chipActiveDemanding: {
-    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+    backgroundColor: 'rgba(239, 68, 68, 0.22)',
+    borderColor: '#EF4444',
+  },
+  chipTextActiveDemanding: {
+    color: '#EF4444',
+    fontWeight: '700',
   },
   chipText: {
     fontSize: 12,
@@ -638,3 +734,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

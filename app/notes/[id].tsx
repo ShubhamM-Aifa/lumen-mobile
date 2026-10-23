@@ -41,6 +41,7 @@ import { BlockRenderer } from '../../src/components/notes/BlockRenderer';
 import { SlashMenuModal } from '../../src/components/notes/SlashMenuModal';
 import { HealthLinkPickerModal } from '../../src/components/notes/HealthLinkPickerModal';
 import { INote, INoteBlock, NoteBlockType } from '../../src/shared/types';
+import { useKeyboard } from '../../src/hooks/useKeyboard';
 
 const COVER_GRADIENTS = [
   ['#1E1B4B', '#312E81'], // Indigo Night
@@ -57,6 +58,7 @@ export default function NoteEditorScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { palette } = useTheme();
+  const { isKeyboardVisible } = useKeyboard();
 
   const {
     notes,
@@ -72,11 +74,12 @@ export default function NoteEditorScreen() {
 
   const note = notes.find((n) => n._id === id);
 
-  const [title, setTitle] = useState(note?.title || 'Untitled Note');
+  const [title, setTitle] = useState(note?.title ?? '');
   const [coverIndex, setCoverIndex] = useState(0);
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [healthLinkModalOpen, setHealthLinkModalOpen] = useState(false);
   const [activeBlockIdForInsert, setActiveBlockIdForInsert] = useState<string | undefined>(undefined);
+  const loadedNoteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -85,10 +88,11 @@ export default function NoteEditorScreen() {
   }, [id, fetchNoteById]);
 
   useEffect(() => {
-    if (note) {
-      setTitle(note.title);
+    if (note && note._id !== loadedNoteIdRef.current) {
+      loadedNoteIdRef.current = note._id;
+      setTitle(note.title ?? '');
     }
-  }, [note?.title]);
+  }, [note?._id, note?.title]);
 
   if (!note) {
     return (
@@ -107,7 +111,7 @@ export default function NoteEditorScreen() {
 
   const handleTitleChange = (text: string) => {
     setTitle(text);
-    updateNote(note._id, { title: text.trim() || 'Untitled Note' });
+    updateNote(note._id, { title: text });
   };
 
   const handleCycleCover = () => {
@@ -141,7 +145,8 @@ export default function NoteEditorScreen() {
   const handleShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const plainContent = note.blocks.map((b) => b.content).join('\n\n');
-    const shareText = `${note.icon || '📝'} ${note.title}\n\n${plainContent}\n\n— Exported from Lumen Health`;
+    const titleText = note.title?.trim() || 'Untitled Note';
+    const shareText = `${note.icon || '📝'} ${titleText}\n\n${plainContent}\n\n— Exported from Lumen Health`;
     try {
       await Share.share({ message: shareText });
     } catch {}
@@ -158,7 +163,7 @@ export default function NoteEditorScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Top Navbar */}
         <View style={[styles.topBar, { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
@@ -209,7 +214,12 @@ export default function NoteEditorScreen() {
         </View>
 
         {/* Scrollable Document Area */}
-        <ScrollView style={styles.documentArea} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.documentArea}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           {/* Notion Banner Cover */}
           <TouchableOpacity
             style={styles.coverBanner}
@@ -241,7 +251,7 @@ export default function NoteEditorScreen() {
             {/* Document Title Input */}
             <TextInput
               style={[styles.titleInput, { color: palette.text }]}
-              placeholder="Untitled"
+              placeholder="Untitled Note"
               placeholderTextColor={palette.textDisabled}
               value={title}
               onChangeText={handleTitleChange}
@@ -331,7 +341,9 @@ export default function NoteEditorScreen() {
             {
               backgroundColor: palette.surface,
               borderTopColor: 'rgba(255, 255, 255, 0.08)',
-              paddingBottom: Math.max(insets.bottom, 8),
+              paddingBottom: isKeyboardVisible
+                ? (Platform.OS === 'ios' ? 8 : 6)
+                : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)),
             },
           ]}
         >

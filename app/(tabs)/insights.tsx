@@ -199,7 +199,7 @@ const useStyles = createThemedStyles(palette => ({
     paddingVertical: 7,
   },
   exportBtnText: { ...typography.small, color: palette.primary, fontWeight: '700' },
-  scroll: { padding: 16, gap: 12, paddingBottom: 110 },
+  scroll: { padding: 16, gap: 12, paddingBottom: 125 },
   center: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   loadingText: { ...typography.body, color: palette.textSecondary },
   emptyState: { backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 24, gap: 10, alignItems: 'center' },

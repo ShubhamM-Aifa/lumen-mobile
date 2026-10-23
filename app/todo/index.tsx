@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
@@ -39,12 +39,15 @@ import { TaskDetailSheet } from '../../src/components/todo/TaskDetailSheet';
 import { SuggestionsModal } from '../../src/components/todo/SuggestionsModal';
 import { ITask, TaskEnergyCost } from '../../src/shared/types';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
+import { useKeyboard } from '../../src/hooks/useKeyboard';
 
 export default function TodoHubScreen() {
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const { user } = useAuthStore();
+  const { listId } = useLocalSearchParams<{ listId?: string }>();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
+  const { isKeyboardVisible } = useKeyboard();
 
   const {
     tasks,
@@ -63,6 +66,12 @@ export default function TodoHubScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ITask | null>(null);
+
+  const activeSelectedTask = useMemo(() => {
+    if (!selectedTask) return null;
+    return tasks.find((t) => t._id === selectedTask._id) || selectedTask;
+  }, [selectedTask, tasks]);
+
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
@@ -80,6 +89,12 @@ export default function TodoHubScreen() {
     fetchLists();
     pruneDayBoundary(boundaryHour);
   }, [fetchTasks, fetchLists, pruneDayBoundary, boundaryHour]);
+
+  useEffect(() => {
+    if (listId) {
+      setActiveFilter(listId);
+    }
+  }, [listId, setActiveFilter]);
 
   const todayStr = getTrackingDayDateString(new Date(), boundaryHour);
 
@@ -209,7 +224,7 @@ export default function TodoHubScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header Bar */}
         <View style={[styles.topBar, { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
@@ -419,7 +434,12 @@ export default function TodoHubScreen() {
         </View>
 
         {/* Tasks List */}
-        <ScrollView style={styles.taskList} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.taskList}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           {uncompletedTasks.length === 0 && completedTasks.length === 0 ? (
             <View style={styles.emptyTasksBox}>
               <Text style={{ fontSize: 36 }}>📋</Text>
@@ -478,7 +498,7 @@ export default function TodoHubScreen() {
             </>
           )}
 
-          <View style={{ height: 110 + insets.bottom }} />
+          <View style={{ height: 130 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 10) }} />
         </ScrollView>
 
         {/* Sticky Task Creation Bar */}
@@ -488,7 +508,9 @@ export default function TodoHubScreen() {
             {
               backgroundColor: palette.surface,
               borderTopColor: 'rgba(255, 255, 255, 0.08)',
-              paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 14),
+              paddingBottom: isKeyboardVisible
+                ? (Platform.OS === 'ios' ? 10 : 8)
+                : (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 10),
             },
           ]}
         >
@@ -545,7 +567,7 @@ export default function TodoHubScreen() {
 
         {/* Detail Sheet Modal */}
         <TaskDetailSheet
-          task={selectedTask}
+          task={activeSelectedTask}
           visible={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           boundaryHour={boundaryHour}
@@ -730,7 +752,7 @@ const styles = StyleSheet.create({
   stickyBottomBar: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+    paddingBottom: Platform.OS === 'android' ? 60 : (Platform.OS === 'ios' ? 24 : 14),
     borderTopWidth: 1,
   },
   quickTagsRow: {

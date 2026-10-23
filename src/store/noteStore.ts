@@ -193,7 +193,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     const newNote: INote = {
       _id: tempId,
       userId: '',
-      title: input.title || 'Untitled Note',
+      title: input.title !== undefined ? input.title : 'Untitled Note',
       icon: input.icon || '📝',
       coverGradient:
         input.coverGradient || 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)',

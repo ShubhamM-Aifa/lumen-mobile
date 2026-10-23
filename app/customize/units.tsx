@@ -99,16 +99,16 @@ export default function UnitsScreen() {
             </TouchableOpacity>
           </View>
         )}
-        ListFooterComponent={<View style={{ height: 100 + insets.bottom }} />}
+        ListFooterComponent={<View style={{ height: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }} />}
       />
 
-      <TouchableOpacity style={[styles.fab, { bottom: 20 + insets.bottom }]} onPress={() => setEditing({ symbol: '', name: '' })} accessibilityRole="button" accessibilityLabel="Add custom unit">
+      <TouchableOpacity style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]} onPress={() => setEditing({ symbol: '', name: '' })} accessibilityRole="button" accessibilityLabel="Add custom unit">
         <Text style={styles.fabText}>＋ Add unit</Text>
       </TouchableOpacity>
 
       {editing && (
         <Modal visible animationType="slide" transparent>
-          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>

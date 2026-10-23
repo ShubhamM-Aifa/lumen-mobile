@@ -53,7 +53,7 @@ export const DiscordThreadModal: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
@@ -68,7 +68,12 @@ export const DiscordThreadModal: React.FC<Props> = ({
           </View>
 
           {/* Conversation Feed */}
-          <ScrollView style={styles.scrollArea} contentContainerStyle={{ padding: 14 }}>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={{ padding: 14 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {/* Parent Message Card */}
             <View style={[styles.parentCard, { backgroundColor: palette.background, borderLeftColor: palette.primary }]}>
               <View style={styles.authorRow}>
