@@ -9,8 +9,8 @@ build/
 web-build/
 
 # Native builds
-android/
-ios/
+/android/
+/ios/
 
 # Environment & secrets
 .env
