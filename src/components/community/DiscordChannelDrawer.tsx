@@ -22,6 +22,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityChannel, ICommunityServer } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
 import { InviteCommunityModal } from './InviteCommunityModal';
+import { AppleSwitch } from '../common/AppleSwitch';
 
 interface Props {
   channels: ICommunityChannel[];
@@ -190,26 +191,18 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
               {isAnonymous ? 'Incognito Mode' : 'Online • Resting 🥄'}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={toggleAnonymous}
-            style={[
-              styles.anonToggleBtn,
-              {
-                backgroundColor: isAnonymous ? `${palette.primary}20` : palette.background,
-                borderColor: isAnonymous ? palette.primary : palette.border,
-              },
-            ]}
-          >
-            <ShieldCheck size={14} color={isAnonymous ? palette.primary : palette.textSecondary} />
-            <Text
-              style={[
-                styles.anonToggleText,
-                { color: isAnonymous ? palette.primary : palette.textSecondary },
-              ]}
-            >
+          <View style={{ alignItems: 'flex-end', gap: 3 }}>
+            <AppleSwitch
+              size="small"
+              value={isAnonymous}
+              onValueChange={toggleAnonymous}
+              activeColor="#6366F1"
+              accessibilityLabel="Anonymous Mode Toggle"
+            />
+            <Text style={{ fontSize: 10, fontWeight: '700', color: isAnonymous ? '#818CF8' : palette.textDisabled }}>
               {isAnonymous ? 'Anon ON' : 'Anon OFF'}
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
 

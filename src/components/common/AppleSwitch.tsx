@@ -52,7 +52,8 @@ export const AppleSwitch: React.FC<AppleSwitchProps> = ({
   testID,
   style,
 }) => {
-  const { palette, isDark } = useTheme();
+  const { palette, colorScheme } = useTheme();
+  const isDark = colorScheme === 'dark';
 
   // Metrics based on size variant
   const isSmall = size === 'small';
@@ -148,7 +149,7 @@ export const AppleSwitch: React.FC<AppleSwitchProps> = ({
       {/* Inactive Track Layer */}
       <View
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           {
             backgroundColor: inactiveBg,
             borderRadius: trackRadius,
@@ -159,7 +160,7 @@ export const AppleSwitch: React.FC<AppleSwitchProps> = ({
       {/* Active Track Layer (Smooth opacity crossfade on UI thread) */}
       <Animated.View
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           {
             backgroundColor: activeBg,
             borderRadius: trackRadius,
