@@ -10,12 +10,12 @@ import {
   ChevronLeft, CheckCheck, BellOff, Moon,
   Droplet, Flame, BatteryMedium, MessageSquare, AtSign, Sun, CloudRain,
   Sparkles, FileCheck, Pill, Bell, ShieldAlert, MessageCircleQuestion,
+  Settings,
 } from 'lucide-react-native';
 import { createThemedStyles, useTheme } from '../src/theme/ThemeContext';
 import { typography } from '../src/theme/typography';
 import { LargeTitleHeader } from '../src/components/ios/LargeTitleHeader';
 import { GlassCircleButton } from '../src/components/ios/GlassCircleButton';
-import { HeaderTextButton } from '../src/components/ios/ScreenTopBar';
 import { InsetGroup, GroupedRow } from '../src/components/ios/InsetGroup';
 import { FilterChip } from '../src/components/ios/FilterChip';
 import { useIntelligenceStore } from '../src/store/intelligenceStore';
@@ -113,7 +113,14 @@ export default function NotificationsScreen() {
               <ChevronLeft size={22} color={palette.text} strokeWidth={2.4} />
             </GlassCircleButton>
           }
-          actions={<HeaderTextButton label="Settings" onPress={() => router.push('/notification-settings')} />}
+          actions={
+            <GlassCircleButton
+              accessibilityLabel="Notification settings"
+              onPress={() => router.push('/notification-settings')}
+            >
+              <Settings size={20} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
         />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>

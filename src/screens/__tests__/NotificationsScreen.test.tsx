@@ -112,7 +112,7 @@ describe('Notifications screen', () => {
   it('opens notification settings from the header', async () => {
     const t = await render();
     mounted = t;
-    await act(async () => { press(t, 'Settings').props.onPress(); });
+    await act(async () => { press(t, 'Notification settings').props.onPress(); });
     expect(mockPush).toHaveBeenCalledWith('/notification-settings');
   });
 

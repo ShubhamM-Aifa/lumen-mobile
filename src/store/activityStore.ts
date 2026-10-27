@@ -9,8 +9,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uuidv4 } from '../utils/uuid';
 import { IActivitySession, IActivityPoint, ActivityType } from '@lumen/shared';
 import { api } from '../api/client';
+import { queryClient } from '../api/queryClient';
 import { locationService } from '../services/locationService';
 import { sendPacingAlertNotification } from '../services/notifications';
+import { getStepSource } from '../services/activity/stepSource';
+import { getDayBoundaryWindow } from '../utils/dayBoundary';
+import { getActiveBoundaryHour } from './quickLogStore';
 
 const SESSIONS_CACHE_KEY = 'lumen:activity:history_v1';
 
@@ -64,6 +68,8 @@ interface ActivityState {
   discardWalking: () => Promise<void>;
   dismissPacingAlert: () => void;
   recalculateActiveTime: () => number;
+  /** "Not a walk": removes a walk from history, totals and the timeline. */
+  removeSession: (id: string) => Promise<void>;
 
   fetchHistory: () => Promise<void>;
   fetchTodaySummary: () => Promise<void>;
@@ -267,6 +273,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     if (!activeSession) return null;
 
     const endTime = new Date().toISOString();
+    // The live step counter stops while the screen is locked; the phone's own history does not.
+    const historySteps = await stepsFromPhoneHistory(activeSession.startTime, endTime);
     const distKm = Math.max(distanceMeters, finalDistance) / 1000;
     const avgSpeed = finalActiveSeconds > 0 ? distKm / (finalActiveSeconds / 3600) : 0;
 
@@ -277,7 +285,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       activeDurationSeconds: finalActiveSeconds,
       totalDurationSeconds: finalActiveSeconds,
       distanceMeters: Math.max(distanceMeters, finalDistance),
-      steps: Math.max(get().steps, finalSteps),
+      steps: Math.max(get().steps, finalSteps, historySteps),
       averageSpeedKmh: Number(avgSpeed.toFixed(2)),
       averagePaceMinPerKm: Number(averagePaceMinPerKm.toFixed(2)),
       hasRouteData: routePoints.length > 0,
@@ -376,6 +384,20 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     }
   },
 
+  removeSession: async (id: string) => {
+    const before = get().history;
+    set({ history: before.filter(s => s._id !== id) });
+    try {
+      await api.delete(`/activity-sessions/${id}`);
+      AsyncStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(get().history)).catch(() => {});
+      get().fetchTodaySummary().catch(() => {});
+      queryClient.invalidateQueries({ queryKey: ['day-entries'] }).catch(() => {});
+    } catch (err) {
+      set({ history: before });
+      throw err;
+    }
+  },
+
   fetchHistory: async () => {
     set({ isLoading: true });
     try {
@@ -398,13 +420,28 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   fetchTodaySummary: async () => {
     try {
-      const summary = await api.get<WalkingSummaryStats>('/activity-sessions/walking/summary?period=today');
+      // "Today" starts at the member's Day Reset Boundary on this phone, not the server's midnight
+      const { start } = getDayBoundaryWindow(getActiveBoundaryHour());
+      const summary = await api.get<WalkingSummaryStats>('/activity-sessions/walking/summary', {
+        params: { period: 'today', from: start.toISOString() },
+      });
       if (summary) {
         set({ todaySummary: summary });
       }
     } catch {}
   },
 }));
+
+/** Steps the phone recorded between two times, or 0 when there is no readable history. */
+async function stepsFromPhoneHistory(startIso: string, endIso: string): Promise<number> {
+  try {
+    const source = getStepSource();
+    if (!source || !(await source.hasAccess())) return 0;
+    return await source.stepsBetween(new Date(startIso), new Date(endIso));
+  } catch {
+    return 0;
+  }
+}
 
 // Automatically synchronize active time when device wakes up or app comes into foreground
 AppState.addEventListener('change', (nextAppState) => {

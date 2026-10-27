@@ -6,11 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
-import { ChevronLeft, Play, Footprints, Flame, Timer, TrendingUp } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Play, Footprints, Flame, Timer, TrendingUp, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
@@ -20,6 +21,7 @@ import { useActivityStore } from '../../src/store/activityStore';
 import { IActivitySession } from '@lumen/shared';
 import { permissionService } from '../../src/services/permissionService';
 import { ContextualPermissionModal } from '../../src/components/permissions/ContextualPermissionModal';
+import { useAutoWalkStore } from '../../src/store/autoWalkStore';
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -44,19 +46,36 @@ export default function WalkingDashboardScreen() {
     fetchHistory,
     fetchTodaySummary,
     isTracking,
+    removeSession,
   } = useActivityStore();
+  const autoOn = useAutoWalkStore(s => s.enabled);
+  const autoMinutes = useAutoWalkStore(s => s.minWalkMinutes);
+  const phoneStepsToday = useAutoWalkStore(s => s.todaySteps);
 
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchHistory();
     fetchTodaySummary();
+    useAutoWalkStore.getState().sync().catch(() => {});
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await useAutoWalkStore.getState().sync({ force: true }).catch(() => {});
     await Promise.all([fetchHistory(), fetchTodaySummary()]);
     setRefreshing(false);
+  };
+
+  const confirmRemove = (session: IActivitySession) => {
+    Alert.alert(
+      'Remove this walk?',
+      'It will be taken off your walks, totals and timeline, and won’t be added again.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => { removeSession(session._id).catch(() => {}); } },
+      ],
+    );
   };
 
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -73,7 +92,8 @@ export default function WalkingDashboardScreen() {
 
   const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
   const todayMinutes = todaySummary?.totalDurationMinutes ?? 0;
-  const todaySteps = todaySummary?.totalSteps ?? 0;
+  // With automatic tracking on, the phone's own count covers the whole day, not just walks
+  const todaySteps = Math.max(todaySummary?.totalSteps ?? 0, phoneStepsToday ?? 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -127,6 +147,19 @@ export default function WalkingDashboardScreen() {
               {isTracking ? 'RESUME WALKING' : 'START WALKING'}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.autoRow}
+            onPress={() => router.push('/settings')}
+            accessibilityRole="button"
+            accessibilityLabel={autoOn ? `Walks are found automatically, shortest walk ${autoMinutes} minutes. Open settings.` : 'Find walks automatically. Open settings to turn it on.'}
+          >
+            <Sparkles size={15} color={palette.primaryText} />
+            <Text style={styles.autoRowText}>
+              {autoOn ? `Walks of ${autoMinutes}+ min are found automatically` : 'Find walks automatically, no Start button'}
+            </Text>
+            <ChevronRight size={16} color={palette.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {/* Weekly Performance Stats Grid */}
@@ -166,14 +199,29 @@ export default function WalkingDashboardScreen() {
                   <View style={styles.historyIconWrap}>
                     <Footprints size={20} color={palette.primaryText} />
                   </View>
-                  <View>
+                  <View style={styles.historyTextCol}>
                     <Text style={styles.historyTitle}>{session.title || 'Outdoor Walk'}</Text>
                     <Text style={styles.historyDate}>{formatDate(session.startTime)} • {formatDuration(session.activeDurationSeconds)}</Text>
+                    {session.source === 'AUTO' ? (
+                      <View style={styles.autoMetaRow}>
+                        <View style={styles.autoPill}>
+                          <Text style={styles.autoPillText}>Auto-detected</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => confirmRemove(session)}
+                          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Not a walk. Remove this auto-detected walk."
+                        >
+                          <Text style={styles.notWalkText}>Not a walk?</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
 
                 <View style={styles.historyRight}>
-                  <Text style={styles.historyKm}>{(session.distanceMeters / 1000).toFixed(2)} km</Text>
+                  <Text style={styles.historyKm}>{session.source === 'AUTO' ? '~' : ''}{(session.distanceMeters / 1000).toFixed(2)} km</Text>
                   <Text style={styles.historySteps}>{session.steps || 0} steps</Text>
                 </View>
               </View>
@@ -264,6 +312,13 @@ const useStyles = createThemedStyles(palette => ({
     gap: 8,
   },
   startBtnText: { ...typography.headline, color: '#FFFFFF' },
+  autoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8 },
+  autoRowText: { ...typography.footnote, color: palette.textSecondary, flex: 1 },
+  historyTextCol: { flexShrink: 1 },
+  autoMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  autoPill: { backgroundColor: palette.tint + '1F', borderRadius: 9999, paddingHorizontal: 8, paddingVertical: 2 },
+  autoPillText: { ...typography.caption, fontWeight: '600', color: palette.primaryText },
+  notWalkText: { ...typography.caption, color: palette.textSecondary, textDecorationLine: 'underline' },
   section: {
     gap: 12,
   },

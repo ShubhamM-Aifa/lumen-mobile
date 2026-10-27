@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { ForYouTodayCard } from '../home/ForYouTodayCard';
 import { useIntelligenceStore, DEFAULT_POLICY } from '../../store/intelligenceStore';
@@ -76,6 +77,28 @@ describe('ForYouTodayCard', () => {
     expect(texts(t).some(s => s.includes('You logged Dairy at 12:30 PM today.'))).toBe(true);
     await act(async () => { press(t, 'Dismiss').props.onPress(); });
     expect(useIntelligenceStore.getState().inbox).toEqual([]);
+  });
+
+  it('shows only the best observation, with a count, and the next one after a dismiss', async () => {
+    useIntelligenceStore.setState({
+      inbox: [
+        item({ id: 'tw:weak', title: 'You logged Coffee this afternoon', confidence: 0.4 }),
+        item({ id: 'tw:strong', title: 'You logged Dairy at lunch', confidence: 0.85 }),
+        item({ id: 'tw:mid', title: 'You logged Gluten at dinner', confidence: 0.65 }),
+      ],
+    });
+    const t = await render();
+    const x = texts(t);
+    // count real <Text> nodes: `texts` also matches the wrappers around them
+    const own = t.root.findAllByType(Text).map(n => flat(n.props.children));
+    expect(own.filter(s => s === 'For you today')).toHaveLength(1);
+    expect(own.filter(s => s?.startsWith('You logged'))).toHaveLength(1);
+    expect(x.some(s => s.startsWith('You logged Dairy at lunch'))).toBe(true);
+    expect(x).toContain('1 of 3');
+    await act(async () => { press(t, 'Dismiss').props.onPress(); });
+    const after = texts(t);
+    expect(after.some(s => s.startsWith('You logged Gluten at dinner'))).toBe(true);
+    expect(after).toContain('1 of 2');
   });
 
   it('hides an observation once its window has passed', async () => {

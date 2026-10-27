@@ -35,6 +35,7 @@ import { useConfigStore } from '../../src/store/configStore';
 import { useDaySessionStore } from '../../src/store/daySessionStore';
 import { useQuickLogStore } from '../../src/store/quickLogStore';
 import { useActivityStore } from '../../src/store/activityStore';
+import { useAutoWalkStore } from '../../src/store/autoWalkStore';
 import { useReminderStore } from '../../src/store/reminderStore';
 import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceConfigStore';
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
@@ -73,6 +74,7 @@ export default function TodayScreen() {
   const { todaySession, fetchTodaySession } = useDaySessionStore();
   const { todayTaps, fetchTodayTaps } = useQuickLogStore();
   const { todaySummary, fetchTodaySummary, isTracking, activePacingAlert } = useActivityStore();
+  const phoneStepsToday = useAutoWalkStore(s => (s.enabled ? s.todaySteps : null));
   const { reminders, fetchReminders } = useReminderStore();
   const { fetchGlanceConfig, isMetricEnabled, compactOrder } = useGlanceConfigStore();
   const { isSleeping, lastSleepRecord, loadState: loadSleepState } = useSleepTrackerStore();
@@ -201,7 +203,11 @@ export default function TodayScreen() {
       case 'walking':
         return {
           icon: Footprints, tile: palette.catFood, label: 'Walking',
-          sub: isTracking ? 'Tracking live' : `${todayWalkingMinutes} min`,
+          sub: isTracking
+            ? 'Tracking live'
+            : phoneStepsToday !== null
+              ? `${phoneStepsToday.toLocaleString()} steps · ${todayWalkingMinutes} min`
+              : `${todayWalkingMinutes} min`,
           value: `${todayDistanceKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
         };
       case 'active_time':

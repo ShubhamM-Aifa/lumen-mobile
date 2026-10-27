@@ -70,7 +70,7 @@ export function useTriggerWatch(): void {
         const seen = await loadSeen();
         const candidates = buildTriggerWatchCandidates({ insights, entries, now: Date.now(), seen });
         if (candidates.length === 0) return;
-        await remember(candidates.map(c => c.id));
+        await remember(candidates.flatMap(c => [c.id, c.data?.patternKey].filter((k): k is string => typeof k === 'string')));
         await useIntelligenceStore.getState().submit(candidates);
       } catch {
         // observation is best effort; it never blocks Today

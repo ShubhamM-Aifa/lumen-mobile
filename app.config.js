@@ -21,8 +21,7 @@ module.exports = ({ config }) => ({
       NSPhotoLibraryUsageDescription: 'Lumen accesses your photo library to attach images to log entries.',
       NSFaceIDUsageDescription: 'Lumen uses Face ID to protect your health data.',
       NSLocationWhenInUseUsageDescription: 'Lumen uses your location to provide hyper-local weather reports and assess autoimmune flare triggers like barometric pressure and UV levels.',
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'Lumen tracks your walking distance, elapsed time, and pace accurately in the background and when your screen is locked.',
-      NSMotionUsageDescription: 'Lumen uses motion detection to count your steps during walking tracker sessions.',
+      NSMotionUsageDescription: 'Lumen reads the steps your iPhone already counts to show your daily steps and, if you turn it on, to find your walks automatically.',
     },
   },
   android: {
@@ -45,11 +44,14 @@ module.exports = ({ config }) => ({
       'SYSTEM_ALERT_WINDOW',
       'ACCESS_COARSE_LOCATION',
       'ACCESS_FINE_LOCATION',
-      'ACCESS_BACKGROUND_LOCATION',
       'ACTIVITY_RECOGNITION',
       'FOREGROUND_SERVICE',
-      'FOREGROUND_SERVICE_LOCATION',
+      // Health Connect: steps for automatic walks, read in the background too
+      'android.permission.health.READ_STEPS',
+      'android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND',
     ],
+    // Not used: walks are tracked while the walk screen is open, and steps come from Health Connect
+    blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION', 'android.permission.FOREGROUND_SERVICE_LOCATION'],
   },
   web: {
     favicon: './assets/favicon.png',
@@ -67,6 +69,15 @@ module.exports = ({ config }) => ({
         androidMode: 'default',
         androidCollapsedTitle: 'Lumen Reminder',
         iosDisplayInForeground: true,
+      },
+    ],
+    'react-native-health-connect',
+    'expo-background-task',
+    [
+      'expo-build-properties',
+      {
+        // Health Connect needs Android 8 (API 26) or newer
+        android: { minSdkVersion: 26, compileSdkVersion: 36, targetSdkVersion: 36 },
       },
     ],
     [

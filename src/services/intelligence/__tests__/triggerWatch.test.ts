@@ -163,6 +163,29 @@ describe('buildTriggerWatchCandidates', () => {
     expect(both[0].title).toBe('You logged Dairy at lunch');
   });
 
+  it('speaks once per pattern: two entries of the same food give one observation, for the latest', () => {
+    const out = run({ entries: [entry({ _id: 'breakfast', occurredAt: at(8, 0) }), entry({ _id: 'lunch', occurredAt: at(12, 30) })] });
+    expect(out).toHaveLength(1);
+    expect(out[0].data?.entryId).toBe('lunch');
+  });
+
+  it('adds at most one observation per run, the strongest pattern first', () => {
+    const coffee = insight({ _id: 'coffee', triggerId: 'qa_coffee', trigger: { categoryName: 'Quick tap', optionLabel: 'Coffee' }, lift: 1.5, supportCount: 6 });
+    const entries = [entry(), entry({ _id: 'e2', answers: [], quickActionId: 'coffee', occurredAt: at(13, 0) })];
+    const first = run({ insights: [insight(), coffee], entries });
+    expect(first).toHaveLength(1);
+    expect(first[0].data?.insightId).toBe('i1');
+    // once that one is announced, the next run moves on to the other pattern
+    const second = run({ insights: [insight(), coffee], entries, seen: new Set([first[0].id, first[0].data?.patternKey as string]) });
+    expect(second[0].data?.insightId).toBe('coffee');
+  });
+
+  it('does not repeat a pattern later the same day for a different entry', () => {
+    const [first] = run();
+    const out = run({ entries: [entry({ _id: 'later', occurredAt: at(13, 30) })], seen: new Set([first.data?.patternKey as string]) });
+    expect(out).toEqual([]);
+  });
+
   it('checks in after 3 hours for a 0-6 h pattern instead of straight away', () => {
     const [c] = run({
       insights: [insight({ lagWindow: '0-6h' })],

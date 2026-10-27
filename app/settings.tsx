@@ -73,6 +73,8 @@ import {
 import { useTheme } from '../src/theme/ThemeContext';
 import { useAuthStore } from '../src/store/authStore';
 import { useQuickLogStore } from '../src/store/quickLogStore';
+import { useActivityStore } from '../src/store/activityStore';
+import { useAutoWalkStore } from '../src/store/autoWalkStore';
 import { usePhotoVaultStore } from '../src/store/photoVaultStore';
 import { logLocationService } from '../src/services/logLocationService';
 import { useGoogleAuth } from '../src/hooks/useGoogleAuth';
@@ -83,6 +85,7 @@ import { typography } from '../src/theme/typography';
 import { ThemeTokens } from '../src/theme/tokens';
 import { LumenLogo } from '../src/components/common/LumenLogo';
 import { DayClockCard } from '../src/components/DayClockCard';
+import { AutoWalkSettingsGroup } from '../src/components/settings/AutoWalkSettingsGroup';
 import {
   useSleepTrackerStore,
   formatGoalHours,
@@ -447,6 +450,9 @@ export default function SettingsScreen() {
     try {
       await updateProfile({ preferences: { dayBoundaryHour } });
       useQuickLogStore.getState().fetchTodayTaps(dayBoundaryHour).catch(() => {});
+      // Walking totals and today's steps follow the new boundary too
+      useActivityStore.getState().fetchTodaySummary().catch(() => {});
+      useAutoWalkStore.getState().sync({ force: true }).catch(() => {});
     } catch {}
   };
 
@@ -617,6 +623,41 @@ export default function SettingsScreen() {
         {/* Sleep & Recovery Summary Card */}
         <View>
           <DayClockCard />
+        </View>
+
+        {/* Day Boundary Hour — when a tracking day ends/begins, same concept as wake/bedtime above */}
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Clock size={18} color={palette.textSecondary} />
+              <View>
+                <Text style={styles.rowLabel}>Day Reset Boundary</Text>
+                <Text style={styles.rowSub}>When a new tracking day starts</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.segRow}>
+            {DAY_BOUNDARY_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.hour}
+                style={[
+                  styles.segSmall,
+                  activeBoundary === opt.hour && styles.segActive,
+                ]}
+                onPress={() => handleDayBoundaryChange(opt.hour)}
+                {...buttonProps(`Day boundary: ${opt.label}`, false)}
+              >
+                <Text
+                  style={[
+                    styles.segLabel,
+                    activeBoundary === opt.hour && styles.segLabelActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
           </>
@@ -889,41 +930,6 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
-          <View style={styles.divider} />
-
-          {/* Day Boundary Hour */}
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Clock size={18} color={palette.textSecondary} />
-              <View>
-                <Text style={styles.rowLabel}>Day Reset Boundary</Text>
-                <Text style={styles.rowSub}>When a new tracking day starts</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.segRow}>
-            {DAY_BOUNDARY_OPTIONS.map(opt => (
-              <TouchableOpacity
-                key={opt.hour}
-                style={[
-                  styles.segSmall,
-                  activeBoundary === opt.hour && styles.segActive,
-                ]}
-                onPress={() => handleDayBoundaryChange(opt.hour)}
-                {...buttonProps(`Day boundary: ${opt.label}`, false)}
-              >
-                <Text
-                  style={[
-                    styles.segLabel,
-                    activeBoundary === opt.hour && styles.segLabelActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
           </>
@@ -1138,9 +1144,11 @@ export default function SettingsScreen() {
         </InsetGroup>
 
         <InsetGroup title="Sleep & Recovery">
-          <GroupedRow icon={Moon} tile={TILE.indigo} label="Sleep & Day Session" sub="Wake, bedtime and sleep quality" chevron onPress={() => openSection('sleep')} />
+          <GroupedRow icon={Moon} tile={TILE.indigo} label="Sleep & Day Session" sub="Wake, bedtime, sleep quality & day reset" chevron onPress={() => openSection('sleep')} />
           <GroupedRow icon={Target} tile={TILE.indigo} label="Sleep Goal" value={`${formatGoalHours(sleepGoalMinutes)} h`} chevron onPress={() => openSection('sleepgoal')} />
         </InsetGroup>
+
+        <AutoWalkSettingsGroup />
 
         <InsetGroup title="Personal Vitals & Demographics">
           <GroupedRow icon={Cake} tile={TILE.pink} label="Age" value={user?.age != null ? String(user.age) : undefined} chevron onPress={() => openSection('vitals')} />

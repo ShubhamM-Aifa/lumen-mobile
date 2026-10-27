@@ -77,6 +77,12 @@ export function patternScore(i: InsightResult): number {
   return i.lift * i.supportCount * (triggerSpecific ? 1 : 0.8) * (symptomSpecific ? 1 : 0.8);
 }
 
+/** Local calendar day, so a pattern is mentioned at most once a day. */
+function dayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 export interface WatchInput {
   insights: InsightResult[];
   entries: WatchedEntry[];
@@ -89,7 +95,7 @@ export function buildTriggerWatchCandidates({ insights, entries, now, seen }: Wa
   const usable = insights.filter(i => i.triggerId && i.lift >= MIN_LIFT && parseLagWindow(i.lagWindow));
   if (usable.length === 0) return [];
 
-  const out: Candidate[] = [];
+  const found: Array<{ candidate: Candidate; score: number; at: number }> = [];
   for (const entry of entries) {
     const at = new Date(entry.occurredAt);
     const age = now - at.getTime();
@@ -108,14 +114,15 @@ export function buildTriggerWatchCandidates({ insights, entries, now, seen }: Wa
 
     const { insight, window } = best;
     const id = `tw:${entry._id}:${insight.triggerId}`;
-    if (seen.has(id)) continue;
+    const patternKey = `twp:${insight.triggerId}>${insight.symptomId ?? insight.symptom.optionLabel}:${dayKey(now)}`;
+    if (seen.has(id) || seen.has(patternKey)) continue;
 
     const [lo, hi] = window;
     const trigger = insight.trigger.optionLabel;
     const symptom = insight.symptom.optionLabel;
     const checkInHours = lo === 0 ? IMMEDIATE_WINDOW_CHECK_IN_HOURS : lo;
 
-    out.push({
+    found.push({ score: patternScore(insight), at: at.getTime(), candidate: {
       id,
       type: 'TRIGGER_WATCH',
       title: `You logged ${trigger} ${whenPhrase(at, insight.trigger.categoryName)}`,
@@ -130,8 +137,12 @@ export function buildTriggerWatchCandidates({ insights, entries, now, seen }: Wa
         `In your own logs, ${symptom.toLowerCase()} showed up more often ${lagPhrase(window)} after ${trigger.toLowerCase()} (seen ${insight.supportCount} times).`,
         'This is a pattern in what you recorded, not a cause. It can change as you log more.',
       ],
-      data: { insightId: insight._id, entryId: entry._id, route: '/(tabs)/insights' },
-    });
+      data: { insightId: insight._id, entryId: entry._id, patternKey, route: '/(tabs)/insights' },
+    } });
   }
-  return out;
+
+  // One observation per save: the strongest pattern, and for that pattern the most recent entry
+  // (its window is the one still ahead). Everything else is left for a later run.
+  found.sort((a, b) => b.score - a.score || b.at - a.at);
+  return found.length > 0 ? [found[0].candidate] : [];
 }

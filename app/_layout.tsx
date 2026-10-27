@@ -9,6 +9,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { useNotificationSync } from '../src/hooks/useNotificationSync';
+import { useAutoWalkSync } from '../src/hooks/useAutoWalkSync';
+// Defines the background walk-sync task; it has to exist as soon as the bundle loads
+import '../src/services/activity/backgroundSync';
 import { flushQueue } from '../src/services/mediaUpload';
 import { useConfigStore } from '../src/store/configStore';
 import { useAuthStore } from '../src/store/authStore';
@@ -42,6 +45,7 @@ function AppBootstrap() {
   const { fetchConfig } = useConfigStore();
   const initAuth = useAuthStore(s => s.initAuth);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  useAutoWalkSync(isAuthenticated);
   const [showInitialPrimer, setShowInitialPrimer] = useState(false);
 
   useEffect(() => {

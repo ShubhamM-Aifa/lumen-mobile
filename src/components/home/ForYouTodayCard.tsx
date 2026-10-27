@@ -23,7 +23,11 @@ export function ForYouTodayCard() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const now = Date.now();
-  const items = inbox.filter(i => i.candidate.expiresAt === undefined || i.candidate.expiresAt > now);
+  const waiting = inbox
+    .filter(i => i.candidate.expiresAt === undefined || i.candidate.expiresAt > now)
+    .sort((a, b) => (b.candidate.confidence * b.candidate.timeliness) - (a.candidate.confidence * a.candidate.timeliness) || b.addedAt - a.addedAt);
+  // Only the best observation is shown; dismissing it brings the next one forward.
+  const items = waiting.slice(0, 1);
 
   if (!flareActive && items.length === 0) return null;
 
@@ -66,6 +70,9 @@ export function ForYouTodayCard() {
             <View style={styles.head}>
               <IconTile icon={Sparkles} color="#5856D6" size={26} />
               <Text style={styles.label} maxFontSizeMultiplier={1.3}>For you today</Text>
+              {waiting.length > 1 ? (
+                <Text style={styles.count} maxFontSizeMultiplier={1.3}>{`1 of ${waiting.length}`}</Text>
+              ) : null}
             </View>
 
             {isWatch ? (
@@ -149,6 +156,7 @@ const useStyles = createThemedStyles(palette => ({
   itemSeparated: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: { ...typography.sectionLabel, color: palette.textSecondary },
+  count: { ...typography.footnote, color: palette.textSecondary, marginLeft: 'auto' },
   paragraph: { ...typography.bodyLarge, color: palette.text },
   itemTitle: { ...typography.headline, color: palette.text },
   body: { ...typography.subhead, color: palette.textSecondary },
