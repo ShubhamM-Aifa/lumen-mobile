@@ -113,7 +113,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
               style={[
                 styles.todoCheckbox,
                 {
-                  borderColor: block.completed ? palette.primary : 'rgba(255, 255, 255, 0.4)',
+                  borderColor: block.completed ? palette.primary : palette.textSecondary,
                   backgroundColor: block.completed ? palette.primary : 'transparent',
                 },
               ]}
@@ -183,8 +183,8 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
             style={[
               styles.calloutBox,
               {
-                backgroundColor: block.calloutColor ? `${block.calloutColor}18` : 'rgba(56, 189, 248, 0.12)',
-                borderColor: block.calloutColor ? `${block.calloutColor}40` : 'rgba(56, 189, 248, 0.3)',
+                backgroundColor: block.calloutColor ? `${block.calloutColor}18` : palette.tint + '1F',
+                borderColor: block.calloutColor ? `${block.calloutColor}40` : palette.tint + '4D',
               },
             ]}
           >
@@ -256,7 +256,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       case 'divider':
         return (
           <View style={styles.dividerWrapper}>
-            <View style={[styles.dividerLine, { backgroundColor: 'rgba(255, 255, 255, 0.12)' }]} />
+            <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
           </View>
         );
 
@@ -290,7 +290,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
             onPress={onDelete}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Trash2 size={14} color="#EF4444" />
+            <Trash2 size={14} color={palette.errorText} />
           </TouchableOpacity>
         )}
       </View>

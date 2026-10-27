@@ -63,7 +63,7 @@ export function QuickLogButton() {
       <View style={styles.inner}>
         <View style={styles.iconCircle}>
           <Animated.View style={{ transform: [{ scale: zapPulse }] }}>
-            <Zap size={20} color={palette.primary} fill={palette.primary} />
+            <Zap size={20} color={palette.primaryText} fill={palette.primary} />
           </Animated.View>
         </View>
         <View style={{ flex: 1 }}>
@@ -129,7 +129,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 10,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   sub: {
     ...typography.small,

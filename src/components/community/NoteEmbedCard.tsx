@@ -107,7 +107,7 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
         {(embed.tags || []).length > 0 && (
           <View style={styles.tagsRow}>
             {embed.tags.map((t, idx) => (
-              <View key={idx} style={[styles.tag, { backgroundColor: 'rgba(255, 255, 255, 0.06)' }]}>
+              <View key={idx} style={[styles.tag, { backgroundColor: 'rgba(128, 128, 128, 0.12)' }]}>
                 <Text style={[styles.tagText, { color: palette.textSecondary }]}>#{t}</Text>
               </View>
             ))}
@@ -124,8 +124,8 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
             onPress={handleOpenNote}
             activeOpacity={0.7}
           >
-            <Eye size={14} color="#38BDF8" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#38BDF8' }]}>View Note</Text>
+            <Eye size={14} color={palette.primaryText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.primaryText }]}>View Note</Text>
           </TouchableOpacity>
         ) : isSaved ? (
           <TouchableOpacity
@@ -136,8 +136,8 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
             onPress={handleOpenNote}
             activeOpacity={0.7}
           >
-            <Check size={14} color="#22C55E" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Saved • View Note</Text>
+            <Check size={14} color={palette.successText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.successText }]}>Saved • View Note</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -148,8 +148,8 @@ export const NoteEmbedCard: React.FC<NoteEmbedCardProps> = ({
             onPress={handleSave}
             activeOpacity={0.7}
           >
-            <ArrowDownToLine size={14} color="#38BDF8" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#38BDF8' }]}>Save to My Notes</Text>
+            <ArrowDownToLine size={14} color={palette.primaryText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.primaryText }]}>Save to My Notes</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>

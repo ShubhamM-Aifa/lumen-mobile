@@ -10,6 +10,9 @@ import { typography } from '../../theme/typography';
 
 export interface InsightResult {
   _id: string;
+  /** `opt_<optionId>`, `qa_<quickActionId>` or `cat_<categoryId>`; used to match what the patient just logged. */
+  triggerId?: string;
+  symptomId?: string;
   trigger: { categoryName: string; optionLabel: string; categoryIcon?: string };
   symptom: { categoryName: string; optionLabel: string; categoryIcon?: string };
   lagWindow: string;     // e.g. '24-48h'
@@ -115,8 +118,8 @@ export function InsightCard({ insight }: { insight: InsightResult }) {
 
 const useStyles = createThemedStyles(palette => ({
   card: {
-    backgroundColor: palette.surface, borderRadius: 16,
-    borderWidth: 1, borderColor: palette.border, padding: 16, gap: 10,
+    backgroundColor: palette.surface, borderRadius: 26,
+    padding: 16, gap: 10,
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   entityWrap: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
@@ -125,7 +128,7 @@ const useStyles = createThemedStyles(palette => ({
   entityCat: { ...typography.caption, color: palette.textDisabled, textTransform: 'uppercase', letterSpacing: 0.3 },
   entityLabel: { ...typography.bodyBold, color: palette.text },
   arrow: { alignItems: 'center', paddingTop: 4 },
-  arrowLine: { ...typography.h4, color: palette.primary },
+  arrowLine: { ...typography.h4, color: palette.primaryText },
   lagText: { ...typography.caption, color: palette.textSecondary, textAlign: 'center', marginTop: 2 },
   summary: { ...typography.small, color: palette.textSecondary, lineHeight: 18 },
   bold: { fontWeight: '700', color: palette.text },
@@ -133,7 +136,7 @@ const useStyles = createThemedStyles(palette => ({
   badge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   badgeDot: { width: 7, height: 7, borderRadius: 3.5 },
   badgeText: { ...typography.caption, fontWeight: '700' },
-  expand: { ...typography.small, color: palette.primary },
+  expand: { ...typography.small, color: palette.primaryText },
   details: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12, gap: 8 },
   detailsText: { ...typography.small, color: palette.textSecondary, lineHeight: 20 },
   computedAt: { ...typography.caption, color: palette.textDisabled },

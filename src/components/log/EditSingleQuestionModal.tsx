@@ -220,7 +220,7 @@ export function EditSingleQuestionModal({
 
             <View style={styles.headerTitleWrap}>
               <View style={styles.badgeRow}>
-                <Edit3 size={12} color={palette.primary} strokeWidth={2.4} />
+                <Edit3 size={12} color={palette.primaryText} strokeWidth={2.4} />
                 <Text style={styles.badgeText}>Edit this entry only</Text>
               </View>
               <Text style={styles.headerTitle} numberOfLines={1}>
@@ -248,7 +248,7 @@ export function EditSingleQuestionModal({
 
           {isLoading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={palette.primary} />
+              <ActivityIndicator size="large" color={palette.primaryText} />
               <Text style={styles.loadingText}>Loading entry values…</Text>
             </View>
           ) : (
@@ -261,7 +261,7 @@ export function EditSingleQuestionModal({
               {/* Recorded Timestamp Row */}
               <View style={styles.timeCard}>
                 <View style={styles.timeCardLeft}>
-                  <Clock size={15} color={palette.primary} strokeWidth={2.4} />
+                  <Clock size={15} color={palette.primaryText} strokeWidth={2.4} />
                   <Text style={styles.timeCardLabel}>Logged Time</Text>
                 </View>
 
@@ -326,10 +326,10 @@ export function EditSingleQuestionModal({
                   accessibilityLabel="Delete entry"
                 >
                   {isDeleting ? (
-                    <ActivityIndicator size="small" color={palette.error} />
+                    <ActivityIndicator size="small" color={palette.errorText} />
                   ) : (
                     <>
-                      <Trash2 size={13} color={palette.error} strokeWidth={2.2} />
+                      <Trash2 size={13} color={palette.errorText} strokeWidth={2.2} />
                       <Text style={styles.deleteBtnText}>Delete this log</Text>
                     </>
                   )}
@@ -412,7 +412,7 @@ const useStyles = createThemedStyles((palette) => ({
     ...typography.caption,
     fontSize: 10.5,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   headerTitle: {
     ...typography.h4,
@@ -504,7 +504,7 @@ const useStyles = createThemedStyles((palette) => ({
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   helpText: {
     ...typography.body,
@@ -547,7 +547,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   deleteBtnText: {
     ...typography.caption,
-    color: palette.error,
+    color: palette.errorText,
     fontWeight: '700',
     fontSize: 12,
   },

@@ -4,7 +4,9 @@
  * Resolution order for each candidate:
  *   1. SAFETY and MEDICATION bypass everything below.
  *   2. Master switch, flare mode, mute, capability and type suppression drop the candidate.
- *   3. Quiet hours defer it to the end of the window, or move it in-app if it would be stale by then.
+ *   3. A candidate with a future `notBefore` is deferred to that time (pushed past quiet hours if it lands in
+ *      them, or kept in-app only if it would be stale by then). Otherwise quiet hours defer it to the end of
+ *      the window, or move it in-app if it would be stale by then.
  *   4. Survivors are scored and the top (dailyBudget - sentToday) are delivered.
  *   5. The rest are only shown in the in-app "For you today" card.
  */
@@ -35,6 +37,10 @@ export interface Candidate {
   timeliness: number;
   /** Epoch ms after which the message is no longer useful. */
   expiresAt?: number;
+  /** Epoch ms before which the notification should not arrive (a check-in timed to a pattern's lag window). */
+  notBefore?: number;
+  /** Also show this in the "For you today" card straight away, whatever happens to the notification. */
+  inAppNow?: boolean;
   /** Plain-language signals shown under "Why did I get this?". */
   provenance?: string[];
   data?: Record<string, unknown>;
@@ -58,7 +64,7 @@ export type DropReason =
   | 'type_suppressed'
   | 'expired';
 
-export type InAppReason = 'budget' | 'quiet_hours_stale';
+export type InAppReason = 'budget' | 'quiet_hours_stale' | 'watch';
 
 export interface Decision {
   deliverNow: Candidate[];
@@ -153,6 +159,17 @@ export function decide(
     const cap = CAPABILITY_FOR_TYPE[c.type];
     if (cap && !policy.capabilities[cap]) { out.dropped.push({ candidate: c, reason: 'capability_off' }); continue; }
     if (policy.suppressedTypes.includes(c.type)) { out.dropped.push({ candidate: c, reason: 'type_suppressed' }); continue; }
+
+    if (c.notBefore !== undefined && c.notBefore > ctx.now) {
+      let at = c.notBefore;
+      if (isInQuietHours(at, policy.quietHours)) at = quietHoursEnd(at, policy.quietHours);
+      if (c.expiresAt !== undefined && c.expiresAt <= at) {
+        out.inApp.push({ candidate: c, reason: 'quiet_hours_stale' });
+      } else {
+        out.deferred.push({ candidate: c, deliverAt: at });
+      }
+      continue;
+    }
 
     if (isInQuietHours(ctx.now, policy.quietHours)) {
       const opensAt = quietHoursEnd(ctx.now, policy.quietHours);

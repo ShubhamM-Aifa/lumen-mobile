@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Platform,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { Stack } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
 import {
@@ -105,7 +105,7 @@ export default function AtAGlanceCustomizeScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.badgePill}>
-              <LayoutGrid size={14} color={palette.primary} />
+              <LayoutGrid size={14} color={palette.primaryText} />
               <Text style={styles.badgePillText}>{activeCount} of 6 Active</Text>
             </View>
             <View style={[styles.layoutBadge, { backgroundColor: isEven ? '#10B98118' : '#F59E0B18' }]}>
@@ -159,14 +159,11 @@ export default function AtAGlanceCustomizeScreen() {
                   </Text>
                 </View>
 
-                <Switch
+                <AppleSwitch
                   value={isEnabled}
                   onValueChange={() => handleToggle(item.key)}
-                  trackColor={{
-                    false: palette.border,
-                    true: palette.primary,
-                  }}
-                  thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+                  activeColor={palette.primary || '#34C759'}
+                  accessibilityLabel={item.label}
                 />
               </View>
             );
@@ -217,10 +214,8 @@ const useStyles = createThemedStyles(palette => ({
   },
   heroCard: {
     backgroundColor: palette.surface,
-    borderRadius: 20,
+    borderRadius: 26,
     padding: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -245,7 +240,7 @@ const useStyles = createThemedStyles(palette => ({
   badgePillText: {
     ...typography.caption,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
     fontSize: 12,
   },
   layoutBadge: {
@@ -306,10 +301,8 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.surface,
-    borderRadius: 16,
+    borderRadius: 26,
     padding: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

@@ -73,7 +73,7 @@ export const JoinCommunityModal: React.FC<Props> = ({ visible, onClose, onJoined
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
             <View style={styles.headerLeft}>
-              <KeyRound size={18} color={palette.primary} style={{ marginRight: 6 }} />
+              <KeyRound size={18} color={palette.primaryText} style={{ marginRight: 6 }} />
               <Text style={[styles.headerTitle, { color: palette.text }]}>Join a Community</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>

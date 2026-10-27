@@ -132,43 +132,41 @@ export function OptionSelector({
 
   return (
     <View style={styles.wrapper}>
-      {options.map((option) => {
+      {options.map((option, index) => {
         const selected = isSelected(option._id);
         const answer = findAnswer(answers, option._id);
-        const accentColor = option.color ?? palette.primary;
+        const accentColor = option.color ?? palette.tint;
+        const isLastRow = index === options.length - 1 && !allowOther;
         const hasFields = option.fields && option.fields.length > 0;
 
         return (
-          <View key={option._id}>
-            {/* Option button */}
+          <View key={option._id} style={!isLastRow ? styles.separated : undefined}>
+            {/* Option row */}
             <TouchableOpacity
-              style={[
-                styles.option,
-                selected && { borderColor: accentColor, backgroundColor: accentColor + '12' },
-              ]}
+              style={styles.option}
               onPress={() => toggle(option)}
               accessibilityRole="checkbox"
               accessibilityLabel={option.label}
               accessibilityState={{ checked: selected }}
             >
+              <View style={[styles.checkbox, selected && { backgroundColor: accentColor, borderColor: accentColor }]}>
+                {selected && <Text style={styles.checkmark}>✓</Text>}
+              </View>
               <View style={styles.optionLeft}>
                 {option.icon ? (
                   <Text style={styles.optionIcon}>{option.icon}</Text>
                 ) : (
                   <View style={[styles.optionColorDot, { backgroundColor: accentColor }]} />
                 )}
-                <Text style={[styles.optionLabel, selected && { color: accentColor, fontWeight: '600' }]}>
+                <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]} maxFontSizeMultiplier={1.4}>
                   {option.label}
                 </Text>
-              </View>
-              <View style={[styles.checkbox, selected && { backgroundColor: accentColor, borderColor: accentColor }]}>
-                {selected && <Text style={styles.checkmark}>✓</Text>}
               </View>
             </TouchableOpacity>
 
             {/* Expanded fields when selected */}
             {selected && (hasFields || option.allowComment) && (
-              <View style={[styles.expandedArea, { borderColor: accentColor + '55' }]}>
+              <View style={styles.expandedArea}>
                 {/* Field definitions */}
                 {hasFields && option.fields.map((field) => {
                   const fv = answer?.values.find(fv => fv.fieldKey === field.key);
@@ -223,50 +221,43 @@ export function OptionSelector({
 }
 
 const useStyles = createThemedStyles(palette => ({
-  wrapper: { gap: 8 },
+  wrapper: {},
+  separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
   option: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: palette.surface,
-    borderRadius: 14, borderWidth: 1.5, borderColor: palette.border,
-    paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10,
     minHeight: 52,
   },
   optionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   optionIcon: { fontSize: 20 },
   optionColorDot: { width: 10, height: 10, borderRadius: 5 },
-  optionLabel: { ...typography.body, color: palette.text, flex: 1 },
+  optionLabel: { ...typography.bodyLarge, color: palette.text, flex: 1 },
+  optionLabelSelected: { fontWeight: '600' },
   checkbox: {
     width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: palette.border,
+    borderWidth: 1.5, borderColor: palette.textSecondary,
     alignItems: 'center', justifyContent: 'center',
   },
-  checkmark: { ...typography.caption, color: '#FFFFFF', fontWeight: '700', lineHeight: 14 },
+  checkmark: { fontSize: 14, color: '#FFFFFF', fontWeight: '700', lineHeight: 16 },
   expandedArea: {
-    marginTop: -8,
-    marginBottom: 4,
-    backgroundColor: palette.background,
-    borderWidth: 1.5,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-    padding: 14,
-    paddingTop: 18,
+    paddingLeft: 36,
+    paddingBottom: 14,
     gap: 14,
   },
   commentInput: {
-    backgroundColor: palette.surface,
-    borderWidth: 1, borderColor: palette.border,
-    borderRadius: 10, padding: 12,
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
     ...typography.body, color: palette.text,
-    minHeight: 60,
+    minHeight: 60, textAlignVertical: 'top',
   },
   otherWrapper: {
-    borderWidth: 1.5, borderColor: palette.border, borderStyle: 'dashed',
+    marginTop: 8,
+    backgroundColor: palette.surfaceAlt,
     borderRadius: 14, overflow: 'hidden',
   },
   otherInput: {
     paddingHorizontal: 16, paddingVertical: 14,
-    ...typography.body, color: palette.text,
-    minHeight: 52,
+    ...typography.bodyLarge, color: palette.text,
+    minHeight: 48,
   },
 }));

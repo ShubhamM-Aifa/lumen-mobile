@@ -161,16 +161,16 @@ export const MyDayCard: React.FC<MyDayCardProps> = ({ boundaryHour = 4 }) => {
       {/* Remaining Tasks Count */}
       {remainingCount > 0 && (
         <TouchableOpacity style={styles.moreTasksRow} onPress={handleOpenHub}>
-          <Text style={[styles.moreTasksText, { color: palette.primary }]}>
+          <Text style={[styles.moreTasksText, { color: palette.primaryText }]}>
             +{remainingCount} more in My Day
           </Text>
-          <ChevronRight size={14} color={palette.primary} />
+          <ChevronRight size={14} color={palette.primaryText} />
         </TouchableOpacity>
       )}
 
       {/* Quick Add Input Bar */}
       <View style={[styles.quickAddBar, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
-        <Plus size={18} color={palette.primary} />
+        <Plus size={18} color={palette.primaryText} />
         <TextInput
           style={[styles.quickAddInput, { color: palette.text }]}
           placeholder="Add a task to My Day..."

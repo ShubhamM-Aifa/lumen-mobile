@@ -16,6 +16,10 @@ import { InsightCard } from '../../src/components/insights/InsightCard';
 import { StatCard } from '../../src/components/insights/StatCard';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { FilterChip } from '../../src/components/ios/FilterChip';
+import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
 
 const MIN_DAYS_FOR_INSIGHTS = 14;
 
@@ -42,29 +46,28 @@ export default function InsightsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Insights</Text>
-        <TouchableOpacity
-          style={styles.exportBtn}
-          onPress={() => router.push('/reports')}
-          accessibilityRole="button"
-          accessibilityLabel="Export report"
-        >
-          <Download size={14} color={palette.primary} strokeWidth={2.4} />
-          <Text style={styles.exportBtnText}>Export</Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={palette.primary} />}
       >
+        <View style={styles.flush}>
+          <LargeTitleHeader
+            title="Insights"
+            subtitle="Patterns from your own logs. They show what tends to happen together, not what causes what."
+            actions={
+              <GlassCircleButton accessibilityLabel="Export report" onPress={() => router.push('/reports')}>
+                <Download size={20} color={palette.text} strokeWidth={2.2} />
+              </GlassCircleButton>
+            }
+          />
+        </View>
+
         <DisclaimerBanner />
 
         {isLoading && (
           <View style={styles.center}>
-            <ActivityIndicator color={palette.primary} size="large" />
+            <ActivityIndicator color={palette.primaryText} size="large" />
             <Text style={styles.loadingText}>Analysing your data…</Text>
           </View>
         )}
@@ -73,7 +76,7 @@ export default function InsightsScreen() {
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <View style={styles.emptyIconBadge}>
-                <TrendingUp size={36} color={palette.primary} strokeWidth={2.4} />
+                <TrendingUp size={36} color={palette.primaryText} strokeWidth={2.4} />
               </View>
               <View style={styles.sparkleBadge}>
                 <Sparkles size={12} color="#F59E0B" strokeWidth={2.4} />
@@ -125,15 +128,12 @@ export default function InsightsScreen() {
             {allInsights.length > 1 && (
               <View style={styles.filterRow}>
                 {(['All', 'High', 'Medium'] as const).map(f => (
-                  <TouchableOpacity
+                  <FilterChip
                     key={f}
-                    style={[styles.filterChip, confidenceFilter === f && styles.filterChipActive]}
+                    label={f}
+                    selected={confidenceFilter === f}
                     onPress={() => setConfidenceFilter(f)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: confidenceFilter === f }}
-                  >
-                    <Text style={[styles.filterText, confidenceFilter === f && styles.filterTextActive]}>{f}</Text>
-                  </TouchableOpacity>
+                  />
                 ))}
               </View>
             )}
@@ -166,9 +166,9 @@ export default function InsightsScreen() {
                 accessibilityRole="button"
               >
                 {recompute.isPending
-                  ? <ActivityIndicator size="small" color={palette.primary} />
+                  ? <ActivityIndicator size="small" color={palette.primaryText} />
                   : <>
-                      <RefreshCw size={15} color={palette.primary} strokeWidth={2.2} />
+                      <RefreshCw size={15} color={palette.primaryText} strokeWidth={2.2} />
                       <Text style={styles.recomputeText}>Reanalyse now</Text>
                     </>
                 }
@@ -185,24 +185,11 @@ export default function InsightsScreen() {
 
 const useStyles = createThemedStyles(palette => ({
   safe: { flex: 1, backgroundColor: palette.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  heading: { ...typography.h2, color: palette.text },
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  exportBtnText: { ...typography.small, color: palette.primary, fontWeight: '700' },
-  scroll: { padding: 16, gap: 12, paddingBottom: 125 },
+  scroll: { paddingHorizontal: 16, paddingTop: 6, gap: 14, paddingBottom: TAB_BAR_CLEARANCE },
+  flush: { marginHorizontal: -16 },
   center: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   loadingText: { ...typography.body, color: palette.textSecondary },
-  emptyState: { backgroundColor: palette.surface, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 24, gap: 10, alignItems: 'center' },
+  emptyState: { backgroundColor: palette.surface, borderRadius: 26, padding: 24, gap: 10, alignItems: 'center' },
   emptyIconContainer: {
     position: 'relative',
     marginTop: 4,
@@ -247,20 +234,16 @@ const useStyles = createThemedStyles(palette => ({
   progressTrack: { width: '100%', height: 8, backgroundColor: palette.border, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: 8, backgroundColor: palette.primary, borderRadius: 4 },
   progressLabel: { ...typography.caption, color: palette.textDisabled },
-  sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
+  sectionLabel: { ...typography.title2, color: palette.text, marginTop: 4 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionSub: { ...typography.small, color: palette.textDisabled },
+  sectionSub: { ...typography.footnote, color: palette.textSecondary },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.surface },
-  filterChipActive: { borderColor: palette.primary, backgroundColor: palette.primary + '14' },
-  filterText: { ...typography.small, color: palette.textSecondary, fontWeight: '600' },
-  filterTextActive: { color: palette.primary },
-  noInsights: { backgroundColor: palette.surfaceAlt, borderRadius: 12, padding: 16, alignItems: 'center' },
+  noInsights: { backgroundColor: palette.surface, borderRadius: 26, padding: 16, alignItems: 'center' },
   noInsightsText: { ...typography.body, color: palette.textSecondary, textAlign: 'center' },
   recomputeSection: { alignItems: 'center', gap: 6, marginTop: 8 },
-  recomputeMeta: { ...typography.caption, color: palette.textDisabled },
-  recomputeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 20, paddingVertical: 10 },
-  recomputeText: { ...typography.body, color: palette.primary },
+  recomputeMeta: { ...typography.footnote, color: palette.textSecondary },
+  recomputeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.surface, borderRadius: 22, paddingHorizontal: 20, minHeight: 44 },
+  recomputeText: { ...typography.body, color: palette.primaryText },
   dim: { opacity: 0.5 },
 }));

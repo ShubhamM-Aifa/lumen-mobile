@@ -435,7 +435,7 @@ export function ThreeJsBodyViewer({ mode = 'joints', value = [], onChange }: Pro
                     onChange(value.filter(item => item !== k));
                   }}
                 >
-                  <Text style={[styles.chipText, { color: palette.primary }]}>
+                  <Text style={[styles.chipText, { color: palette.primaryText }]}>
                     {label} ✕
                   </Text>
                 </TouchableOpacity>
@@ -490,7 +490,7 @@ const useStyles = createThemedStyles((palette) => ({
   mirrorBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   clearBtn: {
     paddingHorizontal: 8,
@@ -500,7 +500,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   clearBtnText: {
     fontSize: 11,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '600',
   },
   canvasCard: {

@@ -129,7 +129,7 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center', justifyContent: 'center',
   },
   btnDisabled: { opacity: 0.3 },
-  btnText: { ...typography.h2, color: palette.primary, lineHeight: BTN },
+  btnText: { ...typography.h2, color: palette.primaryText, lineHeight: BTN },
   valueInput: {
     flex: 1, height: BTN,
     backgroundColor: palette.surface,
@@ -144,7 +144,7 @@ const useStyles = createThemedStyles((palette) => ({
     borderRadius: 12, borderWidth: 1, borderColor: palette.primary + '55',
     alignItems: 'center', justifyContent: 'center',
   },
-  unitText:  { ...typography.bodyBold, color: palette.primary },
+  unitText:  { ...typography.bodyBold, color: palette.primaryText },
   unitFixed: { ...typography.bodyBold, color: palette.textSecondary, paddingHorizontal: 6 },
   hint: { ...typography.small, color: palette.textSecondary },
   overlay: {

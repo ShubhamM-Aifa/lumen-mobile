@@ -197,7 +197,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <View style={[styles.actionIconBadge, { backgroundColor: accentColor + '20', borderColor: accentColor + '40' }]}>
+              <View style={[styles.actionIconBadge, { backgroundColor: accentColor + '26' }]}>
                 <QuickActionIcon
                   icon={action.icon}
                   templateKey={action.templateKey}
@@ -234,7 +234,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
             {/* Timestamp selector pill */}
             <View style={styles.timeCard}>
               <View style={styles.timeCardLeft}>
-                <Clock size={15} color={palette.primary} strokeWidth={2.4} />
+                <Clock size={15} color={palette.primaryText} strokeWidth={2.4} />
                 <Text style={styles.timeLabel}>
                   {dateFormatted} at {timeFormatted}
                 </Text>
@@ -245,7 +245,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
                 accessibilityRole="button"
                 accessibilityLabel="Change timestamp"
               >
-                <Text style={[styles.changeTimeText, { color: palette.primary }]}>Change</Text>
+                <Text style={styles.changeTimeText}>Change</Text>
               </TouchableOpacity>
             </View>
 
@@ -259,7 +259,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
 
             {/* Active Selected Option Card */}
             {linkedOption ? (
-              <View style={[styles.selectedOptionCard, { borderColor: accentColor + '50' }]}>
+              <View style={styles.selectedOptionCard}>
                 <View style={styles.optionHeaderRow}>
                   <View style={styles.optionHeaderLeft}>
                     {linkedOption.icon ? (
@@ -267,7 +267,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
                     ) : (
                       <View style={[styles.optionDot, { backgroundColor: accentColor }]} />
                     )}
-                    <Text style={[styles.optionLabel, { color: accentColor }]}>
+                    <Text style={styles.optionLabel}>
                       {linkedOption.label}
                     </Text>
                   </View>
@@ -301,7 +301,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
                 {linkedOption.allowComment && (
                   <View style={styles.commentWrap}>
                     <TextInput
-                      style={[styles.commentInput, { color: palette.text, borderColor: palette.border }]}
+                      style={styles.commentInput}
                       placeholder="Add a comment, trigger, or details…"
                       placeholderTextColor={palette.placeholder}
                       value={comment}
@@ -314,7 +314,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
               </View>
             ) : (
               <View style={styles.missingCard}>
-                <AlertCircle size={24} color={palette.error} />
+                <AlertCircle size={24} color={palette.errorText} />
                 <Text style={styles.missingText}>
                   Linked option was not found in active questions. Please update in Quick Actions customization.
                 </Text>
@@ -328,7 +328,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
                 <Text style={styles.noteHeading}>Additional Notes (optional)</Text>
               </View>
               <TextInput
-                style={[styles.noteInput, { color: palette.text, borderColor: palette.border }]}
+                style={styles.noteInput}
                 placeholder="Any other triggers or observations…"
                 placeholderTextColor={palette.placeholder}
                 value={note}
@@ -341,12 +341,12 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
 
           {/* Action Footer */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Cancel">
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: accentColor }, isSubmitting && styles.saveBtnDisabled]}
+              style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
               onPress={handleSave}
               disabled={isSubmitting}
               activeOpacity={0.85}
@@ -383,24 +383,16 @@ const useStyles = createThemedStyles((palette) => ({
       : null),
   },
   sheet: {
-    backgroundColor: palette.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: palette.background,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     maxHeight: '90%',
     width: '100%',
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    borderTopWidth: 1,
-    borderColor: palette.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 12,
     ...(Platform.OS === 'web'
       ? {
           maxWidth: 480,
-          borderRadius: 24,
-          borderWidth: 1,
+          borderRadius: 32,
           paddingBottom: 20,
         }
       : null),
@@ -409,11 +401,10 @@ const useStyles = createThemedStyles((palette) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingLeft: 20,
+    paddingRight: 12,
     paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderColor: palette.border,
+    paddingBottom: 8,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -422,10 +413,9 @@ const useStyles = createThemedStyles((palette) => ({
     flex: 1,
   },
   actionIconBadge: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -433,65 +423,39 @@ const useStyles = createThemedStyles((palette) => ({
     flex: 1,
     gap: 2,
   },
-  title: {
-    ...typography.bodyBold,
-    fontSize: 16,
-    color: palette.text,
-  },
-  subTitle: {
-    ...typography.caption,
-    fontSize: 12,
-    color: palette.textSecondary,
-  },
+  title: { ...typography.headline, color: palette.text },
+  subTitle: { ...typography.footnote, color: palette.textSecondary },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: palette.surfaceAlt,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: {
     maxHeight: 520,
   },
-  bodyContent: {
-    padding: 20,
-    gap: 16,
-  },
+  bodyContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 16 },
   timeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: palette.surface,
+    borderRadius: 26,
+    paddingLeft: 16,
+    paddingRight: 8,
+    minHeight: 52,
   },
   timeCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  timeLabel: {
-    ...typography.bodyBold,
-    fontSize: 13.5,
-    color: palette.text,
-  },
-  changeTimeBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  changeTimeText: {
-    ...typography.caption,
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  timeLabel: { ...typography.bodyLarge, color: palette.text },
+  changeTimeBtn: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
+  changeTimeText: { ...typography.subheadBold, color: palette.primaryText },
   selectedOptionCard: {
-    backgroundColor: palette.background,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    backgroundColor: palette.surface,
+    borderRadius: 26,
     padding: 16,
     gap: 14,
   },
@@ -514,11 +478,7 @@ const useStyles = createThemedStyles((palette) => ({
     height: 12,
     borderRadius: 6,
   },
-  optionLabel: {
-    ...typography.h4,
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  optionLabel: { ...typography.headline, color: palette.text },
   checkPill: {
     width: 26,
     height: 26,
@@ -537,14 +497,13 @@ const useStyles = createThemedStyles((palette) => ({
     paddingTop: 4,
   },
   commentInput: {
-    ...typography.body,
-    fontSize: 13.5,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 56,
+    ...typography.bodyLarge,
+    color: palette.text,
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 60,
     textAlignVertical: 'top',
   },
   missingCard: {
@@ -552,17 +511,10 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     gap: 12,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 26,
     backgroundColor: palette.error + '14',
-    borderWidth: 1,
-    borderColor: palette.error + '40',
   },
-  missingText: {
-    ...typography.body,
-    fontSize: 13,
-    color: palette.error,
-    flex: 1,
-  },
+  missingText: { ...typography.subhead, color: palette.errorText, flex: 1 },
   noteSection: {
     gap: 8,
     marginTop: 4,
@@ -572,70 +524,46 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     gap: 6,
   },
-  noteHeading: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  noteHeading: { ...typography.sectionLabel, color: palette.textSecondary },
   noteInput: {
-    ...typography.body,
-    fontSize: 13,
+    ...typography.bodyLarge,
+    color: palette.text,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 48,
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 64,
     textAlignVertical: 'top',
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderColor: palette.border,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   cancelBtn: {
     flex: 1,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.border,
+    minHeight: 50,
+    borderRadius: 25,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelBtnText: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    color: palette.textSecondary,
-  },
+  cancelBtnText: { ...typography.headline, color: palette.textSecondary, fontWeight: '500' },
   saveBtn: {
     flex: 1.4,
-    height: 46,
-    borderRadius: 14,
+    minHeight: 50,
+    borderRadius: 25,
+    backgroundColor: palette.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   saveBtnDisabled: {
     opacity: 0.6,
   },
-  saveBtnText: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
+  saveBtnText: { ...typography.headline, color: '#FFFFFF' },
 }));
 
 export default LinkedQuickTapModal;

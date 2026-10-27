@@ -193,7 +193,7 @@ export default function CategoryEditor() {
                 {role === r.value && <View style={styles.roleRadioDot} />}
               </View>
               <View style={styles.roleText}>
-                <Text style={[styles.roleLabel, role === r.value && { color: palette.primary }]}>
+                <Text style={[styles.roleLabel, role === r.value && { color: palette.primaryText }]}>
                   {r.label}
                 </Text>
                 <Text style={styles.roleDesc}>{r.desc}</Text>
@@ -224,7 +224,7 @@ export default function CategoryEditor() {
               onPress={() => router.push('/customize/templates')}
               accessibilityRole="button"
             >
-              <Text style={[styles.questionsLinkText, { color: palette.primary }]}>
+              <Text style={[styles.questionsLinkText, { color: palette.primaryText }]}>
                 🌍  Publish or Browse Community Templates →
               </Text>
             </TouchableOpacity>
@@ -280,7 +280,7 @@ const useStyles = createThemedStyles((palette) => ({
     borderColor: palette.warning + '40',
     padding: 14,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warning, lineHeight: 18 },
+  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
   previewBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 16, borderWidth: 1.5,
@@ -292,13 +292,13 @@ const useStyles = createThemedStyles((palette) => ({
   section: { gap: 8 },
   fieldLabel: { ...typography.smallBold, color: palette.textSecondary },
   input: {
-    backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border,
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14,
+    backgroundColor: palette.surface,
+    borderRadius: 22, paddingHorizontal: 14, paddingVertical: 14,
     ...typography.body, color: palette.text, minHeight: 52,
   },
   roleCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: palette.surface, borderRadius: 12,
+    backgroundColor: palette.surface, borderRadius: 26,
     borderWidth: 1.5, borderColor: palette.border,
     padding: 14,
   },
@@ -319,26 +319,26 @@ const useStyles = createThemedStyles((palette) => ({
     borderWidth: 1, borderColor: palette.border,
     paddingHorizontal: 16, paddingVertical: 14,
   },
-  questionsLinkText: { ...typography.bodyBold, color: palette.primary },
+  questionsLinkText: { ...typography.bodyBold, color: palette.primaryText },
   actionSection: { gap: 10, marginTop: 12 },
   unarchiveBtn: {
     backgroundColor: palette.secondary + '18', borderRadius: 12,
     borderWidth: 1, borderColor: palette.secondary + '60',
     paddingVertical: 14, alignItems: 'center',
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondary },
+  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
   archiveBtn: {
     backgroundColor: palette.warning + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.warning + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warning },
+  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
   deleteBtn: {
     backgroundColor: palette.error + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.error + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  deleteBtnText: { ...typography.bodyBold, color: palette.error },
+  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: 16, paddingBottom: 28,

@@ -52,7 +52,7 @@ export default function WalkingSummaryScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Celebration Header */}
         <View style={styles.header}>
-          <CheckCircle2 size={54} color="#22C55E" />
+          <CheckCircle2 size={54} color={palette.success} />
           <Text style={styles.title}>Walking Complete!</Text>
           <Text style={styles.subtitle}>Saved directly into your Daily Timeline</Text>
         </View>
@@ -70,7 +70,7 @@ export default function WalkingSummaryScreen() {
 
           <View style={styles.metricRow}>
             <View style={styles.metricLeft}>
-              <Footprints size={18} color={palette.primary} />
+              <Footprints size={18} color={palette.primaryText} />
               <Text style={styles.metricLabel}>Distance</Text>
             </View>
             <Text style={styles.metricValue}>{distanceKm} km</Text>
@@ -79,7 +79,7 @@ export default function WalkingSummaryScreen() {
 
           <View style={styles.metricRow}>
             <View style={styles.metricLeft}>
-              <TrendingUp size={18} color={palette.secondary} />
+              <TrendingUp size={18} color={palette.secondaryText} />
               <Text style={styles.metricLabel}>Average Speed</Text>
             </View>
             <Text style={styles.metricValue}>{speedText}</Text>
@@ -88,7 +88,7 @@ export default function WalkingSummaryScreen() {
 
           <View style={styles.metricRow}>
             <View style={styles.metricLeft}>
-              <Flame size={18} color="#FF5400" />
+              <Flame size={18} color={palette.warningText} />
               <Text style={styles.metricLabel}>Average Pace</Text>
             </View>
             <Text style={styles.metricValue}>{paceText}</Text>

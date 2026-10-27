@@ -3,8 +3,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Switch, Platform,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Platform,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IQuickAction } from '@lumen/shared';
@@ -93,11 +94,10 @@ export default function QuickActionsScreen() {
             {item.unit ? ` · ${item.unit}` : ''}
           </Text>
         </View>
-        <Switch
+        <AppleSwitch
           value={item.isVisible}
           onValueChange={() => toggleVisible(item)}
-          trackColor={{ false: palette.border, true: palette.primary + '88' }}
-          thumbColor={item.isVisible ? palette.primary : palette.textDisabled}
+          activeColor={palette.primary || '#34C759'}
           accessibilityLabel={`${item.label} visible on home screen`}
         />
       </TouchableOpacity>
@@ -128,11 +128,11 @@ export default function QuickActionsScreen() {
                     <Text style={styles.hiddenIcon}>{a.icon}</Text>
                     <Text style={styles.hiddenLabel} numberOfLines={1}>{a.label}</Text>
                   </TouchableOpacity>
-                  <Switch
+                  <AppleSwitch
                     value={false}
                     onValueChange={() => toggleVisible(a)}
-                    trackColor={{ false: palette.border, true: palette.primary + '88' }}
-                    thumbColor={palette.textDisabled}
+                    activeColor={palette.primary || '#34C759'}
+                    accessibilityLabel={`Unhide ${a.label}`}
                   />
                   <TouchableOpacity
                     style={styles.deleteIconBtn}
@@ -176,9 +176,9 @@ const useStyles = createThemedStyles(palette => ({
   actions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surfaceAlt },
   arrowBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRightWidth: 1, borderRightColor: palette.border },
   dim: { opacity: 0.3 },
-  arrow: { ...typography.bodyBold, color: palette.primary },
+  arrow: { ...typography.bodyBold, color: palette.primaryText },
   editBtn: { paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' },
-  editBtnText: { ...typography.small, color: palette.primary },
+  editBtnText: { ...typography.small, color: palette.primaryText },
   hiddenSection: { marginTop: 24, gap: 6 },
   sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 4 },
   hiddenRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 12, paddingVertical: 10, gap: 10 },

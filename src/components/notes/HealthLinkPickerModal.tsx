@@ -10,7 +10,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { X, Check, Stethoscope, Pill } from 'lucide-react-native';
 import { useConfigStore } from '../../store/configStore';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface HealthLinkPickerModalProps {
@@ -29,6 +29,7 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
   onToggleLink,
 }) => {
   const { palette } = useTheme();
+  const styles = useStyles();
   const { config } = useConfigStore();
   const [activeTab, setActiveTab] = useState<'symptoms' | 'medications'>('symptoms');
 
@@ -99,17 +100,17 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
               style={[
                 styles.tabBtn,
                 activeTab === 'symptoms' && {
-                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                  borderColor: '#EF4444',
+                  backgroundColor: palette.error + '2E',
+                  borderColor: palette.error,
                 },
               ]}
               onPress={() => setActiveTab('symptoms')}
             >
-              <Stethoscope size={16} color={activeTab === 'symptoms' ? '#EF4444' : palette.textSecondary} />
+              <Stethoscope size={16} color={activeTab === 'symptoms' ? palette.errorText : palette.textSecondary} />
               <Text
                 style={[
                   styles.tabText,
-                  { color: activeTab === 'symptoms' ? '#EF4444' : palette.textSecondary },
+                  { color: activeTab === 'symptoms' ? palette.errorText : palette.textSecondary },
                 ]}
               >
                 Symptoms ({linkedSymptomIds.length})
@@ -120,17 +121,17 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
               style={[
                 styles.tabBtn,
                 activeTab === 'medications' && {
-                  backgroundColor: 'rgba(168, 85, 247, 0.18)',
-                  borderColor: '#A855F7',
+                  backgroundColor: palette.catMeds + '2E',
+                  borderColor: palette.catMeds,
                 },
               ]}
               onPress={() => setActiveTab('medications')}
             >
-              <Pill size={16} color={activeTab === 'medications' ? '#A855F7' : palette.textSecondary} />
+              <Pill size={16} color={activeTab === 'medications' ? palette.text : palette.textSecondary} />
               <Text
                 style={[
                   styles.tabText,
-                  { color: activeTab === 'medications' ? '#A855F7' : palette.textSecondary },
+                  { color: activeTab === 'medications' ? palette.text : palette.textSecondary },
                 ]}
               >
                 Medications ({linkedMedicationIds.length})
@@ -153,7 +154,7 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
                       key={sym.id}
                       style={[
                         styles.itemCard,
-                        isLinked && { backgroundColor: 'rgba(239, 68, 68, 0.12)' },
+                        isLinked && { backgroundColor: palette.error + '1F' },
                       ]}
                       onPress={() => handleToggle('symptom', sym.id)}
                     >
@@ -162,7 +163,7 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
                       <View
                         style={[
                           styles.checkbox,
-                          isLinked && { backgroundColor: '#EF4444', borderColor: '#EF4444' },
+                          isLinked && { backgroundColor: palette.error, borderColor: palette.error },
                         ]}
                       >
                         {isLinked && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
@@ -179,7 +180,7 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
                     key={med.id}
                     style={[
                       styles.itemCard,
-                      isLinked && { backgroundColor: 'rgba(168, 85, 247, 0.12)' },
+                      isLinked && { backgroundColor: palette.catMeds + '1F' },
                     ]}
                     onPress={() => handleToggle('medication', med.id)}
                   >
@@ -188,7 +189,7 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
                     <View
                       style={[
                         styles.checkbox,
-                        isLinked && { backgroundColor: '#A855F7', borderColor: '#A855F7' },
+                        isLinked && { backgroundColor: palette.catMeds, borderColor: palette.catMeds },
                       ]}
                     >
                       {isLinked && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
@@ -205,10 +206,10 @@ export const HealthLinkPickerModal: React.FC<HealthLinkPickerModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(palette => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -247,8 +248,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceAlt,
   },
   tabText: {
     fontSize: 13,
@@ -269,7 +270,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: palette.border,
   },
   itemEmoji: {
     fontSize: 18,
@@ -284,8 +285,8 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: palette.textSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

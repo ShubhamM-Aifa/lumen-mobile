@@ -179,7 +179,7 @@ export function QuestionCard({
             {isCardExpanded ? (
               <ChevronUp size={18} color={palette.textSecondary} strokeWidth={2.4} />
             ) : (
-              <ChevronDown size={18} color={palette.primary} strokeWidth={2.4} />
+              <ChevronDown size={18} color={palette.primaryText} strokeWidth={2.4} />
             )}
           </View>
         </View>
@@ -265,9 +265,9 @@ export function QuestionCard({
                             {isLatestEntryExpanded ? 'Hide values' : 'See values'}
                           </Text>
                           {isLatestEntryExpanded ? (
-                            <ChevronUp size={12} color={palette.primary} strokeWidth={2.2} />
+                            <ChevronUp size={12} color={palette.primaryText} strokeWidth={2.2} />
                           ) : (
-                            <ChevronDown size={12} color={palette.primary} strokeWidth={2.2} />
+                            <ChevronDown size={12} color={palette.primaryText} strokeWidth={2.2} />
                           )}
                         </TouchableOpacity>
                       )}
@@ -369,7 +369,7 @@ export function QuestionCard({
 
                             {detail.comment ? (
                               <View style={styles.detailCommentBox}>
-                                <MessageSquare size={12} color={palette.primary} style={{ marginTop: 2 }} />
+                                <MessageSquare size={12} color={palette.primaryText} style={{ marginTop: 2 }} />
                                 <View style={{ flex: 1 }}>
                                   <Text style={styles.detailCommentLabel}>Note</Text>
                                   <Text style={styles.detailCommentText}>"{detail.comment}"</Text>
@@ -398,7 +398,7 @@ export function QuestionCard({
                   accessibilityRole="button"
                   accessibilityLabel="Edit today's entry"
                 >
-                  <Edit2 size={12} color={palette.primary} />
+                  <Edit2 size={12} color={palette.primaryText} />
                   <Text style={styles.completedDayEditText}>Edit entry</Text>
                 </TouchableOpacity>
               )}
@@ -472,7 +472,7 @@ export function QuestionCard({
                                   accessibilityRole="button"
                                   accessibilityLabel={`Fill previous answers from ${item.timeClockStr || item.timeFormatted}`}
                                 >
-                                  <RotateCcw size={11} color={palette.primary} strokeWidth={2.4} />
+                                  <RotateCcw size={11} color={palette.primaryText} strokeWidth={2.4} />
                                   <Text style={styles.reuseBtnText}>Fill</Text>
                                 </TouchableOpacity>
                               )}
@@ -517,9 +517,9 @@ export function QuestionCard({
                                 {isEntryExpanded ? 'Hide values' : 'See values'}
                               </Text>
                               {isEntryExpanded ? (
-                                <ChevronUp size={12} color={palette.primary} strokeWidth={2.2} />
+                                <ChevronUp size={12} color={palette.primaryText} strokeWidth={2.2} />
                               ) : (
-                                <ChevronDown size={12} color={palette.primary} strokeWidth={2.2} />
+                                <ChevronDown size={12} color={palette.primaryText} strokeWidth={2.2} />
                               )}
                             </TouchableOpacity>
                           </View>
@@ -612,7 +612,7 @@ export function QuestionCard({
 
                                     {detail.comment ? (
                                       <View style={styles.detailCommentBox}>
-                                        <MessageSquare size={12} color={palette.primary} style={{ marginTop: 2 }} />
+                                        <MessageSquare size={12} color={palette.primaryText} style={{ marginTop: 2 }} />
                                         <View style={{ flex: 1 }}>
                                           <Text style={styles.detailCommentLabel}>Note</Text>
                                           <Text style={styles.detailCommentText}>"{detail.comment}"</Text>
@@ -664,9 +664,9 @@ export function QuestionCard({
                           : `Show earlier ${todayHistory.length - 1} ${todayHistory.length - 1 === 1 ? 'entry' : 'entries'}`}
                       </Text>
                       {showAllHistory ? (
-                        <ChevronUp size={13} color={palette.primary} strokeWidth={2.4} />
+                        <ChevronUp size={13} color={palette.primaryText} strokeWidth={2.4} />
                       ) : (
-                        <ChevronDown size={13} color={palette.primary} strokeWidth={2.4} />
+                        <ChevronDown size={13} color={palette.primaryText} strokeWidth={2.4} />
                       )}
                     </TouchableOpacity>
                   )}
@@ -686,7 +686,7 @@ export function QuestionCard({
                       {justAppliedPrev ? (
                         <Check size={14} color="#059669" strokeWidth={2.5} />
                       ) : (
-                        <RotateCcw size={14} color={palette.primary} strokeWidth={2.2} />
+                        <RotateCcw size={14} color={palette.primaryText} strokeWidth={2.2} />
                       )}
                     </View>
 
@@ -748,9 +748,7 @@ export function QuestionCard({
 const useStyles = createThemedStyles(palette => ({
   card: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 16,
     gap: 14,
   },
@@ -759,7 +757,7 @@ const useStyles = createThemedStyles(palette => ({
   titleGroup: { flex: 1, gap: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start' },
   title: { ...typography.h4, color: palette.text, flex: 1 },
-  required: { ...typography.h4, color: palette.error },
+  required: { ...typography.h4, color: palette.errorText },
   helpText: { ...typography.small, color: palette.textSecondary },
 
   // Frequency badges
@@ -889,7 +887,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
 
   // Question-level today history
@@ -1024,7 +1022,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   editLogBtn: {
     flexDirection: 'row',
@@ -1071,7 +1069,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 10.5,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   inlineValuesRow: {
     flexDirection: 'row',
@@ -1191,7 +1189,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
     flexWrap: 'wrap',
   },
   detailNoFieldsText: {
@@ -1238,7 +1236,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 11,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
 
   // Collapsible Question Card Header styles
@@ -1260,59 +1258,28 @@ const useStyles = createThemedStyles(palette => ({
     gap: 8,
   },
   chevronBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   collapsedAnswerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#05966918',
-    paddingHorizontal: 8,
+    backgroundColor: palette.success + '1F',
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#05966933',
+    borderRadius: 12,
     maxWidth: 140,
   },
-  collapsedAnswerBadgeText: {
-    ...typography.caption,
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  collapsedHistoryBadge: {
-    backgroundColor: '#05966914',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#0596692E',
-  },
-  collapsedHistoryBadgeText: {
-    ...typography.caption,
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: '#059669',
-  },
-  collapsedUnansweredBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: palette.surfaceAlt,
-  },
-  collapsedUnansweredBadgeText: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '500',
-    color: palette.textSecondary,
-  },
+  collapsedAnswerBadgeText: { ...typography.footnote, fontWeight: '600', color: palette.successText },
+  collapsedHistoryBadge: { backgroundColor: palette.success + '1F', paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 10 },
+  collapsedHistoryBadgeText: { ...typography.footnote, fontWeight: '600', color: palette.successText },
+  collapsedUnansweredBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: palette.surfaceAlt },
+  collapsedUnansweredBadgeText: { ...typography.footnote, color: palette.textSecondary },
   expandedContent: {
     gap: 14,
     marginTop: 4,
@@ -1375,7 +1342,7 @@ const useStyles = createThemedStyles(palette => ({
   questionPrevLogBadgeText: {
     ...typography.caption,
     fontSize: 10,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '600',
   },
   questionPrevLogSummary: {
@@ -1401,7 +1368,7 @@ const useStyles = createThemedStyles(palette => ({
   questionPrevLogApplyText: {
     ...typography.caption,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
     fontSize: 11.5,
   },
   questionPrevLogApplyTextApplied: {

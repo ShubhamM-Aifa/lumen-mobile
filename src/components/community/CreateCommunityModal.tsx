@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, Sparkles, ShieldCheck, Lock, Globe } from 'lucide-react-native';
+import { AppleSwitch } from '../common/AppleSwitch';
 import { useTheme } from '../../theme/ThemeContext';
 import { useCommunityStore } from '../../store/communityStore';
 
@@ -244,11 +244,11 @@ export const CreateCommunityModal: React.FC<Props> = ({ visible, onClose, onCrea
                   </Text>
                 </View>
               </View>
-              <Switch
+              <AppleSwitch
                 value={isPrivate}
                 onValueChange={setIsPrivate}
-                trackColor={{ false: palette.border, true: selectedColor }}
-                thumbColor="#FFFFFF"
+                activeColor={selectedColor}
+                accessibilityLabel="Private Community"
               />
             </View>
 

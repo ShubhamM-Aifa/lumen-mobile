@@ -6,7 +6,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ActivityIndicator, TouchableOpacity, Alert,
+  View, Text, ActivityIndicator, Alert, StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Plus, ChevronDown, ChevronUp, CalendarClock, Sparkles, Clock } from 'lucide-react-native';
@@ -134,7 +134,7 @@ export function DayView({
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="small" color={palette.primary} />
+        <ActivityIndicator size="small" color={palette.primaryText} />
       </View>
     );
   }
@@ -147,7 +147,7 @@ export function DayView({
         <View style={styles.emptyCard}>
           <View style={styles.emptyIconContainer}>
             <View style={styles.emptyIconBadge}>
-              <CalendarClock size={36} color={palette.primary} strokeWidth={2.2} />
+              <CalendarClock size={36} color={palette.primaryText} strokeWidth={2.2} />
             </View>
             <View style={styles.sparkleBadge}>
               <Sparkles size={12} color="#F59E0B" strokeWidth={2.4} />
@@ -208,74 +208,61 @@ export function DayView({
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.dateLabel}>{formattedDate}</Text>
-          <Text style={styles.countBadge}>
+          <Text style={styles.countLabel}>
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
           </Text>
           {boundaryHour !== undefined && boundaryHour !== 0 && (
             <View style={styles.boundaryBadge}>
-              <Clock size={11} color={palette.primary} strokeWidth={2.4} />
+              <Clock size={12} color={palette.textSecondary} strokeWidth={2.4} />
               <Text style={styles.boundaryBadgeText}>
-                {boundaryHour % 12 || 12} {boundaryHour < 12 ? 'AM' : 'PM'} Reset
+                {boundaryHour % 12 || 12} {boundaryHour < 12 ? 'AM' : 'PM'} reset
               </Text>
             </View>
           )}
         </View>
 
-        {/* Global Expand all / Collapse all toggle button */}
-        {entries.length > 0 && (
-          <PressableScale
-            style={styles.expandAllBtn}
-            onPress={toggleAllExpanded}
-            haptic="light"
-            activeScale={0.92}
-            accessibilityRole="button"
-            accessibilityLabel={allExpanded ? 'Collapse all logs' : 'Expand all logs'}
-          >
-            <Text style={[styles.expandAllText, { color: palette.primary }]}>
-              {allExpanded ? 'Collapse all' : 'Expand all'}
-            </Text>
-            {allExpanded ? (
-              <ChevronUp size={14} color={palette.primary} />
-            ) : (
-              <ChevronDown size={14} color={palette.primary} />
-            )}
-          </PressableScale>
-        )}
+        <PressableScale
+          style={styles.expandAllBtn}
+          onPress={toggleAllExpanded}
+          haptic="light"
+          activeScale={0.94}
+          accessibilityRole="button"
+          accessibilityLabel={allExpanded ? 'Collapse all logs' : 'Expand all logs'}
+        >
+          <Text style={styles.expandAllText}>{allExpanded ? 'Collapse all' : 'Expand all'}</Text>
+          {allExpanded ? (
+            <ChevronUp size={14} color={palette.primaryText} />
+          ) : (
+            <ChevronDown size={14} color={palette.primaryText} />
+          )}
+        </PressableScale>
       </View>
 
-      {buckets.map((bucket, index) => (
-        <View key={bucket.hour} style={[styles.bucket, index === 0 && styles.firstBucket]}>
-          {/* Hour label + horizontal divider line */}
-          <View style={styles.hourRow}>
-            <View style={styles.hourLabelWrap}>
-              <Text style={styles.hourLabel}>{bucket.label}</Text>
-            </View>
-            <View style={styles.line} />
-          </View>
-
-          {/* Entries in this bucket */}
-          <View style={styles.entriesWrap}>
-            {bucket.entries.map(entry => {
+      {buckets.map(bucket => (
+        <View key={bucket.hour} style={styles.bucket}>
+          <Text style={styles.hourLabel} accessibilityRole="header">{bucket.label}</Text>
+          <View style={styles.hourCard}>
+            {bucket.entries.map((entry, i) => {
               const cat = categories.find(c => c._id === entry.categoryId);
               const q = questions.find(q => q._id === entry.questionId);
               const opts = options.filter(o => entry.answers?.some(a => a.optionId === o._id));
               const qa = quickActions.find(q => q._id === entry.quickActionId);
 
               return (
-                <TimelineItem
-                  key={entry._id}
-                  entry={entry}
-                  category={cat}
-                  question={q}
-                  options={opts}
-                  allQuestions={questions}
-                  allOptions={options}
-                  quickAction={qa}
-                  onDelete={onDeleteEntry}
-                  onEdit={onEditEntry}
-                  forceExpanded={allExpanded}
-                />
+                <View key={entry._id} style={i < bucket.entries.length - 1 ? styles.separated : undefined}>
+                  <TimelineItem
+                    entry={entry}
+                    category={cat}
+                    question={q}
+                    options={opts}
+                    allQuestions={questions}
+                    allOptions={options}
+                    quickAction={qa}
+                    onDelete={onDeleteEntry}
+                    onEdit={onEditEntry}
+                    forceExpanded={allExpanded}
+                  />
+                </View>
               );
             })}
           </View>
@@ -297,65 +284,33 @@ export function DayView({
           accessibilityRole="button"
           accessibilityLabel={`Log an entry for ${formattedDate}`}
         >
-          <Plus size={16} color={palette.primary} strokeWidth={2.5} />
+          <Plus size={16} color={palette.primaryText} strokeWidth={2.5} />
           <Text style={styles.dayFooterAddText}>Log an entry for this day</Text>
         </PressableScale>
       </View>
-
-      <View style={{ height: 32 }} />
     </View>
   );
 }
 
 const useStyles = createThemedStyles(palette => ({
-  container: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
-  center: {
-    paddingVertical: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
+  container: { paddingTop: 4, paddingBottom: 16, gap: 18 },
+  center: { paddingVertical: 56, alignItems: 'center', justifyContent: 'center' },
+  emptyContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   emptyCard: {
     backgroundColor: palette.surface,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     paddingVertical: 32,
     paddingHorizontal: 22,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
   },
-  emptyIconContainer: {
-    position: 'relative',
-    marginTop: 2,
-    marginBottom: 12,
-  },
+  emptyIconContainer: { position: 'relative', marginTop: 2, marginBottom: 12 },
   emptyIconBadge: {
     width: 76,
     height: 76,
     borderRadius: 24,
-    backgroundColor: palette.primary + '14',
-    borderWidth: 1.5,
-    borderColor: palette.primary + '2B',
+    backgroundColor: palette.tint + '1F',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 3,
   },
   sparkleBadge: {
     position: 'absolute',
@@ -365,32 +320,11 @@ const useStyles = createThemedStyles(palette => ({
     height: 24,
     borderRadius: 12,
     backgroundColor: palette.surface,
-    borderWidth: 1.5,
-    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
   },
-  emptyText: {
-    ...typography.h3,
-    fontSize: 18,
-    color: palette.text,
-    textAlign: 'center',
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  emptyHint: {
-    ...typography.body,
-    fontSize: 13.5,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    maxWidth: 260,
-    lineHeight: 20,
-  },
+  emptyText: { ...typography.title2, color: palette.text, textAlign: 'center', marginBottom: 6 },
+  emptyHint: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center', maxWidth: 270 },
   emptyAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -398,157 +332,68 @@ const useStyles = createThemedStyles(palette => ({
     gap: 8,
     backgroundColor: palette.primary,
     paddingHorizontal: 24,
-    paddingVertical: 13,
-    borderRadius: 16,
+    minHeight: 50,
+    borderRadius: 25,
     marginTop: 20,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  emptyAddText: {
-    ...typography.bodyBold,
-    color: '#FFFFFF',
-    fontSize: 15,
-  },
-  emptyQuickSection: {
-    width: '100%',
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  emptyQuickDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    marginBottom: 12,
-  },
-  emptyQuickLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: palette.border,
-  },
-  emptyQuickDividerText: {
-    ...typography.caption,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: palette.textDisabled,
-    letterSpacing: 0.8,
-  },
-  emptyQuickRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  emptyAddText: { ...typography.headline, color: '#FFFFFF' },
+  emptyQuickSection: { width: '100%', marginTop: 24, alignItems: 'center' },
+  emptyQuickDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', marginBottom: 12 },
+  emptyQuickLine: { flex: 1, height: 1, backgroundColor: palette.divider },
+  emptyQuickDividerText: { ...typography.sectionLabel, color: palette.textSecondary },
+  emptyQuickRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   emptyQuickChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
-  emptyQuickIcon: {
-    fontSize: 14,
-  },
-  emptyQuickText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '600',
-    color: palette.text,
-  },
+  emptyQuickIcon: { fontSize: 15 },
+  emptyQuickText: { ...typography.subheadBold, color: palette.text },
+
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    minHeight: 32,
   },
-  headerTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateLabel: { ...typography.h3, fontSize: 18, color: palette.text, fontWeight: '700' },
-  countBadge: {
-    ...typography.caption,
-    color: palette.primary,
-    backgroundColor: palette.primary + '18',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    fontWeight: '700',
-  },
-  boundaryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.primary + '14',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.primary + '2E',
-  },
-  boundaryBadgeText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontSize: 10.5,
-    fontWeight: '700',
-  },
+  headerTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  countLabel: { ...typography.subhead, color: palette.textSecondary },
+  boundaryBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  boundaryBadgeText: { ...typography.footnote, color: palette.textSecondary },
   expandAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: palette.primary + '12',
-    borderWidth: 1,
-    borderColor: palette.primary + '28',
-  },
-  expandAllText: {
-    ...typography.caption,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-  bucket: { marginBottom: 16 },
-  firstBucket: { marginTop: 4 },
-  hourRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  hourLabelWrap: { minWidth: 62, paddingRight: 8 },
-  hourLabel: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '800',
-    fontSize: 12,
-    letterSpacing: 0.2,
-  },
-  line: { flex: 1, height: 1, backgroundColor: palette.border },
-  entriesWrap: { paddingLeft: 4 },
-  dayFooterAddWrap: {
-    marginTop: 14,
-    alignItems: 'center',
+    minHeight: 44,
+    paddingHorizontal: 4,
     justifyContent: 'center',
   },
+  expandAllText: { ...typography.subheadBold, color: palette.primaryText },
+
+  bucket: { gap: 7 },
+  hourLabel: { ...typography.sectionLabel, color: palette.textSecondary, paddingHorizontal: 20 },
+  hourCard: {
+    marginHorizontal: 16,
+    backgroundColor: palette.surface,
+    borderRadius: 26,
+    overflow: 'hidden',
+  },
+  separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+
+  dayFooterAddWrap: { alignItems: 'center', justifyContent: 'center' },
   dayFooterAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    backgroundColor: palette.primary + '12',
-    borderWidth: 1.5,
-    borderColor: palette.primary + '35',
+    minHeight: 48,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    backgroundColor: palette.tint + '1F',
   },
-  dayFooterAddText: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    color: palette.primary,
-  },
+  dayFooterAddText: { ...typography.headline, color: palette.primaryText },
 }));

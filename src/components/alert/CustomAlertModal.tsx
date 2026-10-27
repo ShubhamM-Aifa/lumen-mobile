@@ -268,7 +268,7 @@ function getIconConfig(type: AlertIconType, palette: any) {
       return {
         bg: 'rgba(255, 107, 53, 0.12)',
         border: 'rgba(255, 107, 53, 0.28)',
-        element: <HelpCircle size={26} color={palette.primary} strokeWidth={2.2} />,
+        element: <HelpCircle size={26} color={palette.primaryText} strokeWidth={2.2} />,
       };
     case 'info':
     default:

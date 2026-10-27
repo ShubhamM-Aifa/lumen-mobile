@@ -164,7 +164,7 @@ export default function CategoriesScreen() {
         keyExtractor={c => c._id}
         contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
         ListHeaderComponent={
-          isLoading ? <ActivityIndicator color={palette.primary} style={{ marginBottom: 16 }} /> : null
+          isLoading ? <ActivityIndicator color={palette.primaryText} style={{ marginBottom: 16 }} /> : null
         }
         ListFooterComponent={
           archived.length > 0 ? (
@@ -225,8 +225,7 @@ const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
   list: { padding: 16, paddingBottom: 100, gap: 8 },
   row: {
-    backgroundColor: palette.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 22,
     overflow: 'hidden',
   },
   rowMain: {
@@ -249,7 +248,7 @@ const useStyles = createThemedStyles(palette => ({
     borderRightWidth: 1, borderRightColor: palette.border,
   },
   arrowBtnDisabled: { opacity: 0.3 },
-  arrow: { ...typography.bodyBold, color: palette.primary },
+  arrow: { ...typography.bodyBold, color: palette.primaryText },
   archiveBtn: { paddingVertical: 8, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   archiveBtnText: { ...typography.h4, color: palette.textSecondary },
   archivedSection: { marginTop: 24, gap: 8 },
@@ -260,8 +259,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   archivedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: palette.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 22,
     paddingHorizontal: 12, paddingVertical: 10,
   },
   archivedRowMain: {
@@ -279,7 +277,7 @@ const useStyles = createThemedStyles(palette => ({
     backgroundColor: palette.secondary + '18', borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: palette.secondary + '50',
   },
-  restoreBtnText: { ...typography.smallBold, color: palette.secondary },
+  restoreBtnText: { ...typography.smallBold, color: palette.secondaryText },
   deleteIconBtn: {
     backgroundColor: palette.error + '14', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: palette.error + '40',

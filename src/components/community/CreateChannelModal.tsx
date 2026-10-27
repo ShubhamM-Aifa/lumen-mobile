@@ -58,7 +58,7 @@ export const CreateChannelModal: React.FC<Props> = ({
         category,
         type,
         icon: type === 'forum' ? '🏷️' : '💬',
-        color: palette.primary,
+        color: palette.primaryText,
         order: 0,
       });
 
@@ -81,7 +81,7 @@ export const CreateChannelModal: React.FC<Props> = ({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
             <View style={styles.headerLeft}>
-              <Plus size={18} color={palette.primary} style={{ marginRight: 6 }} />
+              <Plus size={18} color={palette.primaryText} style={{ marginRight: 6 }} />
               <Text style={[styles.headerTitle, { color: palette.text }]}>Create Channel</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>

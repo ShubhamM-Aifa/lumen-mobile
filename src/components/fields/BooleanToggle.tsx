@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, Switch } from 'react-native';
+import { View, Text } from 'react-native';
 import { FieldDefinition } from '@lumen/shared';
+import { AppleSwitch } from '../common/AppleSwitch';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
@@ -19,13 +20,11 @@ export function BooleanToggle({ field, value, onChange }: Props) {
         <Text style={styles.label}>{field.label}</Text>
         {field.helpText ? <Text style={styles.hint}>{field.helpText}</Text> : null}
       </View>
-      <Switch
+      <AppleSwitch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: palette.border, true: palette.primary + '88' }}
-        thumbColor={value ? palette.primary : palette.textDisabled}
+        activeColor={palette.primary || '#34C759'}
         accessibilityLabel={field.label}
-        accessibilityRole="switch"
       />
     </View>
   );

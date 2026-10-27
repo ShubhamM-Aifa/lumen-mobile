@@ -4,8 +4,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal,
-  Pressable, Switch, KeyboardAvoidingView, Platform,
+  Pressable, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
@@ -122,7 +123,12 @@ export default function MedicationsScreen() {
                 <TextInput style={styles.input} value={editing.schedule ?? ''} onChangeText={v => setEditing(e => ({ ...e!, schedule: v }))} placeholder="e.g. Once daily with food" placeholderTextColor={palette.textDisabled} />
                 <View style={styles.toggleRow}>
                   <Text style={styles.fieldLabel}>Active</Text>
-                  <Switch value={editing.active ?? true} onValueChange={v => setEditing(e => ({ ...e!, active: v }))} trackColor={{ false: palette.border, true: palette.primary + '88' }} thumbColor={editing.active ? palette.primary : palette.textDisabled} />
+                  <AppleSwitch
+                    value={editing.active ?? true}
+                    onValueChange={v => setEditing(e => ({ ...e!, active: v }))}
+                    activeColor={palette.primary || '#34C759'}
+                    accessibilityLabel="Active medication"
+                  />
                 </View>
                 {editing._id && (
                   <TouchableOpacity style={styles.deleteRow} onPress={() => { setEditing(null); deleteMed(editing as IMedication); }}>
@@ -162,12 +168,12 @@ const useStyles = createThemedStyles(palette => ({
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.border },
   sheetTitle: { ...typography.bodyBold, color: palette.text },
   cancel: { ...typography.body, color: palette.textSecondary },
-  done: { ...typography.bodyBold, color: palette.primary },
+  done: { ...typography.bodyBold, color: palette.primaryText },
   dim: { opacity: 0.4 },
   sheetBody: { padding: 20, gap: 6, paddingBottom: 40 },
   fieldLabel: { ...typography.label, color: palette.textSecondary, marginTop: 10 },
   input: { backgroundColor: palette.surfaceAlt, borderRadius: 10, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: palette.text },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   deleteRow: { marginTop: 24, borderRadius: 12, borderWidth: 1, borderColor: palette.error + '55', padding: 12, alignItems: 'center' },
-  deleteText: { ...typography.bodyBold, color: palette.error },
+  deleteText: { ...typography.bodyBold, color: palette.errorText },
 }));

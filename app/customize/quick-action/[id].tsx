@@ -253,7 +253,7 @@ export default function QuickActionEditorScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Unlink option"
               >
-                <Unlink size={13} color={palette.error} />
+                <Unlink size={13} color={palette.errorText} />
                 <Text style={styles.unlinkBtnText}>Unlink</Text>
               </TouchableOpacity>
             )}
@@ -351,11 +351,11 @@ export default function QuickActionEditorScreen() {
                         }
                       }}
                     >
-                      <Text style={[styles.questionCardTitle, linkedQuestionId === q._id && { color: palette.primary, fontWeight: '700' }]}>
+                      <Text style={[styles.questionCardTitle, linkedQuestionId === q._id && { color: palette.primaryText, fontWeight: '700' }]}>
                         {q.icon ? `${q.icon} ` : ''}{q.title}
                       </Text>
                       {linkedQuestionId === q._id && (
-                        <Check size={16} color={palette.primary} strokeWidth={2.6} />
+                        <Check size={16} color={palette.primaryText} strokeWidth={2.6} />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -482,7 +482,7 @@ const useStyles = createThemedStyles((palette) => ({
     padding: 14,
     marginBottom: 10,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warning, lineHeight: 18 },
+  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
   previewArea: { alignItems: 'center', paddingVertical: 20 },
   previewBtn: {
     alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -493,15 +493,14 @@ const useStyles = createThemedStyles((palette) => ({
   previewLabel: { ...typography.bodyBold, maxWidth: 120 },
   sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 16, marginBottom: 4 },
   input: {
-    backgroundColor: palette.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 22,
     paddingHorizontal: 16, paddingVertical: 13,
     ...typography.body, color: palette.text,
   },
   modeList: { gap: 8 },
   modeCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: palette.surface, borderRadius: 14,
+    backgroundColor: palette.surface, borderRadius: 26,
     borderWidth: 1.5, borderColor: palette.border, padding: 14,
   },
   modeIcon: { fontSize: 22, width: 28, textAlign: 'center' },
@@ -510,15 +509,13 @@ const useStyles = createThemedStyles((palette) => ({
   modeDesc: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
   radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   radioInner: { width: 12, height: 12, borderRadius: 6 },
-  saveBtn: { ...typography.bodyBold, color: palette.primary, paddingHorizontal: 4 },
+  saveBtn: { ...typography.bodyBold, color: palette.primaryText, paddingHorizontal: 4 },
   saveBtnDim: { opacity: 0.4 },
 
   // Link Section Card
   linkSectionCard: {
     backgroundColor: palette.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 16,
     gap: 12,
     marginTop: 16,
@@ -566,7 +563,7 @@ const useStyles = createThemedStyles((palette) => ({
     ...typography.caption,
     fontSize: 11.5,
     fontWeight: '700',
-    color: palette.error,
+    color: palette.errorText,
   },
   linkedActiveCard: {
     borderRadius: 14,
@@ -585,8 +582,6 @@ const useStyles = createThemedStyles((palette) => ({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   linkedPillText: {
     ...typography.caption,
@@ -719,17 +714,17 @@ const useStyles = createThemedStyles((palette) => ({
     borderWidth: 1, borderColor: palette.secondary + '60',
     paddingVertical: 14, alignItems: 'center',
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondary },
+  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
   archiveBtn: {
     backgroundColor: palette.warning + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.warning + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warning },
+  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
   deleteBtn: {
     backgroundColor: palette.error + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.error + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  deleteBtnText: { ...typography.bodyBold, color: palette.error },
+  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
 }));

@@ -155,7 +155,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   tabActive: { backgroundColor: palette.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   tabText: { ...typography.smallBold, color: palette.textSecondary },
-  tabTextActive: { color: palette.primary },
+  tabTextActive: { color: palette.primaryText },
   manualRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,7 +168,7 @@ const useStyles = createThemedStyles((palette) => ({
   unitLabel: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
   colon: { ...typography.h2, color: palette.textDisabled, marginBottom: 16 },
   arrowBtn: { padding: 8, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  arrow: { ...typography.bodyBold, color: palette.primary },
+  arrow: { ...typography.bodyBold, color: palette.primaryText },
   disabled: { color: palette.border },
   timerSection: { alignItems: 'center', gap: 16, paddingVertical: 8 },
   timerDisplay: { ...typography.h1, fontSize: 40, color: palette.text, fontVariant: ['tabular-nums'] },

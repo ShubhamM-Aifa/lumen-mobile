@@ -106,5 +106,5 @@ const useStyles = createThemedStyles((palette) => ({
     borderBottomWidth: 1, borderBottomColor: palette.border,
   },
   iosTitle: { ...typography.h4, color: palette.text },
-  iosDone: { ...typography.bodyBold, color: palette.primary },
+  iosDone: { ...typography.bodyBold, color: palette.primaryText },
 }));

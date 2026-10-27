@@ -54,7 +54,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
             <View style={styles.headerLeft}>
-              <Users size={18} color={palette.primary} style={{ marginRight: 6 }} />
+              <Users size={18} color={palette.primaryText} style={{ marginRight: 6 }} />
               <Text style={[styles.headerTitle, { color: palette.text }]}>Invite Friends</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -78,7 +78,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
             <View style={[styles.codeBox, { backgroundColor: palette.background, borderColor: palette.border }]}>
               <Text style={[styles.codeLabel, { color: palette.textSecondary }]}>SERVER INVITE CODE</Text>
               <View style={styles.codeRow}>
-                <KeyRound size={20} color={palette.primary} />
+                <KeyRound size={20} color={palette.primaryText} />
                 <Text style={[styles.codeText, { color: palette.text }]}>{code}</Text>
               </View>
               <Text style={[styles.codeHint, { color: palette.textDisabled }]}>
@@ -99,21 +99,21 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
             </View>
 
             {/* Step-by-Step Instructions */}
-            <View style={[styles.instructionsCard, { backgroundColor: 'rgba(255, 255, 255, 0.04)' }]}>
+            <View style={[styles.instructionsCard, { backgroundColor: 'rgba(128, 128, 128, 0.12)' }]}>
               <Text style={[styles.instructionsTitle, { color: palette.text }]}>How Your Friends Can Join:</Text>
               
               <View style={styles.stepRow}>
                 <View style={[styles.stepNum, { backgroundColor: `${palette.primary}33` }]}>
-                  <Text style={[styles.stepNumText, { color: palette.primary }]}>1</Text>
+                  <Text style={[styles.stepNumText, { color: palette.primaryText }]}>1</Text>
                 </View>
                 <Text style={[styles.stepText, { color: palette.textSecondary }]}>
-                  Send them this 6-character code: <Text style={{ color: palette.primary, fontWeight: '700' }}>{code}</Text>
+                  Send them this 6-character code: <Text style={{ color: palette.primaryText, fontWeight: '700' }}>{code}</Text>
                 </Text>
               </View>
 
               <View style={styles.stepRow}>
                 <View style={[styles.stepNum, { backgroundColor: `${palette.primary}33` }]}>
-                  <Text style={[styles.stepNumText, { color: palette.primary }]}>2</Text>
+                  <Text style={[styles.stepNumText, { color: palette.primaryText }]}>2</Text>
                 </View>
                 <Text style={[styles.stepText, { color: palette.textSecondary }]}>
                   They open Lumen, go to <Text style={{ color: palette.text, fontWeight: '600' }}>Community</Text>, and tap the <Text style={{ color: palette.text, fontWeight: '600' }}>'+'</Text> button.
@@ -122,7 +122,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
 
               <View style={styles.stepRow}>
                 <View style={[styles.stepNum, { backgroundColor: `${palette.primary}33` }]}>
-                  <Text style={[styles.stepNumText, { color: palette.primary }]}>3</Text>
+                  <Text style={[styles.stepNumText, { color: palette.primaryText }]}>3</Text>
                 </View>
                 <Text style={[styles.stepText, { color: palette.textSecondary }]}>
                   They paste the code and tap <Text style={{ color: palette.text, fontWeight: '600' }}>Join</Text> to enter!

@@ -67,9 +67,9 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
   };
 
   const energyColors = {
-    gentle: { label: '🟢 Gentle Pacing', color: '#22C55E' },
-    moderate: { label: '🟡 Moderate', color: '#EAB308' },
-    demanding: { label: '🔴 High Energy', color: '#EF4444' },
+    gentle: { label: '🟢 Gentle Pacing', color: palette.successText },
+    moderate: { label: '🟡 Moderate', color: palette.warningText },
+    demanding: { label: '🔴 High Energy', color: palette.errorText },
   };
 
   const energyInfo = embed.energyCost ? energyColors[embed.energyCost] : null;
@@ -141,8 +141,8 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
             onPress={handleOpenRoutine}
             activeOpacity={0.7}
           >
-            <Eye size={14} color="#10B981" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#10B981' }]}>View Routine</Text>
+            <Eye size={14} color={palette.successText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.successText }]}>View Routine</Text>
           </TouchableOpacity>
         ) : isSaved ? (
           <TouchableOpacity
@@ -153,8 +153,8 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
             onPress={handleOpenRoutine}
             activeOpacity={0.7}
           >
-            <Check size={14} color="#22C55E" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Imported • View Routine</Text>
+            <Check size={14} color={palette.successText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.successText }]}>Imported • View Routine</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -165,8 +165,8 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
             onPress={handleClone}
             activeOpacity={0.7}
           >
-            <ArrowDownToLine size={14} color="#10B981" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Import to To-Do Hub</Text>
+            <ArrowDownToLine size={14} color={palette.successText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.successText }]}>Import to To-Do Hub</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
   energyText: {
     fontSize: 11,

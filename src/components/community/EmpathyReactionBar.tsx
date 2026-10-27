@@ -44,7 +44,7 @@ export const EmpathyReactionBar: React.FC<EmpathyReactionBarProps> = ({
               styles.reactionPill,
               hasReacted
                 ? { backgroundColor: 'rgba(56, 189, 248, 0.2)', borderColor: '#38BDF8' }
-                : { backgroundColor: 'rgba(255, 255, 255, 0.04)', borderColor: 'rgba(255, 255, 255, 0.08)' },
+                : { backgroundColor: 'rgba(128, 128, 128, 0.12)', borderColor: 'rgba(128, 128, 128, 0.18)' },
             ]}
             onPress={() => handleReact(emoji)}
             activeOpacity={0.7}

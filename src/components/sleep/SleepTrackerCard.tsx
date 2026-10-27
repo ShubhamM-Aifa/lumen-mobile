@@ -37,6 +37,7 @@ import {
   SleepRecord,
   SleepQuality,
 } from '../../store/sleepTrackerStore';
+import { formatGoalHours, goalRangeLabel } from '../../store/sleepTrackerStore';
 import { useDaySessionStore } from '../../store/daySessionStore';
 import { PressableScale } from '../common/PressableScale';
 import { SleepQualityModal } from './SleepQualityModal';
@@ -225,14 +226,14 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                 end={{ x: 1, y: 0.5 }}
                 style={[styles.progressBarFill, { width: `${Math.max(5, progressPct)}%` }]}
               />
-              {/* 7-hour Milestone marker (87.5% of 8h) */}
-              <View style={[styles.targetMarkerTick, { left: '87.5%' }]} />
+              {/* On-target marker */}
+              <View style={[styles.targetMarkerTick, { left: `${Math.round((minRecoveryMinutes / targetGoalMinutes) * 1000) / 10}%` }]} />
             </View>
 
             <View style={styles.progressLabelsRow}>
               <Text style={styles.progressMetaText}>{progressPct}% achieved</Text>
               <Text style={[styles.progressMetaText, isBaselineMet && { color: '#34D399', fontWeight: '700' }]}>
-                {isBaselineMet ? '✓ 7h Threshold Reached' : '7h Autoimmune Goal'}
+                {isBaselineMet ? `✓ ${formatGoalHours(minRecoveryMinutes)}h Threshold Reached` : `${formatGoalHours(minRecoveryMinutes)}h Autoimmune Goal`}
               </Text>
             </View>
           </View>
@@ -250,14 +251,14 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
               <>
                 <ShieldCheck size={14} color="#34D399" style={{ marginRight: 6 }} />
                 <Text style={styles.insightTextDark}>
-                  Autoimmune recovery threshold met (7h+). Feel free to wake up refreshed!
+                  Autoimmune recovery threshold met ({formatGoalHours(minRecoveryMinutes)}h+). Feel free to wake up refreshed!
                 </Text>
               </>
             ) : (
               <>
                 <Clock size={14} color="#A5B4FC" style={{ marginRight: 6 }} />
                 <Text style={styles.insightTextDark}>
-                  Deep cellular repair active. Aiming for 7–8 hours to prevent flares.
+                  Deep cellular repair active. Aiming for {goalRangeLabel(targetGoalMinutes)} hours to prevent flares.
                 </Text>
               </>
             )}
@@ -321,11 +322,7 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
     <View
       style={[
         styles.cardContainer,
-        {
-          backgroundColor: palette.surface,
-          borderColor: isGoalMet ? '#10B98133' : palette.border,
-          borderWidth: 1,
-        },
+        { backgroundColor: palette.surface },
         style,
       ]}
     >
@@ -340,9 +337,9 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
               ]}
             >
               {isGoalMet ? (
-                <ShieldCheck size={20} color="#10B981" />
+                <ShieldCheck size={20} color={palette.successText} />
               ) : (
-                <Sunrise size={20} color="#EA580C" />
+                <Sunrise size={20} color={palette.warningText} />
               )}
             </View>
             <View>
@@ -350,7 +347,7 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                 {hasCompletedRecord ? "Last Night's Sleep" : "Sleep & Day Session"}
               </Text>
               <Text style={[styles.cardSubtitleText, { color: palette.textSecondary }]}>
-                Autoimmune Recovery (7–8h Target)
+                Autoimmune Recovery ({goalRangeLabel(targetGoalMinutes)}h Target)
               </Text>
             </View>
           </View>
@@ -359,19 +356,16 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
             <View
               style={[
                 styles.statusChip,
-                {
-                  backgroundColor: isGoalMet ? '#10B98118' : '#F59E0B18',
-                  borderColor: isGoalMet ? '#10B98140' : '#F59E0B40',
-                },
+                { backgroundColor: isGoalMet ? palette.success + '26' : palette.warning + '26' },
               ]}
             >
               <Text
                 style={[
                   styles.statusChipText,
-                  { color: isGoalMet ? '#10B981' : '#F59E0B' },
+                  { color: isGoalMet ? palette.successText : palette.warningText },
                 ]}
               >
-                {isGoalMet ? '7–8h Goal Met' : 'Under 7h Goal'}
+                {isGoalMet ? `${goalRangeLabel(targetGoalMinutes)}h Goal Met` : `Under ${formatGoalHours(minRecoveryMinutes)}h Goal`}
               </Text>
             </View>
           )}
@@ -394,7 +388,6 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                 const qConf = QUALITY_CONFIG[sleepRecord.quality];
                 if (!qConf) return null;
                 const pillBg = isDark ? qConf.darkBg : qConf.lightBg;
-                const pillBorder = isDark ? qConf.darkBorder : qConf.lightBorder;
                 const pillTextColor = isDark ? qConf.darkText : qConf.lightText;
                 return (
                   <TouchableOpacity
@@ -405,10 +398,7 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                     activeOpacity={0.8}
                     style={[
                       styles.qualityPill,
-                      {
-                        backgroundColor: pillBg,
-                        borderColor: pillBorder,
-                      },
+                      { backgroundColor: pillBg },
                     ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Sleep quality: ${qConf.label}. Tap to adjust.`}
@@ -431,12 +421,12 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                   end={{ x: 1, y: 0.5 }}
                   style={[styles.progressBarFill, { width: `${Math.max(5, progressPct)}%` }]}
                 />
-                {/* 7-hour Milestone tick (87.5% of 8h) */}
+                {/* On-target tick */}
                 <View
                   style={[
                     styles.targetMarkerTickLight,
                     {
-                      left: '87.5%',
+                      left: `${Math.round((minRecoveryMinutes / targetGoalMinutes) * 1000) / 10}%`,
                       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.25)',
                     },
                   ]}
@@ -454,8 +444,8 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
                   }}
                   style={styles.adjustTimesBtn}
                 >
-                  <Sliders size={12} color={palette.primary} style={{ marginRight: 4 }} />
-                  <Text style={[styles.adjustTimesText, { color: palette.primary }]}>Adjust</Text>
+                  <Sliders size={12} color={palette.primaryText} style={{ marginRight: 4 }} />
+                  <Text style={[styles.adjustTimesText, { color: palette.primaryText }]}>Adjust</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -464,34 +454,25 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
             <View
               style={[
                 styles.insightBoxLight,
-                {
-                  backgroundColor: isGoalMet
-                    ? (isDark ? '#10B98118' : '#10B9810F')
-                    : (isDark ? '#F59E0B18' : '#F59E0B0F'),
-                  borderColor: isGoalMet
-                    ? (isDark ? '#10B98140' : '#10B98126')
-                    : (isDark ? '#F59E0B40' : '#F59E0B26'),
-                },
+                { backgroundColor: isGoalMet ? palette.success + '1F' : palette.warning + '1F' },
               ]}
             >
               {isGoalMet ? (
-                <ShieldCheck size={15} color={isDark ? '#34D399' : '#10B981'} style={{ marginRight: 7 }} />
+                <ShieldCheck size={15} color={palette.successText} style={{ marginRight: 7 }} />
               ) : (
-                <AlertTriangle size={15} color={isDark ? '#FBBF24' : '#F59E0B'} style={{ marginRight: 7 }} />
+                <AlertTriangle size={15} color={palette.warningText} style={{ marginRight: 7 }} />
               )}
               <Text
                 style={[
                   styles.insightTextLight,
                   {
-                    color: isGoalMet
-                      ? (isDark ? '#6EE7B7' : '#065F46')
-                      : (isDark ? '#FCD34D' : '#92400E'),
+                    color: isGoalMet ? palette.successText : palette.warningText,
                   },
                 ]}
               >
                 {isGoalMet
-                  ? '7–8 hours of restorative sleep lowers pro-inflammatory cytokines, protecting against autoimmune flares today.'
-                  : 'Under 7 hours increases systemic inflammation. Take rest breaks and stay hydrated today to prevent a flare.'}
+                  ? `${goalRangeLabel(targetGoalMinutes)} hours of restorative sleep lowers pro-inflammatory cytokines, protecting against autoimmune flares today.`
+                  : `Under ${formatGoalHours(minRecoveryMinutes)} hours increases systemic inflammation. Take rest breaks and stay hydrated today to prevent a flare.`}
               </Text>
             </View>
           </>
@@ -499,7 +480,7 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
           /* Empty / First-time state */
           <View style={styles.emptyStateWrap}>
             <Text style={[styles.emptyPromptText, { color: palette.textSecondary }]}>
-              Tracking 7–8 hours of restorative sleep is compulsory for managing autoimmune inflammation.
+              Tracking {goalRangeLabel(targetGoalMinutes)} hours of restorative sleep is compulsory for managing autoimmune inflammation.
             </Text>
             <TouchableOpacity
               onPress={() => {
@@ -508,7 +489,7 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
               }}
               style={styles.manualLogLink}
             >
-              <Text style={[styles.manualLogLinkText, { color: palette.primary }]}>
+              <Text style={[styles.manualLogLinkText, { color: palette.primaryText }]}>
                 + Log last night's sleep manually
               </Text>
             </TouchableOpacity>
@@ -518,17 +499,17 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
         {/* Daytime Actions: Morning check-in & Going to bed */}
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.checkinLinkBtn, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}
+            style={[styles.checkinLinkBtn, { backgroundColor: palette.surfaceAlt }]}
             onPress={() => router.push('/check-in?type=morning')}
             accessibilityRole="button"
             accessibilityLabel="Open Morning Check-in"
           >
-            <Sunrise size={16} color={palette.primary} style={{ marginRight: 6 }} />
-            <Text style={[styles.checkinLinkText, { color: palette.primary }]}>Morning Check-in</Text>
+            <Sunrise size={16} color={palette.primaryText} style={{ marginRight: 6 }} />
+            <Text style={[styles.checkinLinkText, { color: palette.primaryText }]}>Morning Check-in</Text>
           </TouchableOpacity>
 
           <PressableScale
-            style={[styles.goToBedBtnHalf, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}
+            style={[styles.goToBedBtnHalf, { backgroundColor: palette.surfaceAlt }]}
             onPress={handleStartSleep}
             haptic="medium"
             activeScale={0.97}
@@ -564,14 +545,8 @@ export function SleepTrackerCard({ style }: SleepTrackerCardProps) {
 
 const styles = StyleSheet.create({
   cardContainer: {
-    borderRadius: 22,
+    borderRadius: 26,
     overflow: 'hidden',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
     position: 'relative',
   },
   cardContent: {
@@ -666,7 +641,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   progressMetaTextLight: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '500',
   },
   insightBoxDark: {
@@ -750,18 +725,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   cardSubtitleText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '500',
     marginTop: 1,
   },
   statusChip: {
-    borderWidth: 1,
     borderRadius: 20,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   statusChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   statsRow: {
@@ -777,17 +751,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   statSub: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
     marginTop: 2,
   },
   qualityPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    minHeight: 36,
+    borderRadius: 18,
     gap: 6,
   },
   qualityEmoji: {
@@ -801,26 +774,27 @@ const styles = StyleSheet.create({
   adjustTimesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 44,
+    paddingHorizontal: 4,
   },
   adjustTimesText: {
-    fontSize: 11.5,
+    fontSize: 13,
     fontWeight: '700',
   },
   insightBoxLight: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     marginTop: 6,
     marginBottom: 12,
   },
   insightTextLight: {
-    fontSize: 11.5,
+    fontSize: 13,
     fontWeight: '500',
     flex: 1,
-    lineHeight: 16,
+    lineHeight: 18,
   },
   emptyStateWrap: {
     paddingVertical: 10,
@@ -848,9 +822,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 11,
+    borderRadius: 24,
+    minHeight: 48,
   },
   checkinLinkText: {
     fontSize: 13,
@@ -858,9 +831,8 @@ const styles = StyleSheet.create({
   },
   goToBedBtnHalf: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 11,
+    borderRadius: 24,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

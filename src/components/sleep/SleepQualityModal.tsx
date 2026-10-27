@@ -18,6 +18,7 @@ import { Moon, Sparkles, X, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { SleepRecord, SleepQuality, useSleepTrackerStore } from '../../store/sleepTrackerStore';
+import { formatGoalHours, goalRangeLabel } from '../../store/sleepTrackerStore';
 import { PressableScale } from '../common/PressableScale';
 
 interface SleepQualityModalProps {
@@ -80,6 +81,7 @@ export function SleepQualityModal({
   onOpenAdjustTimes,
 }: SleepQualityModalProps) {
   const { palette } = useTheme();
+  const qualityText: Record<string, string> = { RESTFUL: palette.successText, GOOD: palette.secondaryText, FAIR: palette.warningText, POOR: palette.errorText };
   const { minRecoveryMinutes, targetGoalMinutes } = useSleepTrackerStore();
 
   if (!visible || !sleepRecord) return null;
@@ -151,14 +153,14 @@ export function SleepQualityModal({
                   { backgroundColor: isGoalMet ? '#10B98126' : '#F59E0B26' },
                 ]}
               >
-                <ShieldCheck size={13} color={isGoalMet ? '#10B981' : '#F59E0B'} style={{ marginRight: 4 }} />
+                <ShieldCheck size={13} color={isGoalMet ? palette.successText : palette.warningText} style={{ marginRight: 4 }} />
                 <Text
                   style={[
                     styles.goalBadgeText,
-                    { color: isGoalMet ? '#10B981' : '#F59E0B' },
+                    { color: isGoalMet ? palette.successText : palette.warningText },
                   ]}
                 >
-                  {isGoalMet ? '7–8h Target Met' : 'Under 7h Minimum'}
+                  {isGoalMet ? `${goalRangeLabel(targetGoalMinutes)}h Target Met` : `Under ${formatGoalHours(minRecoveryMinutes)}h Minimum`}
                 </Text>
               </View>
             </View>
@@ -174,8 +176,8 @@ export function SleepQualityModal({
                   },
                 ]}
               />
-              {/* 7h Milestone Tick (420 / 480 = 87.5%) */}
-              <View style={[styles.targetTick, { left: '87.5%' }]} />
+              {/* On-target tick */}
+              <View style={[styles.targetTick, { left: `${Math.round((minRecoveryMinutes / targetGoalMinutes) * 1000) / 10}%` }]} />
             </View>
             <Text style={[styles.progressCaption, { color: palette.textSecondary }]}>
               {pct}% of 8-hour target achieved
@@ -216,7 +218,7 @@ export function SleepQualityModal({
                   <View style={styles.optionTitleRow}>
                     <Text style={[styles.optionLabel, { color: palette.text }]}>{opt.label}</Text>
                     <View style={[styles.flarePill, { backgroundColor: `${opt.color}1F` }]}>
-                      <Text style={[styles.flarePillText, { color: opt.color }]}>{opt.badge}</Text>
+                      <Text style={[styles.flarePillText, { color: qualityText[opt.key] }]}>{opt.badge}</Text>
                     </View>
                   </View>
                   <Text style={[styles.optionDesc, { color: palette.textSecondary }]}>
@@ -236,7 +238,7 @@ export function SleepQualityModal({
               }}
               style={styles.adjustLink}
             >
-              <Text style={[styles.adjustLinkText, { color: palette.primary }]}>
+              <Text style={[styles.adjustLinkText, { color: palette.primaryText }]}>
                 Need to adjust bedtime or wake-up time?
               </Text>
             </TouchableOpacity>

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -32,7 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useTaskStore, TaskFilterType } from '../../src/store/taskStore';
 import { useAuthStore } from '../../src/store/authStore';
-import { useTheme } from '../../src/theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { TaskItem } from '../../src/components/todo/TaskItem';
 import { TaskDetailSheet } from '../../src/components/todo/TaskDetailSheet';
@@ -40,10 +39,14 @@ import { SuggestionsModal } from '../../src/components/todo/SuggestionsModal';
 import { ITask, TaskEnergyCost } from '../../src/shared/types';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { useKeyboard } from '../../src/hooks/useKeyboard';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { FilterChip } from '../../src/components/ios/FilterChip';
 
 export default function TodoHubScreen() {
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
+  const styles = useStyles();
   const { user } = useAuthStore();
   const { listId } = useLocalSearchParams<{ listId?: string }>();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
@@ -218,251 +221,165 @@ export default function TodoHubScreen() {
     }
   }, [activeFilter, lists]);
 
-  const ActiveIcon = filterMeta.icon;
+  const smartChips: Array<{ key: string; label: string; icon: typeof Sun; color: string }> = [
+    { key: 'my-day', label: 'My Day', icon: Sun, color: palette.tint },
+    { key: 'important', label: 'Important', icon: Star, color: palette.warning },
+    { key: 'planned', label: 'Planned', icon: Calendar, color: palette.success },
+    { key: 'all', label: 'All Tasks', icon: ListTodo, color: '#5856D6' },
+    { key: 'energy-gentle', label: 'Gentle Pacing', icon: BatteryCharging, color: palette.success },
+    { key: 'energy-moderate', label: 'Moderate Pacing', icon: BatteryCharging, color: palette.accent },
+    { key: 'energy-demanding', label: 'High Energy', icon: BatteryCharging, color: palette.error },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2, color: '#8E8E93' },
+  ];
+
+  const renderRows = (list: ITask[]) =>
+    list.map((task, i) => (
+      <View key={task._id} style={i < list.length - 1 ? styles.separated : undefined}>
+        <TaskItem
+          task={task}
+          todayStr={todayStr}
+          onPress={() => setSelectedTask(task)}
+          onToggleComplete={() => toggleTaskCompleted(task._id)}
+          onToggleImportant={() => toggleTaskImportant(task._id)}
+        />
+      </View>
+    ));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header Bar */}
-        <View style={[styles.topBar, { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <ArrowLeft size={22} color={palette.text} />
-          </TouchableOpacity>
-
-          <View style={styles.topBarTitleArea}>
-            <Text style={[styles.screenTitle, { color: palette.text }]}>To Do</Text>
-          </View>
-
-          <View style={styles.topBarActions}>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsSearching(!isSearching);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Search tasks"
-            >
-              <Search size={20} color={isSearching ? palette.primary : palette.textSecondary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.lightbulbBtn]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSuggestionsOpen(true);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Intelligent suggestions"
-            >
-              <Lightbulb size={20} color="#FBBF24" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Search Bar (Collapsible) */}
-        {isSearching && (
-          <View style={[styles.searchBar, { backgroundColor: palette.surface }]}>
-            <Search size={16} color={palette.textSecondary} />
-            <TextInput
-              style={[styles.searchInput, { color: palette.text }]}
-              placeholder="Search all tasks and notes..."
-              placeholderTextColor={palette.textDisabled}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <X size={16} color={palette.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Smart Lists Carousel Selector */}
-        <View style={styles.filterCarouselWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterCarousel}
-          >
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'my-day' && { backgroundColor: 'rgba(56, 189, 248, 0.2)', borderColor: '#38BDF8' },
-              ]}
-              onPress={() => setActiveFilter('my-day')}
-            >
-              <Sun size={14} color="#38BDF8" />
-              <Text style={[styles.filterChipText, activeFilter === 'my-day' && { color: '#38BDF8', fontWeight: '700' }]}>
-                My Day
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'important' && { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderColor: '#F59E0B' },
-              ]}
-              onPress={() => setActiveFilter('important')}
-            >
-              <Star size={14} color="#F59E0B" fill={activeFilter === 'important' ? '#F59E0B' : 'transparent'} />
-              <Text style={[styles.filterChipText, activeFilter === 'important' && { color: '#F59E0B', fontWeight: '700' }]}>
-                Important
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'planned' && { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10B981' },
-              ]}
-              onPress={() => setActiveFilter('planned')}
-            >
-              <Calendar size={14} color="#10B981" />
-              <Text style={[styles.filterChipText, activeFilter === 'planned' && { color: '#10B981', fontWeight: '700' }]}>
-                Planned
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'all' && { backgroundColor: 'rgba(129, 140, 248, 0.2)', borderColor: '#818CF8' },
-              ]}
-              onPress={() => setActiveFilter('all')}
-            >
-              <ListTodo size={14} color="#818CF8" />
-              <Text style={[styles.filterChipText, activeFilter === 'all' && { color: '#818CF8', fontWeight: '700' }]}>
-                All Tasks
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'energy-gentle' && { backgroundColor: 'rgba(34, 197, 94, 0.2)', borderColor: '#22C55E' },
-              ]}
-              onPress={() => setActiveFilter('energy-gentle')}
-            >
-              <Text style={{ fontSize: 12 }}>🟢</Text>
-              <Text style={[styles.filterChipText, activeFilter === 'energy-gentle' && { color: '#22C55E', fontWeight: '700' }]}>
-                Gentle
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                activeFilter === 'completed' && { backgroundColor: 'rgba(148, 163, 184, 0.2)', borderColor: '#94A3B8' },
-              ]}
-              onPress={() => setActiveFilter('completed')}
-            >
-              <CheckCircle2 size={14} color="#94A3B8" />
-              <Text style={[styles.filterChipText, activeFilter === 'completed' && { color: '#94A3B8', fontWeight: '700' }]}>
-                Completed
-              </Text>
-            </TouchableOpacity>
-
-            {/* Custom Lists */}
-            {lists.map((l) => (
-              <TouchableOpacity
-                key={l._id}
-                style={[
-                  styles.filterChip,
-                  activeFilter === l._id && { backgroundColor: `${l.color}33`, borderColor: l.color },
-                ]}
-                onPress={() => setActiveFilter(l._id)}
-              >
-                <Text style={{ fontSize: 13 }}>{l.icon || '📋'}</Text>
-                <Text style={[styles.filterChipText, activeFilter === l._id && { color: l.color, fontWeight: '700' }]}>
-                  {l.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={[styles.filterChip, styles.addListChip]}
-              onPress={() => setIsCreatingList(true)}
-            >
-              <Plus size={13} color={palette.textSecondary} />
-              <Text style={[styles.filterChipText, { color: palette.textSecondary }]}>New List</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
-        {/* Modal / Prompt for Creating Custom List */}
-        {isCreatingList && (
-          <View style={[styles.createListBanner, { backgroundColor: palette.surface }]}>
-            <TextInput
-              style={[styles.createListInput, { color: palette.text }]}
-              placeholder="List name (e.g. Physical Therapy, Work)..."
-              placeholderTextColor={palette.textDisabled}
-              value={newListName}
-              onChangeText={setNewListName}
-              autoFocus
-            />
-            <TouchableOpacity style={styles.createListConfirm} onPress={handleCreateList}>
-              <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.createListCancel} onPress={() => setIsCreatingList(false)}>
-              <X size={16} color={palette.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Active List Banner */}
-        <View style={styles.listBanner}>
-          <View style={[styles.listBannerIcon, { backgroundColor: `${filterMeta.color}22` }]}>
-            <ActiveIcon size={20} color={filterMeta.color} />
-          </View>
-          <View style={styles.listBannerText}>
-            <Text style={[styles.listBannerTitle, { color: palette.text }]}>{filterMeta.title}</Text>
-            <Text style={[styles.listBannerSub, { color: palette.textSecondary }]}>
-              {uncompletedTasks.length} active • {filterMeta.sub}
-            </Text>
-          </View>
-        </View>
-
-        {/* Tasks List */}
         <ScrollView
           style={styles.taskList}
+          contentContainerStyle={styles.taskListContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
+          <LargeTitleHeader
+            title={filterMeta.title}
+            titleColor={palette.primaryText}
+            subtitle={`${uncompletedTasks.length} active · ${filterMeta.sub}`}
+            leading={
+              <GlassCircleButton accessibilityLabel="Go back" onPress={() => router.back()}>
+                <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
+              </GlassCircleButton>
+            }
+            actions={
+              <>
+                <GlassCircleButton
+                  accessibilityLabel="Search tasks"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setIsSearching(!isSearching);
+                  }}
+                >
+                  <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
+                </GlassCircleButton>
+                <GlassCircleButton
+                  accessibilityLabel="Intelligent suggestions"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSuggestionsOpen(true);
+                  }}
+                >
+                  <Lightbulb size={20} color={palette.text} strokeWidth={2.2} />
+                </GlassCircleButton>
+              </>
+            }
+          />
+
+          {isSearching && (
+            <View style={styles.searchBar}>
+              <Search size={16} color={palette.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search all tasks and notes..."
+                placeholderTextColor={palette.placeholder}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                accessibilityLabel="Search tasks"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <X size={16} color={palette.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Smart lists and custom lists */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterCarousel}
+            keyboardShouldPersistTaps="handled"
+          >
+            {smartChips.map(c => {
+              const Icon = c.icon;
+              return (
+                <FilterChip
+                  key={c.key}
+                  label={c.label}
+                  selected={activeFilter === c.key}
+                  onPress={() => setActiveFilter(c.key)}
+                  icon={<Icon size={16} color={activeFilter === c.key ? palette.background : c.color} strokeWidth={2.2} />}
+                />
+              );
+            })}
+            {lists.map((l) => (
+              <FilterChip
+                key={l._id}
+                label={l.name}
+                selected={activeFilter === l._id}
+                onPress={() => setActiveFilter(l._id)}
+                icon={<Text style={styles.chipEmoji}>{l.icon || '📋'}</Text>}
+              />
+            ))}
+            <FilterChip
+              label="New List"
+              onPress={() => setIsCreatingList(true)}
+              icon={<Plus size={16} color={palette.textSecondary} strokeWidth={2.4} />}
+            />
+          </ScrollView>
+
+          {isCreatingList && (
+            <View style={styles.createListBanner}>
+              <TextInput
+                style={styles.createListInput}
+                placeholder="List name (e.g. Physical Therapy, Work)..."
+                placeholderTextColor={palette.placeholder}
+                value={newListName}
+                onChangeText={setNewListName}
+                autoFocus
+                accessibilityLabel="New list name"
+              />
+              <TouchableOpacity style={styles.createListConfirm} onPress={handleCreateList} accessibilityRole="button" accessibilityLabel="Create list">
+                <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.createListCancel} onPress={() => setIsCreatingList(false)} accessibilityRole="button" accessibilityLabel="Cancel new list">
+                <X size={18} color={palette.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {uncompletedTasks.length === 0 && completedTasks.length === 0 ? (
             <View style={styles.emptyTasksBox}>
-              <Text style={{ fontSize: 36 }}>📋</Text>
-              <Text style={[styles.emptyTasksTitle, { color: palette.text }]}>No tasks here yet</Text>
-              <Text style={[styles.emptyTasksSub, { color: palette.textSecondary }]}>
+              <Text style={styles.emptyEmoji}>📋</Text>
+              <Text style={styles.emptyTasksTitle}>No tasks here yet</Text>
+              <Text style={styles.emptyTasksSub}>
                 Add a task below or check Suggestions to plan your day.
               </Text>
             </View>
           ) : (
             <>
-              {/* Uncompleted Tasks */}
-              {uncompletedTasks.map((task) => (
-                <TaskItem
-                  key={task._id}
-                  task={task}
-                  todayStr={todayStr}
-                  onPress={() => setSelectedTask(task)}
-                  onToggleComplete={() => toggleTaskCompleted(task._id)}
-                  onToggleImportant={() => toggleTaskImportant(task._id)}
-                />
-              ))}
+              {uncompletedTasks.length > 0 && (
+                <View style={styles.card}>{renderRows(uncompletedTasks)}</View>
+              )}
 
-              {/* Completed Tasks Accordion */}
               {completedTasks.length > 0 && activeFilter !== 'completed' && (
                 <View style={styles.completedSection}>
                   <TouchableOpacity
@@ -471,101 +388,98 @@ export default function TodoHubScreen() {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setCompletedExpanded(!completedExpanded);
                     }}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: completedExpanded }}
                   >
                     {completedExpanded ? (
                       <ChevronDown size={16} color={palette.textSecondary} />
                     ) : (
                       <ChevronRight size={16} color={palette.textSecondary} />
                     )}
-                    <Text style={[styles.completedHeaderText, { color: palette.textSecondary }]}>
-                      Completed ({completedTasks.length})
-                    </Text>
+                    <Text style={styles.completedHeaderText}>Completed ({completedTasks.length})</Text>
                   </TouchableOpacity>
 
-                  {completedExpanded &&
-                    completedTasks.map((task) => (
-                      <TaskItem
-                        key={task._id}
-                        task={task}
-                        todayStr={todayStr}
-                        onPress={() => setSelectedTask(task)}
-                        onToggleComplete={() => toggleTaskCompleted(task._id)}
-                        onToggleImportant={() => toggleTaskImportant(task._id)}
-                      />
-                    ))}
+                  {completedExpanded && <View style={styles.card}>{renderRows(completedTasks)}</View>}
                 </View>
+              )}
+
+              {activeFilter === 'completed' && completedTasks.length > 0 && uncompletedTasks.length === 0 && (
+                <View style={styles.card}>{renderRows(completedTasks)}</View>
               )}
             </>
           )}
-
-          <View style={{ height: 130 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 10) }} />
         </ScrollView>
 
-        {/* Sticky Task Creation Bar */}
+        {/* Floating task composer */}
         <View
           style={[
-            styles.stickyBottomBar,
+            styles.composer,
             {
-              backgroundColor: palette.surface,
-              borderTopColor: 'rgba(255, 255, 255, 0.08)',
-              paddingBottom: isKeyboardVisible
-                ? (Platform.OS === 'ios' ? 10 : 8)
-                : (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 10),
+              marginBottom: isKeyboardVisible
+                ? 8
+                : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)) + 6,
             },
           ]}
         >
-          {/* Quick Tag Options Row (Energy & Star) */}
           <View style={styles.quickTagsRow}>
             <TouchableOpacity
-              style={[styles.quickTagBtn, newTaskImportant && styles.quickTagBtnActiveStar]}
+              style={[styles.quickTagBtn, newTaskImportant && { backgroundColor: palette.warning + '33' }]}
               onPress={() => setNewTaskImportant(!newTaskImportant)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: newTaskImportant }}
+              accessibilityLabel="Mark new task important"
             >
               <Star
-                size={13}
-                color={newTaskImportant ? '#F59E0B' : palette.textSecondary}
-                fill={newTaskImportant ? '#F59E0B' : 'transparent'}
+                size={14}
+                color={newTaskImportant ? palette.warningText : palette.textSecondary}
+                fill={newTaskImportant ? palette.warning : 'transparent'}
               />
-              <Text style={[styles.quickTagText, { color: newTaskImportant ? '#F59E0B' : palette.textSecondary }]}>
-                Important
-              </Text>
+              <Text style={[styles.quickTagText, newTaskImportant && { color: palette.warningText }]} maxFontSizeMultiplier={1.3}>Important</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.quickTagBtn, newTaskEnergy === 'gentle' && styles.quickTagBtnActiveGentle]}
+              style={[styles.quickTagBtn, newTaskEnergy === 'gentle' && { backgroundColor: palette.success + '33' }]}
               onPress={() => setNewTaskEnergy(newTaskEnergy === 'gentle' ? undefined : 'gentle')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: newTaskEnergy === 'gentle' }}
+              accessibilityLabel="Gentle energy cost"
             >
-              <Text style={{ fontSize: 11 }}>🟢 Gentle</Text>
+              <Text style={styles.quickTagText} maxFontSizeMultiplier={1.3}>🟢 Gentle</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.quickTagBtn, newTaskEnergy === 'moderate' && styles.quickTagBtnActiveModerate]}
+              style={[styles.quickTagBtn, newTaskEnergy === 'moderate' && { backgroundColor: palette.warning + '33' }]}
               onPress={() => setNewTaskEnergy(newTaskEnergy === 'moderate' ? undefined : 'moderate')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: newTaskEnergy === 'moderate' }}
+              accessibilityLabel="Moderate energy cost"
             >
-              <Text style={{ fontSize: 11 }}>🟡 Moderate</Text>
+              <Text style={styles.quickTagText} maxFontSizeMultiplier={1.3}>🟡 Moderate</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Main Input Row */}
           <View style={styles.inputRow}>
-            <Plus size={20} color={palette.primary} />
+            <View style={styles.plusDisc}>
+              <Plus size={18} color="#FFFFFF" strokeWidth={2.6} />
+            </View>
             <TextInput
-              style={[styles.mainInput, { color: palette.text }]}
-              placeholder={`Add a task to ${filterMeta.title}...`}
-              placeholderTextColor={palette.textDisabled}
+              style={styles.mainInput}
+              placeholder={`New task in ${filterMeta.title}...`}
+              placeholderTextColor={palette.placeholder}
               value={newTaskTitle}
               onChangeText={setNewTaskTitle}
               onSubmitEditing={handleQuickAdd}
               returnKeyType="done"
+              accessibilityLabel="New task title"
             />
             {newTaskTitle.trim().length > 0 && (
-              <TouchableOpacity style={styles.submitBtn} onPress={handleQuickAdd}>
+              <TouchableOpacity style={styles.submitBtn} onPress={handleQuickAdd} accessibilityRole="button" accessibilityLabel="Add task">
                 <Check size={18} color="#FFFFFF" strokeWidth={3} />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* Detail Sheet Modal */}
         <TaskDetailSheet
           task={activeSelectedTask}
           visible={!!selectedTask}
@@ -573,7 +487,6 @@ export default function TodoHubScreen() {
           boundaryHour={boundaryHour}
         />
 
-        {/* Suggestions Modal */}
         <SuggestionsModal
           visible={suggestionsOpen}
           onClose={() => setSuggestionsOpen(false)}
@@ -584,220 +497,95 @@ export default function TodoHubScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardContainer: {
-    flex: 1,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  topBarTitleArea: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  screenTitle: {
-    ...typography.h3,
-    fontSize: 18,
-  },
-  topBarActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lightbulbBtn: {
-    backgroundColor: 'rgba(251, 191, 36, 0.12)',
-  },
+const useStyles = createThemedStyles(palette => ({
+  container: { flex: 1, backgroundColor: palette.background },
+  keyboardContainer: { flex: 1 },
+  taskList: { flex: 1 },
+  taskListContent: { gap: 16, paddingBottom: 24, paddingTop: 6 },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 22,
     gap: 8,
+    backgroundColor: palette.surface,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    padding: 0,
-  },
-  filterCarouselWrapper: {
-    paddingVertical: 10,
-  },
-  filterCarousel: {
-    paddingHorizontal: 16,
-    gap: 8,
-    flexDirection: 'row',
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  addListChip: {
-    borderStyle: 'dashed',
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
+  searchInput: { flex: 1, ...typography.bodyLarge, color: palette.text, padding: 0 },
+  filterCarousel: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
+  chipEmoji: { fontSize: 14 },
   createListBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingLeft: 16,
+    paddingRight: 8,
+    minHeight: 48,
+    borderRadius: 24,
     gap: 8,
+    backgroundColor: palette.surface,
   },
-  createListInput: {
-    flex: 1,
-    fontSize: 14,
-  },
+  createListInput: { flex: 1, ...typography.bodyLarge, color: palette.text },
   createListConfirm: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#10B981',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: palette.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  createListCancel: {
-    padding: 4,
-  },
-  listBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 6,
-    gap: 12,
-  },
-  listBannerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  listBannerText: {
-    flex: 1,
-  },
-  listBannerTitle: {
-    ...typography.h3,
-    fontSize: 20,
-  },
-  listBannerSub: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  taskList: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  emptyTasksBox: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTasksTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  emptyTasksSub: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: 30,
-  },
-  completedSection: {
-    marginTop: 16,
-  },
-  completedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    marginBottom: 6,
-  },
-  completedHeaderText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  stickyBottomBar: {
-    paddingHorizontal: 16,
+  createListCancel: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  card: { marginHorizontal: 16, backgroundColor: palette.surface, borderRadius: 26, overflow: 'hidden' },
+  separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+  emptyTasksBox: { paddingVertical: 48, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  emptyEmoji: { fontSize: 40 },
+  emptyTasksTitle: { ...typography.title2, color: palette.text, marginTop: 6 },
+  emptyTasksSub: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center', paddingHorizontal: 40 },
+  completedSection: { gap: 7 },
+  completedHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 20 },
+  completedHeaderText: { ...typography.subheadBold, color: palette.textSecondary },
+  composer: {
+    marginHorizontal: 16,
+    paddingHorizontal: 14,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'android' ? 60 : (Platform.OS === 'ios' ? 24 : 14),
-    borderTopWidth: 1,
-  },
-  quickTagsRow: {
-    flexDirection: 'row',
+    paddingBottom: 10,
+    borderRadius: 26,
     gap: 8,
-    marginBottom: 8,
+    backgroundColor: palette.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 6,
   },
+  quickTagsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   quickTagBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  quickTagBtnActiveStar: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  quickTagBtnActiveGentle: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-  },
-  quickTagBtnActiveModerate: {
-    backgroundColor: 'rgba(234, 179, 8, 0.2)',
-  },
-  quickTagText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  mainInput: {
-    flex: 1,
-    fontSize: 15,
-    padding: 0,
-  },
-  submitBtn: {
-    width: 32,
-    height: 32,
+    paddingHorizontal: 12,
+    minHeight: 32,
     borderRadius: 16,
-    backgroundColor: '#38BDF8',
+    backgroundColor: palette.surfaceAlt,
+  },
+  quickTagText: { ...typography.footnote, fontWeight: '500', color: palette.textSecondary },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  plusDisc: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+  mainInput: { flex: 1, ...typography.bodyLarge, color: palette.text, padding: 0 },
+  submitBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+}));

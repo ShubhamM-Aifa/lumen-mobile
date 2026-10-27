@@ -288,9 +288,9 @@ export function AppDateTimePicker({
             <View style={styles.headerLeft}>
               <View style={styles.headerIconCircle}>
                 {mode === 'date' ? (
-                  <CalendarIcon size={18} color={palette.primary} strokeWidth={2.4} />
+                  <CalendarIcon size={18} color={palette.primaryText} strokeWidth={2.4} />
                 ) : (
-                  <Clock size={18} color={palette.primary} strokeWidth={2.4} />
+                  <Clock size={18} color={palette.primaryText} strokeWidth={2.4} />
                 )}
               </View>
               <Text style={styles.headerTitle}>{title}</Text>
@@ -315,7 +315,7 @@ export function AppDateTimePicker({
                 </TouchableOpacity>
 
                 <View style={styles.dateCenter}>
-                  <CalendarIcon size={16} color={palette.primary} strokeWidth={2.2} />
+                  <CalendarIcon size={16} color={palette.primaryText} strokeWidth={2.2} />
                   <Text style={styles.dateText}>
                     <Text style={{ fontWeight: '700' }}>{dayLabel}</Text>, {dateSubLabel}
                   </Text>
@@ -395,7 +395,7 @@ export function AppDateTimePicker({
                   accessibilityRole="button"
                   accessibilityLabel="Today"
                 >
-                  <Sparkles size={13} color={palette.primary} />
+                  <Sparkles size={13} color={palette.primaryText} />
                   <Text style={[styles.presetText, isToday && styles.presetTextActive]}>Today</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -437,7 +437,7 @@ export function AppDateTimePicker({
                   style={[styles.presetCard, isToday && curMinutes === new Date().getMinutes() && styles.presetCardActive]}
                   onPress={() => setTempDate(new Date())}
                 >
-                  <Sparkles size={13} color={palette.primary} />
+                  <Sparkles size={13} color={palette.primaryText} />
                   <Text style={styles.presetText}>Now</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.presetCard} onPress={() => applyPresetMinutesAgo(15)}>
@@ -586,7 +586,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   doneBtnText: {
     ...typography.bodyBold,
-    color: palette.primary,
+    color: palette.primaryText,
   },
 
   // Hero Card
@@ -743,7 +743,7 @@ const useStyles = createThemedStyles(palette => ({
     color: palette.text,
   },
   presetTextActive: {
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
   },
 

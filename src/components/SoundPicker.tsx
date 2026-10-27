@@ -62,7 +62,7 @@ export function SoundPicker({ value, onChange }: Props): React.ReactElement {
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View style={styles.iconCircle}>
-            <Volume2 size={18} color={palette.primary} />
+            <Volume2 size={18} color={palette.primaryText} />
           </View>
           <View>
             <Text style={styles.title}>Alarm Sound</Text>
@@ -122,7 +122,7 @@ export function SoundPicker({ value, onChange }: Props): React.ReactElement {
                   {isPlaying ? (
                     <Square size={13} color="#FFFFFF" fill="#FFFFFF" />
                   ) : (
-                    <Play size={13} color={palette.primary} fill={palette.primary} style={{ marginLeft: 1 }} />
+                    <Play size={13} color={palette.primaryText} fill={palette.primary} style={{ marginLeft: 1 }} />
                   )}
                 </TouchableOpacity>
               )}
@@ -235,7 +235,7 @@ const useStyles = createThemedStyles((palette) => ({
     fontSize: 14,
   },
   soundLabelActive: {
-    color: palette.primary,
+    color: palette.primaryText,
   },
   activeBadge: {
     backgroundColor: palette.primary + '18',
@@ -245,7 +245,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   activeBadgeText: {
     ...typography.caption,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
     fontSize: 10,
   },

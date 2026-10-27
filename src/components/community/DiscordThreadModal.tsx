@@ -59,7 +59,7 @@ export const DiscordThreadModal: React.FC<Props> = ({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
             <View style={styles.headerLeft}>
-              <MessageSquare size={16} color={palette.primary} style={{ marginRight: 6 }} />
+              <MessageSquare size={16} color={palette.primaryText} style={{ marginRight: 6 }} />
               <Text style={[styles.headerTitle, { color: palette.text }]}>Thread Discussion</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -87,7 +87,7 @@ export const DiscordThreadModal: React.FC<Props> = ({
                 </TouchableOpacity>
                 {parent.senderRoleBadges?.[0] && (
                   <View style={[styles.badge, { backgroundColor: `${palette.primary}20` }]}>
-                    <Text style={[styles.badgeText, { color: palette.primary }]}>
+                    <Text style={[styles.badgeText, { color: palette.primaryText }]}>
                       {parent.senderRoleBadges[0]}
                     </Text>
                   </View>

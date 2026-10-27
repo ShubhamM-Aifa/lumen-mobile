@@ -5,10 +5,8 @@
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Platform,
+  View, Text, ScrollView, Alert, Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uuidv4 } from '../src/utils/uuid';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
@@ -19,30 +17,34 @@ import { useAuthStore } from '../src/store/authStore';
 import { api } from '../src/api/client';
 import { queryClient } from '../src/api/queryClient';
 import { uploadAnswerImages } from '../src/utils/uploadAnswerImages';
-import { useTheme, createThemedStyles } from '../src/theme/ThemeContext';
+import { createThemedStyles } from '../src/theme/ThemeContext';
 import { typography } from '../src/theme/typography';
 import { QuestionCard } from '../src/components/QuestionCard';
+import { ScreenTopBar, HeaderTextButton } from '../src/components/ios/ScreenTopBar';
+import { FloatingCta, FLOATING_CTA_CLEARANCE } from '../src/components/ios/FloatingCta';
+import { IosSegmented } from '../src/components/ios/IosSegmented';
 import { MorningSleepCheckinBanner } from '../src/components/sleep/MorningSleepCheckinBanner';
 import { useSleepTrackerStore, SleepQuality } from '../src/store/sleepTrackerStore';
 import { useTodayCategoryLogs } from '../src/hooks/useTodayCategoryLogs';
 import { logLocationService } from '../src/services/logLocationService';
 
-const META: Record<string, { emoji: string; title: string; subtitle: string }> = {
+const META: Record<string, { title: string; subtitle: string }> = {
   morning: {
-    emoji: '☀️',
     title: 'Morning check-in',
     subtitle: 'How are you feeling as you start your day?',
   },
   evening: {
-    emoji: '🌙',
     title: 'Evening check-in',
     subtitle: 'A quick look back before you rest.',
   },
 };
 
+const WHEN_OPTIONS = [
+  { key: 'morning' as const, label: 'Morning' },
+  { key: 'evening' as const, label: 'Evening' },
+];
+
 export default function CheckInModal() {
-  const insets = useSafeAreaInsets();
-  const { palette } = useTheme();
   const styles = useStyles();
   const { type = 'morning', date } = useLocalSearchParams<{ type: string; date?: string }>();
   const { config } = useConfigStore();
@@ -129,6 +131,12 @@ export default function CheckInModal() {
 
   const handleSkip = () => safeGoBack('/(tabs)/today');
 
+  const handleSwitchWhen = (next: 'morning' | 'evening') => {
+    if (next === (type === 'evening' ? 'evening' : 'morning')) return;
+    setAnswersByQuestion({});
+    router.setParams({ type: next });
+  };
+
   const handleSubmit = async () => {
     if (allAnswers.length === 0 && !sleepQuality) {
       safeGoBack('/(tabs)/today');
@@ -185,133 +193,84 @@ export default function CheckInModal() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          presentation: 'modal',
-          headerShown: true,
-          title: '',
-          headerStyle: { backgroundColor: palette.surface },
-          headerTintColor: palette.primary,
-          headerShadowVisible: false,
-        }}
+      <Stack.Screen options={{ presentation: 'modal', headerShown: false }} />
+
+      <ScreenTopBar
+        sheet={Platform.OS === 'ios'}
+        backIcon="close"
+        backLabel="Close"
+        onBack={handleSkip}
+        right={<HeaderTextButton label="Skip" accessibilityLabel="Skip check-in" onPress={handleSkip} />}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Hero header */}
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <IosSegmented options={WHEN_OPTIONS} value={type === 'evening' ? 'evening' : 'morning'} onChange={handleSwitchWhen} />
+
         <View style={styles.hero}>
-          <Text style={styles.heroEmoji}>{meta.emoji}</Text>
-          <Text style={styles.heroTitle}>{meta.title}</Text>
+          <Text style={styles.heroTitle} accessibilityRole="header" maxFontSizeMultiplier={1.3}>{meta.title}</Text>
           <Text style={styles.heroSubtitle}>{meta.subtitle}</Text>
         </View>
 
-        {/* Autoimmune Sleep Recovery Banner (Morning Check-in only) */}
-        {type === 'morning' && (
-          <MorningSleepCheckinBanner
-            selectedQuality={sleepQuality}
-            onQualityChange={handleQualityChange}
-          />
-        )}
-
-        {/* Check-In Questions */}
-        {displayQuestions.length === 0 && type !== 'morning' ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No check-in questions configured yet.</Text>
-            <Text style={styles.emptyHint}>
-              Go to Customize → Questions and set frequency to "{freq}" on any question.
-            </Text>
-          </View>
-        ) : (
-          displayQuestions.map((q) => (
-            <QuestionCard
-              key={q._id}
-              question={q}
-              options={optionsByQuestion[q._id] ?? []}
-              answers={answersByQuestion[q._id] ?? []}
-              sessionAnswers={allAnswers}
-              onChange={(ans) => setQAnswers(q._id, ans)}
-              tempPrefUnit={tempPrefUnit}
-              todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
-              onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
-              onEditLog={(logId) =>
-                router.push({
-                  pathname: `/log/edit/${logId}`,
-                  params: { questionId: q._id },
-                })
-              }
+        <View style={styles.gutter}>
+          {/* Sleep recovery banner (morning check-in only) */}
+          {type === 'morning' && (
+            <MorningSleepCheckinBanner
+              selectedQuality={sleepQuality}
+              onQualityChange={handleQualityChange}
             />
-          ))
-        )}
+          )}
 
-        <View style={{ height: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 20) + 8) }} />
+          {/* Check-in questions */}
+          {displayQuestions.length === 0 && type !== 'morning' ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No check-in questions configured yet.</Text>
+              <Text style={styles.emptyHint}>
+                Go to Customize → Questions and set frequency to "{freq}" on any question.
+              </Text>
+            </View>
+          ) : (
+            displayQuestions.map((q) => (
+              <QuestionCard
+                key={q._id}
+                question={q}
+                options={optionsByQuestion[q._id] ?? []}
+                answers={answersByQuestion[q._id] ?? []}
+                sessionAnswers={allAnswers}
+                onChange={(ans) => setQAnswers(q._id, ans)}
+                tempPrefUnit={tempPrefUnit}
+                todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
+                onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
+                onEditLog={(logId) =>
+                  router.push({
+                    pathname: `/log/edit/${logId}`,
+                    params: { questionId: q._id },
+                  })
+                }
+              />
+            ))
+          )}
+        </View>
       </ScrollView>
 
-      {/* Footer buttons */}
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 20) + 8,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.skipBtn}
-          onPress={handleSkip}
-          accessibilityRole="button"
-          accessibilityLabel="Skip check-in"
-        >
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-          accessibilityRole="button"
-          accessibilityLabel="Save check-in"
-        >
-          {isSubmitting
-            ? <ActivityIndicator color={palette.white} />
-            : <Text style={styles.submitText}>Save check-in</Text>}
-        </TouchableOpacity>
-      </View>
+      <FloatingCta label="Save check-in" onPress={handleSubmit} loading={isSubmitting} />
     </View>
   );
 }
 
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
-  scroll: { padding: 16, gap: 14 },
-  hero: {
-    alignItems: 'center', paddingVertical: 20, gap: 6,
-  },
-  heroEmoji: { fontSize: 48 },
-  heroTitle: { ...typography.h2, color: palette.text, textAlign: 'center' },
-  heroSubtitle: { ...typography.body, color: palette.textSecondary, textAlign: 'center', maxWidth: 300 },
+  scroll: { paddingTop: 14, gap: 18 },
+  gutter: { paddingHorizontal: 16, gap: 14 },
+  hero: { paddingHorizontal: 20, gap: 4 },
+  heroTitle: { ...typography.largeTitle, fontSize: 28, lineHeight: 34, color: palette.text },
+  heroSubtitle: { ...typography.subhead, color: palette.textSecondary },
   emptyCard: {
-    backgroundColor: palette.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 26,
     padding: 20, alignItems: 'center', gap: 6,
   },
-  emptyText: { ...typography.body, color: palette.textSecondary, textAlign: 'center' },
-  emptyHint: { ...typography.small, color: palette.textDisabled, textAlign: 'center' },
-  footer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', gap: 10,
-    padding: 16, paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border,
-  },
-  skipBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1, borderColor: palette.border,
-    alignItems: 'center',
-  },
-  skipText: { ...typography.button, color: palette.textSecondary },
-  submitBtn: {
-    flex: 2, backgroundColor: palette.primary,
-    borderRadius: 14, paddingVertical: 14,
-    alignItems: 'center', justifyContent: 'center', minHeight: 52,
-  },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitText: { ...typography.button, color: '#FFFFFF' },
+  emptyText: { ...typography.bodyLarge, color: palette.textSecondary, textAlign: 'center' },
+  emptyHint: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center' },
 }));

@@ -1,44 +1,30 @@
 /**
- * Today / Home screen
- * ─ Day clock-in/out card
- * ─ Walking tracking card (distance, time, START WALKING CTA)
- * ─ Quick-tap action grid (with water quantity modal)
- * ─ "Today at a glance" summary
- * ─ Active Reminders card (Water next trigger, Stand monitoring, Bedtime)
- * ─ "Undo" toast
- * ─ Floating "+ Log" button
+ * Today / Home screen (iOS-style)
+ * ─ Large title with notifications and profile
+ * ─ "How are you feeling?" one-tap check-in
+ * ─ Flare mode / observations (hidden when empty)
+ * ─ Day clock (evening and while asleep)
+ * ─ Quick Taps grid (water quantity modal, linked quick-tap modal, undo toast)
+ * ─ Summary list (follows "Today at a glance" settings)
+ * ─ My Day tasks
  */
 import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, RefreshControl, useWindowDimensions,
-  NativeSyntheticEvent, NativeScrollEvent,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import {
-  Footprints,
-  Play,
   Bell,
-  ChevronRight,
-  ChevronLeft,
   Droplets,
-  Clock,
-  Stethoscope,
-  Sun,
+  Footprints,
   Moon,
+  Sun,
   Timer,
-  SlidersHorizontal,
+  Stethoscope,
+  Zap,
+  Flame,
   Plus,
-  Check,
-  ArrowLeftRight,
-  GripVertical,
-  Pin,
-  FileText,
-  Users,
+  Target,
+  Cloud,
 } from 'lucide-react-native';
 
 import { IQuickAction } from '@lumen/shared';
@@ -57,62 +43,54 @@ import { useTaskStore } from '../../src/store/taskStore';
 
 import { DayClockCard } from '../../src/components/DayClockCard';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
-import { LumenIcon } from '../../src/components/common/LumenLogo';
 import { UndoToast } from '../../src/components/UndoToast';
-import { FlareNowButton } from '../../src/components/FlareNowButton';
 import { ForYouTodayCard } from '../../src/components/home/ForYouTodayCard';
+import { FeelingCard } from '../../src/components/home/FeelingCard';
+import { MyDaySection } from '../../src/components/home/MyDaySection';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
-import { WalkingBannerCard } from '../../src/components/walking/WalkingBannerCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
-import { AccountSwitcherModal } from '../../src/components/auth/AccountSwitcherModal';
 import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
-import { MyDayCard } from '../../src/components/todo/MyDayCard';
+import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { SectionTitle } from '../../src/components/ios/SectionTitle';
+import { InsetGroup, GroupedRow, RowProps } from '../../src/components/ios/InsetGroup';
+import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
+import { useIntelligenceStore } from '../../src/store/intelligenceStore';
+import { useNotificationInboxStore, countUnread } from '../../src/store/notificationInboxStore';
+import { refreshInbox } from '../../src/services/notificationInbox';
+import { useTriggerWatch } from '../../src/hooks/useTriggerWatch';
+import { FlareModeToday, pickEssentialActions } from '../../src/components/home/FlareModeToday';
 
 export default function TodayScreen() {
   const { palette } = useTheme();
   const styles = useStyles();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { user, fetchProfile, savedAccounts } = useAuthStore();
-  const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
+  const { user, fetchProfile } = useAuthStore();
   const [selectedLinkedAction, setSelectedLinkedAction] = useState<IQuickAction | null>(null);
   const { config, fetchConfig } = useConfigStore();
   const { todaySession, fetchTodaySession } = useDaySessionStore();
-  const { todayTaps, fetchTodayTaps, tap } = useQuickLogStore();
-  const [activeGlanceIndex, setActiveGlanceIndex] = useState(0);
+  const { todayTaps, fetchTodayTaps } = useQuickLogStore();
   const { todaySummary, fetchTodaySummary, isTracking, activePacingAlert } = useActivityStore();
   const { reminders, fetchReminders } = useReminderStore();
-  const {
-    fetchGlanceConfig,
-    isMetricEnabled,
-    getActiveCount,
-    compactOrder,
-    swapCompactMetrics,
-    moveCompactMetric,
-  } = useGlanceConfigStore();
-  const [isEditingGlanceOrder, setIsEditingGlanceOrder] = useState(false);
-  const [selectedCardForSwap, setSelectedCardForSwap] = useState<string | null>(null);
+  const { fetchGlanceConfig, isMetricEnabled, compactOrder } = useGlanceConfigStore();
   const { isSleeping, lastSleepRecord, loadState: loadSleepState } = useSleepTrackerStore();
-  const {
-    weather,
-    assessment,
-    activeFlareAlert,
-    permissionStatus,
-    initWeather,
-    fetchWeather,
-    requestPermissionAndFetch,
-  } = useWeatherStore();
+  const { weather, activeFlareAlert, initWeather, fetchWeather } = useWeatherStore();
+
+  const flareActive = useIntelligenceStore(st => st.policy.flareMode.active);
+  const setFlareMode = useIntelligenceStore(st => st.setFlareMode);
 
   const { width: windowWidth } = useWindowDimensions();
-  // Screen padding is 16 on each side (32 total), and two 10px gaps between 3 columns (20 total)
-  const quickActionWidth = Math.max(88, Math.floor((windowWidth - 32 - 20) / 3));
+  // 16pt side padding on both sides and two 10pt gaps between the three columns
+  const tileWidth = Math.max(96, Math.floor((windowWidth - 32 - 20) / 3));
 
   const [refreshing, setRefreshing] = useState(false);
   const [waterModalVisible, setWaterModalVisible] = useState(false);
   const [selectedWaterActionId, setSelectedWaterActionId] = useState<string | undefined>(undefined);
   const [weatherModalVisible, setWeatherModalVisible] = useState(false);
 
-  // Time tracker for dynamic daytime vs evening (9:30 PM = 21:30 = 1290 minutes) card positions
+  // 9:30 PM (1290 min) switches the screen to its evening layout, which shows the day clock
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState(() => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
@@ -142,7 +120,7 @@ export default function TodayScreen() {
       const now = new Date();
       setCurrentTimeMinutes(now.getHours() * 60 + now.getMinutes());
 
-      // Auto-prune stale taps and check if day reset boundary has passed
+      // Prune stale taps and reload when the tracking day rolls over
       useQuickLogStore.getState().pruneStaleTaps(boundaryHour);
       useTaskStore.getState().pruneDayBoundary(boundaryHour);
       const trackingDayNow = getTrackingDayDateString(now, boundaryHour);
@@ -150,16 +128,13 @@ export default function TodayScreen() {
         currentTrackingDayRef.current = trackingDayNow;
         loadData();
       }
-    }, 30000); // 30-second live check
+    }, 30000);
     return () => clearInterval(interval);
   }, [boundaryHour, loadData]);
 
-  // Daytime active mode: Awake (not sleeping) AND before 9:30 PM (21:30 = 1290 minutes)
   const isDaytimeMode = useMemo(() => {
     if (isSleeping) return false;
-    // 9:30 PM cutoff: 21 * 60 + 30 = 1290 minutes
     if (currentTimeMinutes >= 1290) return false;
-    // Early morning before 4:00 AM if user hasn't woken up today
     if (currentTimeMinutes < 240 && !lastSleepRecord?.wakeTime) return false;
     return true;
   }, [isSleeping, currentTimeMinutes, lastSleepRecord]);
@@ -170,752 +145,271 @@ export default function TodayScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.allSettled([
-      loadData(),
-      fetchWeather({ force: true, isUserRefresh: true }),
-    ]);
+    await Promise.allSettled([loadData(), fetchWeather({ force: true, isUserRefresh: true })]);
     setRefreshing(false);
   };
 
   const visibleActions = (config?.quickActions ?? []).filter(a => a.isVisible);
+  const isWaterAction = (a: IQuickAction) => a.templateKey === 'qa_water' || a.label.toLowerCase().includes('water');
 
-  // Water calculations
-  const waterAction = config?.quickActions.find(a => a.templateKey === 'qa_water' || a.label.toLowerCase().includes('water'));
-  const waterCount  = waterAction ? (todayTaps[waterAction._id]?.count ?? 0) : 0;
-  const waterGoal   = waterAction?.dailyGoal ? Math.round(waterAction.dailyGoal / (waterAction.defaultValue ?? 250)) : 8;
+  const waterAction = config?.quickActions.find(isWaterAction);
+  const waterCount = waterAction ? (todayTaps[waterAction._id]?.count ?? 0) : 0;
+  const waterGoal = waterAction?.dailyGoal ? Math.round(waterAction.dailyGoal / (waterAction.defaultValue ?? 250)) : 8;
 
   const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
   const todayWalkingMinutes = todaySummary?.totalDurationMinutes ?? 0;
-
-  const activeReminders = reminders.filter(r => r.enabled).slice(0, 3);
-
+  const enabledReminders = reminders.filter(r => r.enabled).length;
   const totalTapCount = Object.values(todayTaps).reduce((sum, t) => sum + (t?.count ?? 0), 0);
   const distinctTapCount = Object.values(todayTaps).filter(t => t.count > 0).length;
   const wakeTimeStr = todaySession?.wakeTime
     ? new Date(todaySession.wakeTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     : null;
   const customGoalActions = (config?.quickActions ?? []).filter(
-    a => a.isVisible && a.dailyGoal && a.templateKey !== 'qa_water' && !a.label.toLowerCase().includes('water')
+    a => a.isVisible && a.dailyGoal && !isWaterAction(a),
   );
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
+  const inboxEntries = useNotificationInboxStore(st => st.entries);
+  useEffect(() => {
+    refreshInbox().catch(() => {});
+  }, []);
+  const unreadNotifications = countUnread(inboxEntries);
+  useTriggerWatch();
+
+  const hasUrgentAlert =
+    (activeFlareAlert && !activeFlareAlert.dismissed) || (activePacingAlert && !activePacingAlert.dismissed);
+
+  const sleepValue = isSleeping
+    ? 'In bed'
+    : lastSleepRecord
+      ? `${Math.floor(lastSleepRecord.durationMinutes / 60)}h ${lastSleepRecord.durationMinutes % 60}m`
+      : (wakeTimeStr || 'Clock in');
+  const sleepSub = isSleeping
+    ? 'Sleeping now'
+    : lastSleepRecord
+      ? (lastSleepRecord.durationMinutes >= 420 ? '7 to 8 hour goal met' : 'Under the 7 hour goal')
+      : (todaySession?.sleepTime ? 'Asleep' : (wakeTimeStr ? 'Awake' : 'Not started'));
+
+  // One summary row per glance metric; the user's "Today at a glance" settings decide which show and in what order.
+  const rowFor = (key: GlanceMetricKey): RowProps | null => {
+    if (!isMetricEnabled(key)) return null;
+    switch (key) {
+      case 'water':
+        return {
+          icon: Droplets, tile: palette.catHabits, label: 'Water', value: `${waterCount} of ${waterGoal}`,
+          onPress: () => { setSelectedWaterActionId(waterAction?._id); setWaterModalVisible(true); },
+        };
+      case 'walking':
+        return {
+          icon: Footprints, tile: palette.catFood, label: 'Walking',
+          sub: isTracking ? 'Tracking live' : `${todayWalkingMinutes} min`,
+          value: `${todayDistanceKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
+        };
+      case 'active_time':
+        return { icon: Timer, tile: palette.secondary, label: 'Active Time', value: `${todayWalkingMinutes} min` };
+      case 'day_session':
+        return {
+          icon: isSleeping || lastSleepRecord || !wakeTimeStr ? Moon : Sun,
+          tile: palette.catMood, label: 'Sleep', sub: sleepSub, value: sleepValue, chevron: true,
+          onPress: () => {
+            if (isDaytimeMode) router.push('/settings');
+            else scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+          },
+        };
+      case 'reminders':
+        return {
+          icon: Bell, tile: palette.catSymptom, label: 'Reminders', value: `${enabledReminders} on`, chevron: true,
+          onPress: () => router.push('/reminders?mode=reminders'),
+        };
+      case 'quick_logs':
+        return {
+          icon: Stethoscope, tile: palette.catVitals, label: 'Quick taps',
+          sub: `${distinctTapCount} ${distinctTapCount === 1 ? 'metric' : 'metrics'}`, value: `${totalTapCount} logged`,
+          chevron: true, onPress: () => router.push('/(tabs)/timeline'),
+        };
+      default:
+        return null;
+    }
   };
 
-  const handleStartWalking = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/walking/active');
-  };
-
-  const reminderItem: GlanceItem | null = useMemo(() => {
-    if (!isMetricEnabled('reminders')) return null;
-    return {
-      id: 'reminders',
-      icon: Bell,
-      value: `${reminders.filter(r => r.enabled).length} active`,
-      label: 'Reminders',
-      subtitle: reminders.length > 0 ? `${reminders.length} total` : 'None set',
-      color: '#9333EA',
-      onPress: () => router.push('/reminders?mode=reminders'),
-    };
-  }, [isMetricEnabled, reminders]);
-
-  const walkingItem: GlanceItem | null = useMemo(() => {
-    if (!isMetricEnabled('walking')) return null;
-    return {
-      id: 'walking',
-      icon: Footprints,
-      value: `${todayDistanceKm.toFixed(1)} km`,
-      label: 'Walking',
-      subtitle: isTracking ? 'Tracking live' : `${todayWalkingMinutes} min`,
-      color: '#EA580C',
-      onPress: handleStartWalking,
-    };
-  }, [isMetricEnabled, todayDistanceKm, isTracking, todayWalkingMinutes, handleStartWalking]);
-
-  const quickTapItem: GlanceItem | null = useMemo(() => {
-    if (!isMetricEnabled('quick_logs')) return null;
-    return {
-      id: 'quick_logs',
-      icon: Stethoscope,
-      value: `${totalTapCount} logged`,
-      label: 'Quick taps',
-      subtitle: `${distinctTapCount} metrics`,
-      color: '#E11D48',
-      onPress: () => router.push('/(tabs)/timeline'),
-    };
-  }, [isMetricEnabled, totalTapCount, distinctTapCount]);
-
-  const activeTimeItem: GlanceItem | null = useMemo(() => {
-    if (!isMetricEnabled('active_time')) return null;
-    return {
-      id: 'active_time',
-      icon: Timer,
-      value: `${todayWalkingMinutes}m`,
-      label: 'Active time',
-      subtitle: todayWalkingMinutes > 0 ? 'Today' : 'Start now',
-      color: '#0EA5E9',
-      onPress: handleStartWalking,
-    };
-  }, [isMetricEnabled, todayWalkingMinutes, handleStartWalking]);
-
-  const sleepItem: GlanceItem | null = useMemo(() => {
-    if (!isMetricEnabled('day_session')) return null;
-    return {
-      id: 'day_session',
-      icon: isSleeping ? Moon : (lastSleepRecord ? Moon : (wakeTimeStr ? Sun : Moon)),
-      value: isSleeping
-        ? 'In bed'
-        : lastSleepRecord
-          ? `${Math.floor(lastSleepRecord.durationMinutes / 60)}h ${lastSleepRecord.durationMinutes % 60}m`
-          : (wakeTimeStr || 'Clock in'),
-      label: 'Sleep session',
-      subtitle: isSleeping
-        ? 'Sleeping now'
-        : lastSleepRecord
-          ? (lastSleepRecord.durationMinutes >= 420 ? '7–8h goal met' : 'Under 7h goal')
-          : (todaySession?.sleepTime ? 'Asleep' : (wakeTimeStr ? 'Active' : 'Not started')),
-      color: isSleeping
-        ? '#6366F1'
-        : lastSleepRecord?.durationMinutes && lastSleepRecord.durationMinutes >= 420
-          ? '#10B981'
-          : '#6366F1',
-      onPress: () => {
-        if (isDaytimeMode) {
-          router.push('/settings');
-        } else {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-        }
-      },
-    };
-  }, [isMetricEnabled, isSleeping, lastSleepRecord, wakeTimeStr, todaySession, isDaytimeMode]);
-
-  const customGoalItems = useMemo<GlanceItem[]>(() => {
-    return customGoalActions.map(action => {
+  const summaryRows: RowProps[] = [
+    ...(['water', ...compactOrder.filter(k => k !== 'water')] as GlanceMetricKey[])
+      .map(rowFor)
+      .filter((r): r is RowProps => r !== null),
+    ...customGoalActions.map<RowProps>(action => {
       const count = todayTaps[action._id]?.count ?? 0;
       const target = action.dailyGoal ? Math.round(action.dailyGoal / (action.defaultValue ?? 1)) : 1;
       return {
-        id: action._id,
-        emoji: action.icon || '🎯',
-        value: `${count}/${target}`,
-        label: action.label,
-        subtitle: `${Math.min(100, Math.round((count / target) * 100))}% goal`,
-        color: action.color || palette.primary,
+        icon: Target, tile: action.color || palette.primary, label: action.label,
+        sub: `${Math.min(100, Math.round((count / target) * 100))}% of goal`, value: `${count} of ${target}`,
         onPress: () => router.push('/log'),
       };
-    });
-  }, [customGoalActions, todayTaps, palette.primary]);
+    }),
+    ...(weather
+      ? [{
+          icon: Cloud, tile: palette.catHabits, label: 'Weather', sub: weather.cityName,
+          value: `${weather.temperatureC}°C`, chevron: true, onPress: () => setWeatherModalVisible(true),
+        } as RowProps]
+      : []),
+  ];
 
-  const getCompactItemByKey = useCallback((key: GlanceMetricKey): GlanceItem | null => {
-    switch (key) {
-      case 'reminders': return reminderItem;
-      case 'walking': return walkingItem;
-      case 'quick_logs': return quickTapItem;
-      case 'active_time': return activeTimeItem;
-      case 'day_session': return sleepItem;
-      default: return null;
-    }
-  }, [reminderItem, walkingItem, quickTapItem, activeTimeItem, sleepItem]);
+  const greetingName = user?.name ? user.name.split(' ')[0] : undefined;
 
-  const orderedCompactItems = useMemo<GlanceItem[]>(() => {
-    const list: GlanceItem[] = [];
-    for (const key of compactOrder) {
-      if (key === 'water') continue;
-      const item = getCompactItemByKey(key);
-      if (item) list.push(item);
-    }
-    return list;
-  }, [compactOrder, getCompactItemByKey]);
+  const renderActionTile = (action: IQuickAction, width: number) => (
+    <QuickActionButton
+      key={action._id}
+      action={action}
+      width={width}
+      onPressOverride={
+        isWaterAction(action)
+          ? () => { setSelectedWaterActionId(action._id); setWaterModalVisible(true); }
+          : (action.linkedOptionId && action.linkedQuestionId)
+            ? () => setSelectedLinkedAction(action)
+            : undefined
+      }
+    />
+  );
 
-  const handleCardPressInEdit = useCallback((key: GlanceMetricKey) => {
-    if (!selectedCardForSwap) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setSelectedCardForSwap(key);
-    } else if (selectedCardForSwap === key) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setSelectedCardForSwap(null);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      swapCompactMetrics(selectedCardForSwap as GlanceMetricKey, key);
-      setSelectedCardForSwap(null);
-    }
-  }, [selectedCardForSwap, swapCompactMetrics]);
+  const openSymptomLog = () => {
+    const symptomCategory = (config?.categories ?? []).find(c => c.isActive && c.role === 'symptom');
+    if (symptomCategory) router.push({ pathname: '/log/[categoryId]', params: { categoryId: symptomCategory._id } } as never);
+    else router.push('/log');
+  };
 
-  const handleNudgeMetric = useCallback((key: GlanceMetricKey, direction: 'prev' | 'next') => {
-    const activeKeys = orderedCompactItems.map(item => item.id as GlanceMetricKey);
-    const idx = activeKeys.indexOf(key);
-    if (idx === -1) return;
-    const targetIdx = direction === 'prev' ? idx - 1 : idx + 1;
-    if (targetIdx >= 0 && targetIdx < activeKeys.length) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      swapCompactMetrics(key, activeKeys[targetIdx]);
-    }
-  }, [orderedCompactItems, swapCompactMetrics]);
-
-  const hasSlide1 = isMetricEnabled('water') || orderedCompactItems.length > 0;
-  const hasSlide2 = isMetricEnabled('water')
-    ? orderedCompactItems.length > 2 || customGoalItems.length > 0
-    : orderedCompactItems.length > 4 || customGoalItems.length > 0;
-
-  const remainingExtraItems = useMemo(() => {
-    const compactOffset = isMetricEnabled('water') ? 5 : 6;
-    const extraCompact = orderedCompactItems.slice(compactOffset);
-    const extraGoals = customGoalItems.slice(1);
-    return [...extraCompact, ...extraGoals];
-  }, [isMetricEnabled, orderedCompactItems, customGoalItems]);
-
-  const extraCustomSlidesCount = Math.ceil(remainingExtraItems.length / 2);
-  const totalGlancePages = (hasSlide1 ? 1 : 0) + (hasSlide2 ? 1 : 0) + extraCustomSlidesCount;
-
-  const slideWidth = Math.max(280, windowWidth - 32);
-  const cardColWidth = Math.max(136, Math.floor((slideWidth - 10) / 2));
-
-  const handleGlanceScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const snapDistance = slideWidth + 12;
-    const index = Math.round(offsetX / snapDistance);
-    setActiveGlanceIndex(Math.max(0, Math.min(index, Math.max(1, totalGlancePages) - 1)));
-  }, [slideWidth, totalGlancePages]);
-
-  const handleQuickWaterAdd = useCallback(async () => {
-    if (!waterAction) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await tap(waterAction._id);
-  }, [waterAction, tap]);
+  // Two columns in flare mode: bigger, calmer tiles
+  const flareTileWidth = Math.floor((windowWidth - 32 - 10) / 2);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         ref={scrollViewRef}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
+        contentContainerStyle={[styles.content, { paddingBottom: TAB_BAR_CLEARANCE }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.tint} />}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-              <LumenIcon size={18} />
-              <Text style={{ fontSize: 11.5, fontWeight: '800', color: palette.primary, letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                Lumen
-              </Text>
-            </View>
-            <Text style={styles.greeting}>{greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</Text>
-            <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.reminderIconBtn}
-              onPress={() => router.push('/community')}
-              accessibilityRole="button"
-              accessibilityLabel="Open Community Chat & Stories"
-            >
-              <Users size={20} color={palette.text} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.reminderIconBtn}
-              onPress={() => router.push('/notes')}
-              accessibilityRole="button"
-              accessibilityLabel="Open Notes & Documents"
-            >
-              <FileText size={20} color={palette.text} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.reminderIconBtn}
-              onPress={() => router.push('/reminders')}
-              accessibilityRole="button"
-              accessibilityLabel="Open Reminders & Alerts"
-            >
-              <Bell size={20} color={palette.text} />
-              {activeReminders.length > 0 ||
-              (activeFlareAlert && !activeFlareAlert.dismissed) ||
-              (activePacingAlert && !activePacingAlert.dismissed) ? (
-                <View style={styles.activeNotifDot} />
-              ) : null}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.profileAvatarBtn}
-              onPress={() => setAccountSwitcherVisible(true)}
-              onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/settings');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Switch account or open profile"
-            >
-              <LinearGradient
-                colors={['#FFA448', '#FF581E']}
-                start={{ x: 0.15, y: 0.1 }}
-                end={{ x: 0.85, y: 0.95 }}
-                style={styles.avatarGradient}
+        <LargeTitleHeader
+          title="Today"
+          subtitle={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          actions={
+            <>
+              <GlassCircleButton
+                accessibilityLabel={
+                  unreadNotifications > 0
+                    ? `Notifications, ${unreadNotifications} unread`
+                    : hasUrgentAlert ? 'Notifications, new alert' : 'Notifications'
+                }
+                onPress={() => router.push('/notifications')}
+                badge={unreadNotifications > 0 || !!hasUrgentAlert}
               >
-                <Text style={styles.avatarText}>
-                  {user?.name?.trim()
-                    ? user.name
-                        .trim()
-                        .split(/\s+/)
-                        .filter(Boolean)
-                        .map((n: string) => n[0])
-                        .join('')
-                        .slice(0, 2)
-                        .toUpperCase()
-                    : 'U'}
-                </Text>
-              </LinearGradient>
-              {savedAccounts && savedAccounts.length > 1 && (
-                <View style={styles.multiAccountDot}>
-                  <Text style={styles.multiAccountDotText}>{savedAccounts.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+                <Bell size={20} color={palette.text} />
+              </GlassCircleButton>
+              <GlassCircleButton accessibilityLabel="Profile and settings" onPress={() => router.push('/settings')}>
+                <ModularAvatar size={44} />
+              </GlassCircleButton>
+            </>
+          }
+        />
 
-        {/* Daytime Position 1: Walking Tracker Card */}
-        {isDaytimeMode && (
-          <WalkingBannerCard
-            distanceKm={todayDistanceKm}
-            durationMinutes={todayWalkingMinutes}
-            onPressHistory={() => router.push('/walking')}
-            onPressWeather={() => setWeatherModalVisible(true)}
+        {flareActive ? (
+          <FlareModeToday
+            essentialActions={pickEssentialActions(visibleActions)}
+            renderTile={renderActionTile}
+            onLogSymptom={openSymptomLog}
+            reminders={reminders}
+            onTurnOff={() => { setFlareMode(false); }}
+            tileWidth={flareTileWidth}
           />
-        )}
+        ) : (
+          <>
+          <FeelingCard firstName={greetingName} boundaryHour={boundaryHour} />
 
-        {/* Night / Wind-down Position 1: Day clock / Sleep card */}
-        {!isDaytimeMode && (
-          <DayClockCard />
-        )}
+          <ForYouTodayCard />
 
-        {/* Flare mode status and observations the daily budget held back (hidden when empty) */}
-        <ForYouTodayCard />
-
-        {/* Position 2: Quick Log shortcut */}
-        <FlareNowButton />
-
-        {/* Night / Wind-down Position 3: Walking Tracker Card (placed after Quick Log) */}
-        {!isDaytimeMode && (
-          <WalkingBannerCard
-            distanceKm={todayDistanceKm}
-            durationMinutes={todayWalkingMinutes}
-            onPressHistory={() => router.push('/walking')}
-            onPressWeather={() => setWeatherModalVisible(true)}
-          />
-        )}
-
-        {/* Quick-tap grid */}
-        {visibleActions.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Quick Taps</Text>
-              <TouchableOpacity
-                onPress={() => router.push('/customize/quick-actions')}
-                style={styles.seeAllBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Manage quick-tap buttons"
-              >
-                <Text style={styles.seeAllText}>Manage</Text>
-                <ChevronRight size={14} color={palette.primary} />
-              </TouchableOpacity>
+          {!isDaytimeMode && (
+            <View style={styles.inset}>
+              <DayClockCard />
             </View>
+          )}
+
+          <View style={styles.block}>
+            <SectionTitle title="Quick Taps" actionLabel="Customize" onAction={() => router.push('/customize/quick-actions')} />
             <View style={styles.grid}>
               {visibleActions.map(action => (
                 <QuickActionButton
                   key={action._id}
                   action={action}
-                  width={quickActionWidth}
+                  width={tileWidth}
                   onPressOverride={
-                    action.templateKey === 'qa_water' || action.label.toLowerCase().includes('water')
-                      ? () => {
-                          setSelectedWaterActionId(action._id);
-                          setWaterModalVisible(true);
-                        }
+                    isWaterAction(action)
+                      ? () => { setSelectedWaterActionId(action._id); setWaterModalVisible(true); }
                       : (action.linkedOptionId && action.linkedQuestionId)
-                      ? () => setSelectedLinkedAction(action)
-                      : undefined
+                        ? () => setSelectedLinkedAction(action)
+                        : undefined
                   }
                 />
               ))}
-              {visibleActions.length % 3 !== 0 && (
-                <View style={[styles.quickActionWrapper, { width: quickActionWidth }]}>
-                  <TouchableOpacity
-                    style={styles.addQuickActionButton}
-                    onPress={() => router.push('/customize/quick-actions')}
-                    activeOpacity={0.75}
-                    accessibilityLabel="Add quick action"
-                    accessibilityRole="button"
-                  >
-                    <View style={styles.addQuickActionWell}>
-                      <Plus size={20} color={palette.primary} strokeWidth={2.4} />
-                    </View>
-                    <Text style={styles.addQuickActionLabel} numberOfLines={1}>Add action</Text>
-                    <Text style={styles.addQuickActionSub} numberOfLines={1}>Customize</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Today at a glance */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>
-              {isEditingGlanceOrder ? '✏️ Reorder Cards' : 'Today at a glance'}
-            </Text>
-
-            {isEditingGlanceOrder ? (
               <TouchableOpacity
-                onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  setIsEditingGlanceOrder(false);
-                  setSelectedCardForSwap(null);
-                }}
-                style={styles.doneReorderBtn}
+                style={[styles.addTile, { width: tileWidth }]}
+                onPress={() => router.push('/customize/quick-actions')}
+                activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Finish reordering cards"
+                accessibilityLabel="Add quick action"
               >
-                <Check size={14} color="#FFFFFF" strokeWidth={2.6} />
-                <Text style={styles.doneReorderText}>Done</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.headerRightActions}>
-                <TouchableOpacity
-                  onPress={() => router.push('/customize/at-a-glance')}
-                  style={styles.customizeGlanceBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Customize Today at a glance metrics"
-                >
-                  <SlidersHorizontal size={13} color={palette.textSecondary} />
-                  <Text style={styles.customizeGlanceText}>Customize</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push('/(tabs)/timeline');
-                  }}
-                  style={styles.seeAllBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="View full timeline"
-                >
-                  <Text style={styles.seeAllText}>Timeline</Text>
-                  <ChevronRight size={14} color={palette.primary} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          {isEditingGlanceOrder && (
-            <View style={styles.editReorderHintRow}>
-              <ArrowLeftRight size={13} color={palette.primary} />
-              <Text style={styles.editReorderHintText}>
-                {selectedCardForSwap
-                  ? 'Tap another card to swap positions'
-                  : 'Tap a card then tap another to swap • Use arrows to nudge • Water is pinned'}
-              </Text>
-            </View>
-          )}
-
-          {/* Empty state when all metrics are hidden */}
-          {!hasSlide1 && !hasSlide2 ? (
-            <TouchableOpacity
-              style={styles.emptyGlanceBox}
-              onPress={() => router.push('/customize/at-a-glance')}
-              activeOpacity={0.75}
-            >
-              <SlidersHorizontal size={20} color={palette.primary} />
-              <Text style={styles.emptyGlanceText}>
-                All glance cards are hidden. Tap to choose which metrics appear on your dashboard.
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View>
-              <View style={styles.glanceSliderContainer}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.glanceSliderScroll}
-                  snapToInterval={slideWidth + 12}
-                  decelerationRate="fast"
-                  onScroll={handleGlanceScroll}
-                  scrollEventThrottle={16}
-                >
-                  {/* Slide 1: Water (left) + Slot 0 & Slot 1 (right) */}
-                  {hasSlide1 && (
-                    <View style={[styles.glanceSlide, { width: slideWidth }]}>
-                      {isMetricEnabled('water') && (
-                        <FeaturedWaterCard
-                          width={cardColWidth}
-                          count={waterCount}
-                          goal={waterGoal}
-                          isEditing={isEditingGlanceOrder}
-                          onQuickAdd={handleQuickWaterAdd}
-                          onManage={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setSelectedWaterActionId(waterAction?._id);
-                            setWaterModalVisible(true);
-                          }}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setSelectedWaterActionId(waterAction?._id);
-                            setWaterModalVisible(true);
-                          }}
-                          onLongPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            setIsEditingGlanceOrder(true);
-                          }}
-                        />
-                      )}
-
-                      <View style={[styles.glanceColumn, { width: isMetricEnabled('water') ? cardColWidth : slideWidth }]}>
-                        {orderedCompactItems[0] && (
-                          <CompactGlanceCard
-                            item={orderedCompactItems[0]}
-                            width={isMetricEnabled('water') ? cardColWidth : slideWidth}
-                            isEditing={isEditingGlanceOrder}
-                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[0].id}
-                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[0].id as GlanceMetricKey)}
-                            onLongPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              setIsEditingGlanceOrder(true);
-                            }}
-                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[0].id as GlanceMetricKey, 'prev')}
-                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[0].id as GlanceMetricKey, 'next')}
-                            canMovePrev={false}
-                            canMoveNext={orderedCompactItems.length > 1}
-                          />
-                        )}
-                        {orderedCompactItems[1] && (
-                          <CompactGlanceCard
-                            item={orderedCompactItems[1]}
-                            width={isMetricEnabled('water') ? cardColWidth : slideWidth}
-                            isEditing={isEditingGlanceOrder}
-                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[1].id}
-                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[1].id as GlanceMetricKey)}
-                            onLongPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              setIsEditingGlanceOrder(true);
-                            }}
-                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[1].id as GlanceMetricKey, 'prev')}
-                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[1].id as GlanceMetricKey, 'next')}
-                            canMovePrev={true}
-                            canMoveNext={orderedCompactItems.length > 2}
-                          />
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Slide 2: Slot 2 & Slot 3 (left) + Slot 4 & (Custom Goal or Customize card) (right) */}
-                  {hasSlide2 && (
-                    <View style={[styles.glanceSlide, { width: slideWidth }]}>
-                      {/* Left Column */}
-                      <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                        {orderedCompactItems[2] && (
-                          <CompactGlanceCard
-                            item={orderedCompactItems[2]}
-                            width={cardColWidth}
-                            isEditing={isEditingGlanceOrder}
-                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[2].id}
-                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[2].id as GlanceMetricKey)}
-                            onLongPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              setIsEditingGlanceOrder(true);
-                            }}
-                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[2].id as GlanceMetricKey, 'prev')}
-                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[2].id as GlanceMetricKey, 'next')}
-                            canMovePrev={true}
-                            canMoveNext={orderedCompactItems.length > 3}
-                          />
-                        )}
-                        {orderedCompactItems[3] && (
-                          <CompactGlanceCard
-                            item={orderedCompactItems[3]}
-                            width={cardColWidth}
-                            isEditing={isEditingGlanceOrder}
-                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[3].id}
-                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[3].id as GlanceMetricKey)}
-                            onLongPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              setIsEditingGlanceOrder(true);
-                            }}
-                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[3].id as GlanceMetricKey, 'prev')}
-                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[3].id as GlanceMetricKey, 'next')}
-                            canMovePrev={true}
-                            canMoveNext={orderedCompactItems.length > 4}
-                          />
-                        )}
-                      </View>
-
-                      {/* Right Column */}
-                      <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                        {orderedCompactItems[4] && (
-                          <CompactGlanceCard
-                            item={orderedCompactItems[4]}
-                            width={cardColWidth}
-                            isEditing={isEditingGlanceOrder}
-                            isSelectedForSwap={selectedCardForSwap === orderedCompactItems[4].id}
-                            onSelectForSwap={() => handleCardPressInEdit(orderedCompactItems[4].id as GlanceMetricKey)}
-                            onLongPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              setIsEditingGlanceOrder(true);
-                            }}
-                            onMovePrev={() => handleNudgeMetric(orderedCompactItems[4].id as GlanceMetricKey, 'prev')}
-                            onMoveNext={() => handleNudgeMetric(orderedCompactItems[4].id as GlanceMetricKey, 'next')}
-                            canMovePrev={true}
-                            canMoveNext={orderedCompactItems.length > 5}
-                          />
-                        )}
-                        {customGoalItems.length > 0 ? (
-                          <CompactGlanceCard item={customGoalItems[0]} width={cardColWidth} />
-                        ) : (
-                          <TouchableOpacity
-                            style={[styles.compactGlanceCard, styles.addMetricCard, { width: cardColWidth }]}
-                            onPress={() => router.push('/customize/at-a-glance')}
-                            activeOpacity={0.75}
-                            accessibilityRole="button"
-                            accessibilityLabel="Customize glance metrics"
-                          >
-                            <View style={styles.addMetricTop}>
-                              <View style={styles.addMetricIconBox}>
-                                <SlidersHorizontal size={14} color={palette.primary} strokeWidth={2.4} />
-                              </View>
-                              <ChevronRight size={13} color={palette.textDisabled} />
-                            </View>
-                            <View style={styles.compactCardBottom}>
-                              <Text style={styles.compactLabel}>Customize</Text>
-                              <Text style={styles.compactSubtitle}>Add more metrics</Text>
-                            </View>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Extra Slides if user has multiple custom goal actions or extra compact items */}
-                  {extraCustomSlidesCount > 0 &&
-                    Array.from({ length: extraCustomSlidesCount }).map((_, slideIdx) => {
-                      const pair = remainingExtraItems.slice(slideIdx * 2, slideIdx * 2 + 2);
-                      return (
-                        <View key={`extra-slide-${slideIdx}`} style={[styles.glanceSlide, { width: slideWidth }]}>
-                          <View style={[styles.glanceColumn, { width: cardColWidth }]}>
-                            {pair[0] && (
-                              <CompactGlanceCard
-                                item={pair[0]}
-                                width={cardColWidth}
-                                isEditing={isEditingGlanceOrder}
-                                isSelectedForSwap={selectedCardForSwap === pair[0].id}
-                                onSelectForSwap={() => handleCardPressInEdit(pair[0].id as GlanceMetricKey)}
-                                onLongPress={() => {
-                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                  setIsEditingGlanceOrder(true);
-                                }}
-                              />
-                            )}
-                            {pair[1] && (
-                              <CompactGlanceCard
-                                item={pair[1]}
-                                width={cardColWidth}
-                                isEditing={isEditingGlanceOrder}
-                                isSelectedForSwap={selectedCardForSwap === pair[1].id}
-                                onSelectForSwap={() => handleCardPressInEdit(pair[1].id as GlanceMetricKey)}
-                                onLongPress={() => {
-                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                  setIsEditingGlanceOrder(true);
-                                }}
-                              />
-                            )}
-                          </View>
-                        </View>
-                      );
-                    })}
-                </ScrollView>
-              </View>
-
-              {/* Slider pagination dots */}
-              {totalGlancePages > 1 && (
-                <View style={styles.glancePaginationRow}>
-                  {Array.from({ length: totalGlancePages }).map((_, dotIdx) => (
-                    <View
-                      key={`glance-dot-${dotIdx}`}
-                      style={[
-                        styles.glanceDot,
-                        activeGlanceIndex === dotIdx && styles.glanceDotActive,
-                      ]}
-                    />
-                  ))}
+                <View style={styles.addIcon}>
+                  <Plus size={19} color={palette.textSecondary} strokeWidth={2.4} />
                 </View>
-              )}
+                <Text style={styles.addLabel} maxFontSizeMultiplier={1.3}>Add Action</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
-
-        {/* My Day To-Do Focus Hub Card */}
-        <View style={styles.section}>
-          <MyDayCard boundaryHour={boundaryHour} />
-        </View>
-
-        {/* Active Reminders Card */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Active Reminders</Text>
-            <TouchableOpacity onPress={() => router.push('/reminders?mode=reminders')}>
-              <Text style={styles.sectionActionText}>Manage ({reminders.filter(r => r.enabled).length})</Text>
-            </TouchableOpacity>
           </View>
 
-          {activeReminders.length === 0 ? (
-            <TouchableOpacity
-              style={styles.emptyRemindersBox}
-              onPress={() => router.push('/reminders/add')}
-            >
-              <Clock size={20} color={palette.textSecondary} />
-              <Text style={styles.emptyRemindersText}>No reminders set. Tap to add water or movement alerts.</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.remindersCard}>
-              {activeReminders.map((rem, idx) => (
-                <TouchableOpacity
-                  key={rem._id}
-                  style={[styles.reminderRow, idx < activeReminders.length - 1 && styles.reminderRowBorder]}
-                  onPress={() => router.push('/reminders?mode=reminders')}
-                >
-                  <Text style={styles.reminderEmoji}>{rem.icon || '⏰'}</Text>
-                  <View style={styles.reminderInfo}>
-                    <Text style={styles.reminderName}>{rem.name}</Text>
-                    <Text style={styles.reminderTiming}>
-                      {rem.scheduleType === 'INTERVAL' ? `Every ${rem.intervalMinutes || 60}m` : (rem.targetTime || 'Daily')}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color={palette.textSecondary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
+          <InsetGroup>
+            <GroupedRow
+              icon={Zap}
+              tile={palette.warning}
+              label="Quick Log"
+              sub="Fast entry for your key questions"
+              chevron
+              onPress={() => router.push('/quick-log')}
+            />
+            <GroupedRow
+              icon={Flame}
+              tile={palette.error}
+              label="Flare mode"
+              sub="Show only the essentials on bad days"
+              toggle
+              toggled={flareActive}
+              onToggle={v => { setFlareMode(v); }}
+            />
+          </InsetGroup>
 
-        <View style={{ height: 24 }} />
+          {summaryRows.length > 0 ? (
+            <View style={styles.block}>
+              <SectionTitle title="Summary" actionLabel="Timeline" onAction={() => router.push('/(tabs)/timeline')} />
+              <InsetGroup>
+                {summaryRows.map(r => <GroupedRow key={r.label} {...r} />)}
+              </InsetGroup>
+            </View>
+          ) : (
+            <InsetGroup>
+              <GroupedRow label="All summary cards are hidden" sub="Choose what appears here" chevron onPress={() => router.push('/customize/at-a-glance')} />
+            </InsetGroup>
+          )}
+
+          <MyDaySection boundaryHour={boundaryHour} />
+          </>
+        )}
       </ScrollView>
 
-      {/* Undo toast */}
       <UndoToast quickActions={config?.quickActions ?? []} />
 
-      {/* Water Quantity Modal */}
       <WaterQuantityModal
         visible={waterModalVisible}
         onClose={() => setWaterModalVisible(false)}
         quickActionId={selectedWaterActionId || waterAction?._id}
-        onLogged={() => {
-          fetchTodayTaps(boundaryHour);
-        }}
+        onLogged={() => { fetchTodayTaps(boundaryHour); }}
       />
 
-      {/* Linked Quick Tap In-Place Modal */}
       <LinkedQuickTapModal
         visible={!!selectedLinkedAction}
         action={selectedLinkedAction}
@@ -926,1014 +420,33 @@ export default function TodayScreen() {
         }}
       />
 
-      {/* Weather Report Modal */}
-      <WeatherReportModal
-        visible={weatherModalVisible}
-        onClose={() => setWeatherModalVisible(false)}
-      />
-
-      {/* Account Switcher Modal */}
-      <AccountSwitcherModal
-        visible={accountSwitcherVisible}
-        onClose={() => setAccountSwitcherVisible(false)}
-        onSwitched={() => {
-          fetchProfile().catch(() => {});
-          fetchConfig().catch(() => {});
-          fetchTodaySession().catch(() => {});
-          fetchTodayTaps(boundaryHour).catch(() => {});
-          fetchTodaySummary().catch(() => {});
-          fetchReminders().catch(() => {});
-        }}
-      />
+      <WeatherReportModal visible={weatherModalVisible} onClose={() => setWeatherModalVisible(false)} />
     </SafeAreaView>
   );
 }
 
-interface GlanceItem {
-  id: string;
-  icon?: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
-  emoji?: string;
-  value: string;
-  label: string;
-  subtitle?: string;
-  color: string;
-  onPress?: () => void;
-}
-
-interface FeaturedWaterCardProps {
-  count: number;
-  goal: number;
-  width?: number;
-  isEditing?: boolean;
-  onManage: () => void;
-  onPress: () => void;
-  onLongPress?: () => void;
-  onQuickAdd?: () => void;
-}
-
-function FeaturedWaterCard({ count, goal, onManage, onPress, onLongPress, onQuickAdd, width, isEditing }: FeaturedWaterCardProps) {
-  const { colorScheme, palette } = useTheme();
-  const styles = useStyles();
-  const isDark = colorScheme === 'dark';
-
-  const size = 80;
-  const strokeWidth = 6.5;
-  const center = size / 2;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = goal > 0 ? Math.min(1, Math.max(0, count / goal)) : 0;
-  const strokeDashoffset = circumference * (1 - progress);
-
-  const pct = goal > 0 ? (count / goal) * 100 : 0;
-  const pctStr = `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}% goal`;
-
-  const trackColor = isDark ? '#0E749022' : '#E2E8F0';
-
-  return (
-    <View
-      style={[
-        styles.featuredWaterCard,
-        width ? { width } : null,
-        isEditing && { borderWidth: 2, borderColor: '#0284C7' },
-      ]}
-    >
-      <View style={styles.waterCardTopRow}>
-        <TouchableOpacity
-          style={styles.waterRingWrapper}
-          onPress={onPress}
-          onLongPress={onLongPress}
-          delayLongPress={350}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Water progress: ${count} of ${goal} glasses. ${pctStr}`}
-        >
-          <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-            <Defs>
-              <SvgGradient id="waterProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#22D3EE" />
-                <Stop offset="100%" stopColor="#0284C7" />
-              </SvgGradient>
-            </Defs>
-            <Circle
-              cx={center}
-              cy={center}
-              r={radius}
-              stroke={trackColor}
-              strokeWidth={strokeWidth}
-              fill="none"
-            />
-            {progress > 0 && (
-              <Circle
-                cx={center}
-                cy={center}
-                r={radius}
-                stroke="url(#waterProgressGrad)"
-                strokeWidth={strokeWidth}
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                fill="none"
-              />
-            )}
-          </Svg>
-          <View style={styles.waterRingCenterText}>
-            <Text style={styles.waterRingCount}>{`${count}/${goal}`}</Text>
-            <Text style={styles.waterRingSubLabel}>Water</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.waterBadgeBox}
-          onPress={onQuickAdd || onPress}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Quick log 1 glass of water"
-        >
-          <Droplets size={19} color="#0284C7" strokeWidth={2.2} />
-          <View style={styles.waterPlusBadge}>
-            <Plus size={8} color="#FFFFFF" strokeWidth={3} />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.waterCardBottomRow}>
-        <TouchableOpacity
-          style={styles.waterMetaCol}
-          onPress={onPress}
-          onLongPress={onLongPress}
-          delayLongPress={350}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Water intake details"
-        >
-          <Text style={styles.waterMetaTitle}>Water</Text>
-          {isEditing ? (
-            <View style={styles.pinnedHeroBadge}>
-              <Pin size={9} color="#0284C7" />
-              <Text style={styles.pinnedHeroText}>Pinned Hero</Text>
-            </View>
-          ) : (
-            <View style={[styles.waterGoalPill, pct > 0 && styles.waterGoalPillActive]}>
-              <Text style={[styles.waterMetaPercent, pct > 0 && styles.waterMetaPercentActive]}>
-                {pctStr}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.waterManageBtn}
-          onPress={onManage}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Manage water intake"
-        >
-          <SlidersHorizontal size={10} color={isDark ? '#CBD5E1' : '#475569'} />
-          <Text style={styles.waterManageBtnText}>Manage</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-interface CompactGlanceCardProps {
-  item: GlanceItem;
-  width?: number;
-  isEditing?: boolean;
-  isSelectedForSwap?: boolean;
-  onLongPress?: () => void;
-  onSelectForSwap?: () => void;
-  onMovePrev?: () => void;
-  onMoveNext?: () => void;
-  canMovePrev?: boolean;
-  canMoveNext?: boolean;
-}
-
-function CompactGlanceCard({
-  item,
-  width,
-  isEditing,
-  isSelectedForSwap,
-  onLongPress,
-  onSelectForSwap,
-  onMovePrev,
-  onMoveNext,
-  canMovePrev,
-  canMoveNext,
-}: CompactGlanceCardProps) {
-  const { palette, colorScheme } = useTheme();
-  const styles = useStyles();
-  const isDark = colorScheme === 'dark';
-
-  const handlePress = () => {
-    if (isEditing) {
-      if (onSelectForSwap) onSelectForSwap();
-      return;
-    }
-    if (item.onPress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      item.onPress();
-    }
-  };
-
-  const IconComp = item.icon;
-
-  return (
-    <View
-      style={[
-        styles.compactGlanceCard,
-        {
-          borderColor: isSelectedForSwap
-            ? palette.primary
-            : isDark
-            ? `${item.color}99`
-            : item.color,
-          backgroundColor: isSelectedForSwap
-            ? `${palette.primary}20`
-            : isDark
-            ? palette.surface
-            : `${item.color}0A`,
-          borderWidth: isSelectedForSwap ? 2.5 : isEditing ? 2 : 1.5,
-          borderStyle: isEditing && !isSelectedForSwap ? 'dashed' : 'solid',
-        },
-        width ? { width } : null,
-      ]}
-    >
-      <TouchableOpacity
-        style={StyleSheet.absoluteFill}
-        onPress={handlePress}
-        onLongPress={() => {
-          if (!isEditing && onLongPress) {
-            onLongPress();
-          }
-        }}
-        delayLongPress={350}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.label}: ${item.value}`}
-      />
-
-      {/* Swap indicator badge when selected */}
-      {isEditing && isSelectedForSwap && (
-        <View style={styles.swapActiveBadge} pointerEvents="none">
-          <Check size={9} color="#FFFFFF" strokeWidth={3} />
-          <Text style={styles.swapActiveText}>Selected</Text>
-        </View>
-      )}
-
-      {/* Grip icon when in edit mode but not selected */}
-      {isEditing && !isSelectedForSwap && (
-        <View style={styles.swapIndicatorBox} pointerEvents="none">
-          <GripVertical size={11} color={palette.textSecondary} />
-        </View>
-      )}
-
-      <View style={styles.compactCardTop} pointerEvents="none">
-        <Text style={styles.compactValue} numberOfLines={1}>
-          {item.value}
-        </Text>
-        <View style={[styles.compactBadgeBox, { backgroundColor: `${item.color}1C` }]}>
-          {IconComp ? (
-            <IconComp size={15} color={item.color} strokeWidth={2.3} />
-          ) : (
-            <Text style={styles.compactEmoji}>{item.emoji}</Text>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.compactCardBottom} pointerEvents="none">
-        <Text style={styles.compactLabel} numberOfLines={1}>
-          {item.label}
-        </Text>
-        {item.subtitle ? (
-          <Text style={styles.compactSubtitle} numberOfLines={1}>
-            {item.subtitle}
-          </Text>
-        ) : null}
-      </View>
-
-      {/* Reorder directional nudge buttons */}
-      {isEditing && (canMovePrev || canMoveNext) && !isSelectedForSwap && (
-        <View style={styles.reorderArrowsRow}>
-          {canMovePrev && (
-            <TouchableOpacity
-              style={styles.reorderArrowBtn}
-              onPress={onMovePrev}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel={`Move ${item.label} earlier`}
-            >
-              <ChevronLeft size={11} color={palette.primary} strokeWidth={2.5} />
-            </TouchableOpacity>
-          )}
-          {canMoveNext && (
-            <TouchableOpacity
-              style={styles.reorderArrowBtn}
-              onPress={onMoveNext}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel={`Move ${item.label} later`}
-            >
-              <ChevronRight size={11} color={palette.primary} strokeWidth={2.5} />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
 const useStyles = createThemedStyles(palette => ({
-  safe: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 125,
-    gap: 18,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  greeting: {
-    ...typography.h2,
-    color: palette.text,
-  },
-  dateAndWeatherRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  weatherChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    gap: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  weatherChipEmoji: {
-    fontSize: 12,
-  },
-  weatherChipText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  weatherChipRiskDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  date: {
-    ...typography.body,
-    fontSize: 13,
-    color: palette.textSecondary,
-  },
-  reminderIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  activeNotifDot: {
-    position: 'absolute',
-    top: 7,
-    right: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FF5E20',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  profileAvatarBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    shadowColor: '#FF5E20',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  avatarGradient: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-  multiAccountDot: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: '#059669',
-    borderRadius: 7,
-    minWidth: 15,
-    height: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  multiAccountDotText: {
-    color: '#FFFFFF',
-    fontSize: 8.5,
-    fontWeight: '800',
-  },
-  section: {
-    gap: 10,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: palette.text,
-  },
-  sectionActionText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  walkingCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 16,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  walkingStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  walkingMetricItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  walkingMetricVal: {
-    ...typography.h2,
-    fontSize: 22,
-    color: palette.text,
-  },
-  walkingMetricLabel: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 2,
-  },
-  walkingDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: palette.divider,
-  },
-  walkingStartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: palette.primary,
-    paddingVertical: 12,
-    borderRadius: 9999,
-    gap: 8,
-  },
-  walkingStartText: {
-    ...typography.body,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  remindersCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: 'hidden',
-  },
-  reminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12,
-  },
-  reminderRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: palette.divider,
-  },
-  reminderEmoji: {
-    fontSize: 20,
-  },
-  reminderInfo: {
-    flex: 1,
-  },
-  reminderName: {
-    ...typography.body,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  reminderTiming: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 1,
-  },
-  emptyRemindersBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  emptyRemindersText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    flex: 1,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  quickActionWrapper: {
-    alignItems: 'center',
-  },
-  addQuickActionButton: {
-    width: '100%',
-    aspectRatio: 0.92,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: palette.border,
-    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#FAF6F1' : palette.surface,
-  },
-  addQuickActionWell: {
-    width: 44,
-    height: 44,
+  safe: { flex: 1, backgroundColor: palette.background },
+  scroll: { flex: 1 },
+  content: { gap: 22, paddingTop: 6 },
+  block: { gap: 10 },
+  inset: { marginHorizontal: 16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16 },
+  addTile: {
+    minHeight: 104,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: `${palette.primary}12`,
-    marginBottom: 5,
-  },
-  addQuickActionLabel: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-    fontSize: 12,
-    lineHeight: 15,
-    textAlign: 'center',
-  },
-  addQuickActionSub: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '500',
-    color: palette.textSecondary,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  headerRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  customizeGlanceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 9,
-    paddingVertical: 4.5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  customizeGlanceText: {
-    ...typography.caption,
-    fontWeight: '600',
-    color: palette.textSecondary,
-    fontSize: 11.5,
-  },
-  seeAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: `${palette.primary}12`,
-    paddingHorizontal: 9,
-    paddingVertical: 4.5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: `${palette.primary}25`,
-  },
-  seeAllText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.primary,
-    fontSize: 11.5,
-  },
-  doneReorderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  doneReorderText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontSize: 12,
-  },
-  editReorderHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: `${palette.primary}12`,
-    borderRadius: 10,
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  editReorderHintText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: palette.primary,
-    flex: 1,
-  },
-  pinnedHeroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#0284C718',
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  pinnedHeroText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#0284C7',
-    textTransform: 'uppercase',
-  },
-  swapActiveBadge: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: palette.primary,
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    zIndex: 10,
-  },
-  swapActiveText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  swapIndicatorBox: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    padding: 3,
-    backgroundColor: `${palette.textSecondary}15`,
-    borderRadius: 6,
-    zIndex: 5,
-  },
-  reorderArrowsRow: {
-    position: 'absolute',
-    bottom: 5,
-    right: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    zIndex: 5,
-  },
-  reorderArrowBtn: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
     backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyGlanceBox: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderStyle: 'dashed',
-  },
-  emptyGlanceText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  glanceRowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
-  },
-  featuredWaterCard: {
-    width: 154,
-    height: 176,
-    backgroundColor: palette.surface,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#38BDF8',
-    padding: 11,
+    padding: 12,
     justifyContent: 'space-between',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  waterCardTopRow: {
-    flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
   },
-  waterRingWrapper: {
-    width: 80,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  waterRingCenterText: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  waterRingCount: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: palette.text,
-  },
-  waterRingSubLabel: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    color: palette.textSecondary,
-    marginTop: 0.5,
-  },
-  waterBadgeBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#E0F2FE' : '#0E749022',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  waterPlusBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#0284C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: palette.surface,
-  },
-  waterCardBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  waterMetaCol: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  waterMetaTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  waterGoalPill: {
-    marginTop: 2,
-    alignSelf: 'flex-start',
-  },
-  waterGoalPillActive: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 6,
-  },
-  waterMetaPercent: {
-    fontSize: 11,
-    color: palette.textDisabled,
-    fontWeight: '500',
-  },
-  waterMetaPercentActive: {
-    color: '#0284C7',
-    fontWeight: '700',
-  },
-  waterManageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.surfaceAlt,
-    borderColor: palette.border,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4.5,
+  addIcon: {
+    width: 34,
+    height: 34,
     borderRadius: 10,
-    justifyContent: 'center',
-  },
-  waterManageBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
-  glanceSliderContainer: {
-    width: '100%',
-    marginTop: 4,
-  },
-  glanceSliderScroll: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingRight: 16,
-  },
-  glanceSlide: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-  },
-  glanceColumn: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  compactGlanceCard: {
-    width: 154,
-    height: 83,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1.5,
-  },
-  addMetricCard: {
-    borderStyle: 'dashed',
-    borderColor: palette.border,
-    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#FAF6F1' : palette.surface,
-    borderWidth: 1.5,
-  },
-  addMetricTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addMetricIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: `${palette.primary}15`,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  compactCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  compactValue: {
-    ...typography.body,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-    color: palette.text,
-    flex: 1,
-  },
-  compactBadgeBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compactEmoji: {
-    fontSize: 15,
-  },
-  compactCardBottom: {
-    marginTop: 2,
-  },
-  compactLabel: {
-    ...typography.caption,
-    fontSize: 11.5,
-    color: palette.textSecondary,
-    fontWeight: '600',
-    letterSpacing: -0.1,
-  },
-  compactSubtitle: {
-    ...typography.caption,
-    fontSize: 10,
-    color: palette.textDisabled,
-    fontWeight: '500',
-    marginTop: 0.5,
-  },
-  glancePaginationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    marginTop: 8,
-  },
-  glanceDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: palette.border,
-  },
-  glanceDotActive: {
-    width: 14,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: palette.primary,
-  },
+  addLabel: { ...typography.subheadBold, color: palette.textSecondary },
 }));

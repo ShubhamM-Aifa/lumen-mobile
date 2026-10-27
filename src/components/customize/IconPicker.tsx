@@ -230,7 +230,7 @@ export function IconPicker({ value, onChange, label = 'Icon' }: Props) {
                   {/* Keyboard Emoji Input Card */}
                   <View style={styles.customCard}>
                     <View style={styles.customHeaderRow}>
-                      <Sparkles size={14} color={palette.primary} />
+                      <Sparkles size={14} color={palette.primaryText} />
                       <Text style={styles.customSectionTitle}>ENTER EMOJI FROM KEYBOARD</Text>
                     </View>
 
@@ -397,9 +397,7 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -487,7 +485,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   done: {
     ...typography.bodyBold,
-    color: palette.primary,
+    color: palette.primaryText,
     fontSize: 14,
   },
   listContent: {
@@ -514,7 +512,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   customSectionTitle: {
     ...typography.label,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
     fontSize: 11,
     letterSpacing: 0.6,
@@ -548,9 +546,7 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     height: 50,
     backgroundColor: palette.surface,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: palette.border,
+    borderRadius: 22,
     paddingHorizontal: 12,
   },
   inputContainerFocused: {

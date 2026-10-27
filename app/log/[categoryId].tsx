@@ -32,6 +32,7 @@ import { useTodayCategoryLogs, formatAnswerSummary } from '../../src/hooks/useTo
 import { getDayBoundaryWindow, getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { logLocationService } from '../../src/services/logLocationService';
 import { useKeyboard } from '../../src/hooks/useKeyboard';
+import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 
 function fmtDateOnly(d: Date): string {
   const isToday = new Date().toDateString() === d.toDateString();
@@ -389,10 +390,26 @@ export default function QuestionSheet() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Stack.Screen
-          options={{
-            title: formattedTargetDate ? `${category.name} (${formattedTargetDate})` : category.name,
-          }}
+        <Stack.Screen options={{ headerShown: false }} />
+
+        <ScreenTopBar
+          title={category.name}
+          onBack={() => safeGoBack(date ? '/(tabs)/timeline' : '/log')}
+          right={
+            <TouchableOpacity
+              style={styles.datePill}
+              onPress={() => setShowDatePicker(true)}
+              accessibilityLabel={`Log date: ${fmtDateOnly(occurredAt)}`}
+              accessibilityHint="Change the date"
+              accessibilityRole="button"
+            >
+              <Text style={styles.datePillText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+                {isLoggingForToday
+                  ? 'Today'
+                  : occurredAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </Text>
+            </TouchableOpacity>
+          }
         />
 
         <ScrollView
@@ -403,24 +420,12 @@ export default function QuestionSheet() {
         {/* Past Date Context Banner */}
         {formattedTargetDate && (
           <View style={styles.pastDateBanner}>
-            <Calendar size={15} color={palette.primary} strokeWidth={2.4} />
+            <Calendar size={15} color={palette.primaryText} strokeWidth={2.4} />
             <Text style={styles.pastDateBannerText}>
               Logging for <Text style={styles.pastDateHighlight}>{formattedTargetDate}</Text>
             </Text>
           </View>
         )}
-
-        {/* Log date row */}
-        <TouchableOpacity
-          style={styles.timeRow}
-          onPress={() => setShowDatePicker(true)}
-          accessibilityLabel={`Log date: ${fmtDateOnly(occurredAt)}`}
-          accessibilityRole="button"
-        >
-          <Calendar size={16} color={palette.primary} strokeWidth={2.2} />
-          <Text style={styles.timeText}>{fmtDateOnly(occurredAt)}</Text>
-          <Text style={styles.timeEdit}>Change</Text>
-        </TouchableOpacity>
 
         {/* Meal Slot Selector for per_meal questions */}
         {hasPerMealQuestions && (
@@ -486,7 +491,7 @@ export default function QuestionSheet() {
               {justApplied ? (
                 <Check size={16} color="#059669" strokeWidth={2.5} />
               ) : (
-                <RotateCcw size={16} color={palette.primary} strokeWidth={2.2} />
+                <RotateCcw size={16} color={palette.primaryText} strokeWidth={2.2} />
               )}
             </View>
 
@@ -554,9 +559,9 @@ export default function QuestionSheet() {
                 {allQuestionsExpanded === false ? 'Expand all' : 'Collapse all'}
               </Text>
               {allQuestionsExpanded === false ? (
-                <ChevronDown size={14} color={palette.primary} strokeWidth={2.4} />
+                <ChevronDown size={14} color={palette.primaryText} strokeWidth={2.4} />
               ) : (
-                <ChevronUp size={14} color={palette.primary} strokeWidth={2.4} />
+                <ChevronUp size={14} color={palette.primaryText} strokeWidth={2.4} />
               )}
             </TouchableOpacity>
           </View>
@@ -668,18 +673,16 @@ export default function QuestionSheet() {
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { ...typography.body, color: palette.error },
-  scroll: { padding: 16, gap: 14 },
+  errorText: { ...typography.body, color: palette.errorText },
+  scroll: { paddingHorizontal: 16, paddingTop: 12, gap: 14 },
   pastDateBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: palette.primary + '14',
-    borderWidth: 1,
-    borderColor: palette.primary + '30',
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: palette.surface,
   },
   pastDateBannerText: {
     ...typography.caption,
@@ -688,49 +691,27 @@ const useStyles = createThemedStyles(palette => ({
     fontWeight: '600',
   },
   pastDateHighlight: {
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '800',
   },
-  timeRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: palette.surface,
-    borderRadius: 12, borderWidth: 1, borderColor: palette.border,
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  timeIcon: { fontSize: 16 },
-  timeText: { ...typography.smallBold, color: palette.text, flex: 1 },
-  timeEdit: { ...typography.small, color: palette.primary },
   previousLogCard: {
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    borderRadius: 26,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 12,
   },
-  previousLogCardApplied: {
-    borderColor: '#10B981',
-    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#ECFDF5' : '#064E3B1C',
-  },
+  previousLogCardApplied: { backgroundColor: palette.success + '1F' },
   previousLogIconBox: {
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: `${palette.primary}14`,
+    backgroundColor: palette.tint + '1F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  previousLogIconBoxApplied: {
-    backgroundColor: '#10B98122',
-  },
+  previousLogIconBoxApplied: { backgroundColor: palette.success + '33' },
   previousLogInfo: {
     flex: 1,
     gap: 2,
@@ -740,66 +721,30 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 7,
   },
-  previousLogTitle: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-    fontSize: 12.5,
-  },
-  previousLogBadge: {
-    backgroundColor: palette.surfaceAlt,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
-  },
-  previousLogBadgeText: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
-  previousLogSummary: {
-    ...typography.caption,
-    fontSize: 11,
-    color: palette.textSecondary,
-  },
+  previousLogTitle: { ...typography.subheadBold, color: palette.text },
+  previousLogBadge: { backgroundColor: palette.surfaceAlt, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  previousLogBadgeText: { ...typography.footnote, color: palette.textSecondary },
+  previousLogSummary: { ...typography.footnote, color: palette.textSecondary },
   previousLogActionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: `${palette.primary}14`,
-    borderWidth: 1,
-    borderColor: `${palette.primary}25`,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: palette.tint + '1F',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  previousLogActionBtnApplied: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  previousLogActionText: {
-    ...typography.caption,
-    fontSize: 11,
-    fontWeight: '700',
-    color: palette.primary,
-  },
+  previousLogActionBtnApplied: { backgroundColor: palette.success },
+  previousLogActionText: { ...typography.subheadBold, color: palette.primaryText },
   previousLogActionTextApplied: {
     color: '#FFFFFF',
   },
   mealCard: {
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 12,
-    gap: 8,
+    borderRadius: 26,
+    padding: 14,
+    gap: 10,
   },
-  mealCardLabel: {
-    ...typography.caption,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  mealCardLabel: { ...typography.sectionLabel, color: palette.textSecondary },
   mealPillsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -810,30 +755,17 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingVertical: 8,
+    minHeight: 44,
     paddingHorizontal: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
     backgroundColor: palette.surfaceAlt,
   },
-  mealPillActive: {
-    borderColor: palette.primary,
-    backgroundColor: `${palette.primary}12`,
-  },
+  mealPillActive: { backgroundColor: palette.primary },
   mealPillEmoji: {
     fontSize: 13,
   },
-  mealPillText: {
-    ...typography.caption,
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
-  mealPillTextActive: {
-    color: palette.primary,
-    fontWeight: '700',
-  },
+  mealPillText: { ...typography.subhead, color: palette.text },
+  mealPillTextActive: { color: '#FFFFFF', fontWeight: '600' },
   questionsToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -847,77 +779,56 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 8,
   },
-  questionsToolbarTitle: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  answeredCountBadge: {
-    backgroundColor: '#05966914',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#05966928',
-  },
-  answeredCountBadgeText: {
-    ...typography.caption,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#059669',
-  },
+  questionsToolbarTitle: { ...typography.sectionLabel, color: palette.textSecondary },
+  answeredCountBadge: { backgroundColor: palette.success + '1F', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  answeredCountBadgeText: { ...typography.footnote, fontWeight: '600', color: palette.successText },
   expandCollapseAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: `${palette.primary}12`,
-    borderWidth: 1,
-    borderColor: `${palette.primary}25`,
+    minHeight: 44,
+    paddingHorizontal: 4,
   },
-  expandCollapseAllText: {
-    ...typography.caption,
-    fontSize: 11,
-    fontWeight: '700',
-    color: palette.primary,
-  },
+  expandCollapseAllText: { ...typography.subheadBold, color: palette.primaryText },
   emptyCard: {
     backgroundColor: palette.surface,
-    borderRadius: 14, borderWidth: 1, borderColor: palette.border,
+    borderRadius: 26,
     padding: 20, alignItems: 'center', gap: 6,
   },
   emptyText: { ...typography.body, color: palette.textSecondary, textAlign: 'center' },
-  emptyHint: { ...typography.small, color: palette.textDisabled, textAlign: 'center' },
+  emptyHint: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center' },
   noteWrapper: { gap: 6 },
-  noteLabel: { ...typography.smallBold, color: palette.textSecondary },
+  noteLabel: { ...typography.sectionLabel, color: palette.textSecondary, paddingHorizontal: 4 },
   noteInput: {
     backgroundColor: palette.surface,
-    borderWidth: 1, borderColor: palette.border,
-    borderRadius: 14, padding: 14,
-    ...typography.body, color: palette.text,
-    minHeight: 72,
+    borderRadius: 26, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    ...typography.bodyLarge, color: palette.text,
+    minHeight: 84, textAlignVertical: 'top',
   },
+  datePill: {
+    minHeight: 44,
+    minWidth: 64,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: palette.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePillText: { ...typography.subheadBold, color: palette.primaryText },
   spacer: { height: 100 },
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 12,
-    backgroundColor: palette.surface,
-    borderTopWidth: 1, borderTopColor: palette.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 8,
+    paddingHorizontal: 16, paddingTop: 8,
   },
   submitBtn: {
     backgroundColor: palette.primary,
-    borderRadius: 16, paddingVertical: 16,
+    borderRadius: 27,
     alignItems: 'center', justifyContent: 'center',
     minHeight: 54,
+    shadowColor: palette.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitText: { ...typography.button, color: '#FFFFFF' },
+  submitText: { ...typography.headline, color: '#FFFFFF' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   pickerSheet: {
     backgroundColor: palette.surface,
@@ -929,5 +840,5 @@ const useStyles = createThemedStyles(palette => ({
     borderBottomWidth: 1, borderBottomColor: palette.border,
   },
   pickerTitle: { ...typography.h4, color: palette.text },
-  pickerDone: { ...typography.bodyBold, color: palette.primary },
+  pickerDone: { ...typography.bodyBold, color: palette.primaryText },
 }));

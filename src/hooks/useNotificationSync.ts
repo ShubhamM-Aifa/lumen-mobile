@@ -13,6 +13,7 @@ import {
   handleNotificationActionResponse,
 } from '../services/notifications';
 import { getPendingAlarm } from '../services/alarmScheduler';
+import { recordNotification } from '../services/notificationInbox';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let N: any = null;
@@ -100,6 +101,7 @@ export function useNotificationSync() {
     // Fired when notification arrives while app is in foreground
     const receivedSub = typeof N.addNotificationReceivedListener === 'function'
       ? N.addNotificationReceivedListener((notification: any) => {
+          recordNotification(notification).catch(() => {});
           const reminderId = notification.request?.content?.data?.reminderId;
           if (reminderId) {
             router.push(`/alarm/${reminderId}`);

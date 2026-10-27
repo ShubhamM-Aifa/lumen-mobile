@@ -2,18 +2,19 @@
  * QuickActionButton
  * One tap = instant log with haptic feedback + undo toast.
  * Long-press = opens the detail sheet.
+ *
+ * iOS-style tile: white card, 34pt coloured icon tile, title and a muted status line.
  */
 import React, { useCallback } from 'react';
 import {
   TouchableOpacity,
   View,
   Text,
-  StyleSheet,
   Animated,
   DimensionValue,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useTheme, createThemedStyles } from '../theme/ThemeContext';
+import { createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { useQuickLogStore } from '../store/quickLogStore';
 import { useAuthStore } from '../store/authStore';
@@ -29,7 +30,6 @@ interface Props {
 }
 
 export function QuickActionButton({ action, onLongPress, onPressOverride, width }: Props): React.ReactElement {
-  const { palette } = useTheme();
   const styles = useStyles();
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
@@ -38,55 +38,21 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
   const isTapValidForToday = tapData?.lastAt ? isWithinDayBoundary(tapData.lastAt, boundaryHour) : false;
   const count = isTapValidForToday ? (tapData?.count ?? 0) : 0;
   const lastAt = isTapValidForToday && tapData?.lastAt
-    ? new Date(tapData.lastAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    ? new Date(tapData.lastAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     : null;
 
-  // Physical press spring animation
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
-  const badgeScaleAnim = React.useRef(new Animated.Value(1)).current;
-  const prevCount = React.useRef(count);
-
-  // Pop the badge whenever count changes
-  React.useEffect(() => {
-    if (count !== prevCount.current && count > 0) {
-      prevCount.current = count;
-      Animated.sequence([
-        Animated.spring(badgeScaleAnim, {
-          toValue: 1.35,
-          friction: 4,
-          tension: 240,
-          useNativeDriver: true,
-        }),
-        Animated.spring(badgeScaleAnim, {
-          toValue: 1,
-          friction: 5,
-          tension: 120,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [count, badgeScaleAnim]);
 
   const handlePressIn = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.90,
-      friction: 6,
-      tension: 180,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 0.96, friction: 7, tension: 200, useNativeDriver: true }).start();
   }, [scaleAnim]);
 
   const handlePressOut = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 4,
-      tension: 110,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 1, friction: 6, tension: 140, useNativeDriver: true }).start();
   }, [scaleAnim]);
 
   const handlePress = useCallback(async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
     if (onPressOverride) {
       onPressOverride();
@@ -96,87 +62,34 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
     await tap(action._id, undefined, boundaryHour);
   }, [action._id, tap, onPressOverride, boundaryHour]);
 
+  const status = count > 0 ? `${count} today${lastAt ? ` · ${lastAt}` : ''}` : 'Tap to log';
+
   return (
     <Animated.View style={[styles.wrapper, width !== undefined ? { width } : null, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
-        style={[
-          styles.button,
-          {
-            backgroundColor: count > 0
-              ? (palette.surfaceAlt === '#F5F0EB' ? action.color + '0E' : action.color + '1A')
-              : palette.surface,
-            borderColor: count > 0 ? action.color + '55' : palette.border,
-          },
-        ]}
+        style={styles.button}
         onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onLongPress={onLongPress}
         delayLongPress={500}
-        accessibilityLabel={`${action.label}, tapped ${count} times today`}
+        accessibilityLabel={`${action.label}, ${count === 0 ? 'not logged yet today' : `logged ${count} ${count === 1 ? 'time' : 'times'} today`}`}
         accessibilityRole="button"
-        activeOpacity={0.92}
+        activeOpacity={0.9}
       >
-        {/* Count badge with pop animation */}
-        {count > 0 && (
-          <Animated.View
-            style={[
-              styles.badge,
-              {
-                backgroundColor: action.color,
-                transform: [{ scale: badgeScaleAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.badgeText}>{count}</Text>
-          </Animated.View>
-        )}
-
-        {/* Icon framed in a circular orb */}
-        <View
-          style={[
-            styles.iconWell,
-            {
-              backgroundColor: action.color + (count > 0 ? '25' : '15'),
-              borderColor: action.color + (count > 0 ? '45' : '26'),
-            },
-          ]}
-        >
+        <View style={[styles.tile, { backgroundColor: action.color }]}>
           <QuickActionIcon
             icon={action.icon}
             templateKey={action.templateKey}
             label={action.label}
-            color={action.color}
-            size={22}
+            color="#FFFFFF"
+            size={19}
           />
         </View>
-
-        {/* Label */}
-        <Text style={styles.label} numberOfLines={2}>{action.label}</Text>
-
-        {/* Status indicator: subtle subtext showing count, time or 'Tap to log' */}
-        {count > 0 ? (
-          <Text style={[styles.statusText, { color: action.color }]} numberOfLines={1}>
-            {count > 1 ? `${count} today` : (lastAt ? `at ${lastAt}` : 'Logged')}
-          </Text>
-        ) : (
-          <Text style={styles.statusEmpty} numberOfLines={1}>Tap to log</Text>
-        )}
-
-        {/* Daily goal progress bar */}
-        {action.dailyGoal && count > 0 && (
-          <View style={[styles.goalBar, { backgroundColor: action.color + '22' }]}>
-            <View
-              style={[
-                styles.goalFill,
-                {
-                  backgroundColor: action.color,
-                  width: `${Math.min(100, (count / action.dailyGoal) * 100)}%` as `${number}%`,
-                },
-              ]}
-            />
-          </View>
-        )}
+        <View style={styles.text}>
+          <Text style={styles.label} numberOfLines={2} maxFontSizeMultiplier={1.3}>{action.label}</Text>
+          <Text style={styles.status} numberOfLines={1} maxFontSizeMultiplier={1.2}>{status}</Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -185,99 +98,24 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
 const useStyles = createThemedStyles(palette => ({
   wrapper: {
     width: '31.3%',
-    alignItems: 'center',
   },
   button: {
     width: '100%',
-    aspectRatio: 0.92,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    position: 'relative',
-    borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 1.5,
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: palette.surface,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    zIndex: 2,
-  },
-  badgeText: {
-    ...typography.caption,
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 10,
-    lineHeight: 12,
-  },
-  iconWell: {
-    width: 44,
-    height: 44,
+    minHeight: 104,
     borderRadius: 22,
+    backgroundColor: palette.surface,
+    padding: 12,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  tile: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5,
-    borderWidth: 1.5,
   },
-  icon: {
-    fontSize: 22,
-    lineHeight: 28,
-  },
-  label: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-    textAlign: 'center',
-    fontSize: 12,
-    lineHeight: 15,
-  },
-  statusText: {
-    ...typography.caption,
-    fontWeight: '600',
-    fontSize: 10,
-    lineHeight: 13,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  statusEmpty: {
-    ...typography.caption,
-    fontWeight: '500',
-    fontSize: 10,
-    lineHeight: 13,
-    color: palette.textDisabled,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  goalBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 10,
-    right: 10,
-    height: 3,
-    borderRadius: 1.5,
-    overflow: 'hidden',
-  },
-  goalFill: {
-    height: 3,
-    borderRadius: 1.5,
-  },
+  text: { gap: 1, alignSelf: 'stretch' },
+  label: { ...typography.subheadBold, color: palette.text },
+  status: { ...typography.footnote, color: palette.textSecondary },
 }));

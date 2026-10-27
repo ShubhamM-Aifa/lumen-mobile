@@ -6,8 +6,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Switch, Platform, KeyboardAvoidingView,
+  StyleSheet, Alert, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
+import { AppleSwitch } from '../../../src/components/common/AppleSwitch';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '../../../src/utils/navigation';
@@ -301,10 +302,11 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc: stri
         <Text style={toggleStyles.label}>{label}</Text>
         <Text style={toggleStyles.desc}>{desc}</Text>
       </View>
-      <Switch
-        value={value} onValueChange={onChange}
-        trackColor={{ false: palette.border, true: palette.primary + '88' }}
-        thumbColor={value ? palette.primary : palette.textDisabled}
+      <AppleSwitch
+        value={value}
+        onValueChange={onChange}
+        activeColor={palette.primary || '#34C759'}
+        accessibilityLabel={label}
       />
     </View>
   );
@@ -318,8 +320,7 @@ const useFieldStyles = createThemedStyles((palette) => ({
 const useToggleStyles = createThemedStyles((palette) => ({
   row: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: palette.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 22,
     paddingHorizontal: 14, paddingVertical: 12, gap: 12,
   },
   text: { flex: 1 },
@@ -331,8 +332,8 @@ const useStyles = createThemedStyles((palette) => ({
   screen: { flex: 1, backgroundColor: palette.background },
   scroll: { padding: 16, gap: 16, paddingBottom: 100 },
   input: {
-    backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border,
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14,
+    backgroundColor: palette.surface,
+    borderRadius: 22, paddingHorizontal: 14, paddingVertical: 14,
     ...typography.body, color: palette.text, minHeight: 52,
   },
   segmentRow: {
@@ -342,7 +343,7 @@ const useStyles = createThemedStyles((palette) => ({
   segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
   segmentActive: { backgroundColor: palette.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   segmentText: { ...typography.smallBold, color: palette.textSecondary },
-  segmentTextActive: { color: palette.primary },
+  segmentTextActive: { color: palette.primaryText },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
@@ -356,7 +357,7 @@ const useStyles = createThemedStyles((palette) => ({
     borderWidth: 1, borderColor: palette.border,
     paddingHorizontal: 16, paddingVertical: 14,
   },
-  optionsLinkText: { ...typography.bodyBold, color: palette.primary },
+  optionsLinkText: { ...typography.bodyBold, color: palette.primaryText },
   archivedNotice: {
     backgroundColor: palette.warning + '18',
     borderRadius: 12,
@@ -364,26 +365,26 @@ const useStyles = createThemedStyles((palette) => ({
     borderColor: palette.warning + '40',
     padding: 14,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warning, lineHeight: 18 },
+  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
   actionSection: { gap: 10, marginTop: 12 },
   unarchiveBtn: {
     backgroundColor: palette.secondary + '18', borderRadius: 12,
     borderWidth: 1, borderColor: palette.secondary + '60',
     paddingVertical: 14, alignItems: 'center',
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondary },
+  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
   archiveBtn: {
     backgroundColor: palette.warning + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.warning + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warning },
+  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
   deleteBtn: {
     backgroundColor: palette.error + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.error + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  deleteBtnText: { ...typography.bodyBold, color: palette.error },
+  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: 16, paddingBottom: 28, backgroundColor: palette.surface,

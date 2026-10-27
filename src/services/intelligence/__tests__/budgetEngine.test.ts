@@ -141,3 +141,41 @@ describe('countsAgainstBudget', () => {
     expect(countsAgainstBudget('FLARE_RISK')).toBe(true);
   });
 });
+
+describe('notBefore (a check-in timed to a pattern)', () => {
+  const HOUR = 3600000;
+
+  it('defers to the requested time instead of delivering now', () => {
+    const at = NOON_ISH + 6 * HOUR; // 20:00, outside quiet hours
+    const d = decide([cand('w', 'TRIGGER_WATCH', { notBefore: at, expiresAt: NOON_ISH + 24 * HOUR })], policy(), ctx());
+    expect(d.deliverNow).toEqual([]);
+    expect(d.deferred).toEqual([{ candidate: expect.objectContaining({ id: 'w' }), deliverAt: at }]);
+  });
+
+  it('moves a time that lands in quiet hours to when they end', () => {
+    const at = NOON_ISH + 10 * HOUR; // 00:00
+    const d = decide([cand('w', 'TRIGGER_WATCH', { notBefore: at, expiresAt: NOON_ISH + 30 * HOUR })], policy(), ctx());
+    expect(d.deferred).toHaveLength(1);
+    expect(new Date(d.deferred[0].deliverAt).getHours()).toBe(7);
+  });
+
+  it('keeps it in-app only if the window would be over by then', () => {
+    const at = NOON_ISH + 10 * HOUR; // lands in quiet hours, which end at 07:00
+    const d = decide([cand('w', 'TRIGGER_WATCH', { notBefore: at, expiresAt: NOON_ISH + 12 * HOUR })], policy(), ctx());
+    expect(d.deferred).toEqual([]);
+    expect(d.inApp).toEqual([{ candidate: expect.objectContaining({ id: 'w' }), reason: 'quiet_hours_stale' }]);
+  });
+
+  it('still respects the master switch, flare mode and the capability toggle', () => {
+    const at = NOON_ISH + 6 * HOUR;
+    const w = cand('w', 'TRIGGER_WATCH', { notBefore: at });
+    expect(decide([w], policy({ masterEnabled: false }), ctx()).dropped[0].reason).toBe('master_off');
+    expect(decide([w], policy({ flareModeActive: true }), ctx()).dropped[0].reason).toBe('flare_mode');
+    expect(decide([w], policy({ capabilities: { adaptiveTiming: true, flareRisk: true, triggerWatch: false, pacing: true, safety: true } }), ctx()).dropped[0].reason).toBe('capability_off');
+  });
+
+  it('ignores a notBefore that has already passed', () => {
+    const d = decide([cand('w', 'TRIGGER_WATCH', { notBefore: NOON_ISH - HOUR })], policy(), ctx());
+    expect(d.deliverNow.map(c => c.id)).toEqual(['w']);
+  });
+});

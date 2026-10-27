@@ -128,8 +128,8 @@ export const LogTemplateEmbedCard: React.FC<LogTemplateEmbedCardProps> = ({
             onPress={handleOpenTemplate}
             activeOpacity={0.7}
           >
-            <Check size={14} color="#22C55E" strokeWidth={2.5} />
-            <Text style={[styles.actionBtnText, { color: '#22C55E' }]}>Installed • View in Log</Text>
+            <Check size={14} color={palette.successText} strokeWidth={2.5} />
+            <Text style={[styles.actionBtnText, { color: palette.successText }]}>Installed • View in Log</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity

@@ -42,7 +42,7 @@ export default function RegisterScreen() {
 
         <View style={styles.card}>
           <View style={styles.benefitRow}>
-            <ShieldCheck size={20} color={palette.primary} />
+            <ShieldCheck size={20} color={palette.primaryText} />
             <View style={styles.benefitTextCol}>
               <Text style={styles.benefitTitle}>Zero Password Headaches</Text>
               <Text style={styles.benefitDesc}>Get started instantly with a single tap using your Google account.</Text>
@@ -50,7 +50,7 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.benefitRow}>
-            <Sparkles size={20} color={palette.primary} />
+            <Sparkles size={20} color={palette.primaryText} />
             <View style={styles.benefitTextCol}>
               <Text style={styles.benefitTitle}>Optional Local Password</Text>
               <Text style={styles.benefitDesc}>Once signed in, you can configure an account password anytime in Settings to also log in with email.</Text>
@@ -94,20 +94,17 @@ export default function RegisterScreen() {
 const useStyles = createThemedStyles(palette => ({
   container: { flex: 1, backgroundColor: palette.background },
   scroll:    { flexGrow: 1, padding: 24, paddingTop: 50 },
-  back:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
-  backText:  { ...typography.body, color: palette.textSecondary },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20, minHeight: 44 },
+  backText: { ...typography.bodyLarge, color: palette.primaryText },
   logoHeader: { alignItems: 'center', marginBottom: 24 },
   logoBadge:  { marginBottom: 12 },
-  heading:   { ...typography.h2, color: palette.text, textAlign: 'center', marginBottom: 8 },
-  sub:       { ...typography.bodySmall, color: palette.textSecondary, textAlign: 'center', lineHeight: 20 },
+  heading: { ...typography.largeTitle, fontSize: 28, lineHeight: 34, color: palette.text, textAlign: 'center', marginBottom: 8 },
+  sub: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center' },
   card: {
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 20,
+    borderRadius: 26,
     padding: 20,
-    gap: 18,
-    marginVertical: 12,
+    gap: 14,
   },
   benefitRow: {
     flexDirection: 'row',
@@ -117,26 +114,17 @@ const useStyles = createThemedStyles(palette => ({
   benefitTextCol: {
     flex: 1,
   },
-  benefitTitle: {
-    ...typography.body,
-    fontWeight: '700',
-    color: palette.text,
-    marginBottom: 2,
-  },
-  benefitDesc: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    lineHeight: 16,
-  },
+  benefitTitle: { ...typography.headline, color: palette.text, marginBottom: 2 },
+  benefitDesc: { ...typography.footnote, color: palette.textSecondary },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
     backgroundColor: palette.primary,
-    borderRadius: 14,
-    padding: 16,
-    minHeight: 52,
+    borderRadius: 27,
+    paddingHorizontal: 16,
+    minHeight: 54,
     marginTop: 6,
   },
   buttonDisabled: { opacity: 0.6 },
@@ -153,15 +141,9 @@ const useStyles = createThemedStyles(palette => ({
     fontWeight: '800',
     color: '#4285F4',
   },
-  buttonText: { ...typography.button, color: '#FFFFFF', fontSize: 16 },
-  link: { alignItems: 'center', marginTop: 12 },
-  linkText: { ...typography.body, color: palette.textSecondary },
-  linkBold: { color: palette.primary, fontWeight: '700' },
-  disclaimer: {
-    ...typography.caption,
-    color: palette.textDisabled,
-    textAlign: 'center',
-    marginTop: 32,
-    lineHeight: 18,
-  },
+  buttonText: { ...typography.headline, color: '#FFFFFF' },
+  link: { alignItems: 'center', justifyContent: 'center', marginTop: 12, minHeight: 44 },
+  linkText: { ...typography.subhead, color: palette.textSecondary },
+  linkBold: { color: palette.primaryText, fontWeight: '700' },
+  disclaimer: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center', marginTop: 28 },
 }));

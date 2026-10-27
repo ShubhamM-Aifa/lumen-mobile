@@ -19,51 +19,60 @@ export type ThemeTokens = Record<keyof typeof lightPaletteSource, string>;
 
 // Independent, immutable light design tokens so theme changes never mutate source values
 export const lightTokens: ThemeTokens = Object.freeze({
-  // Brand
-  primary:   '#FF6B35',  // warm coral/orange — action colour
-  secondary: '#4ECDC4',  // teal — secondary CTA
-  accent:    '#FFE66D',  // soft yellow — highlight
+  // Brand. Two blues: `tint` for large/decorative, `primary`/`primaryText` for text and white-text fills.
+  tint:        '#007AFF',
+  primary:     '#0066CC',  // white text on it is 5.57:1
+  primaryText: '#0066CC',  // 4.99:1 on the page background
+  secondary:   '#30B0C7',
+  accent:      '#FFCC00',
 
-  // Category colours
-  catSymptom:  '#E57373',  // warm red
-  catFood:     '#66BB6A',  // green
-  catHabits:   '#42A5F5',  // blue
-  catMeds:     '#AB47BC',  // purple
-  catBody:     '#8D6E63',  // brown
-  catMood:     '#7E57C2',  // indigo
-  catVitals:   '#EF5350',  // red
+  // Category colours (iOS system colours)
+  catSymptom:  '#FF3B30',
+  catFood:     '#34C759',
+  catHabits:   '#007AFF',
+  catMeds:     '#AF52DE',
+  catBody:     '#A2845E',
+  catMood:     '#5856D6',
+  catVitals:   '#FF2D55',
 
   // Severity / alert
-  severityNone:   '#66BB6A',
-  severityLow:    '#FFCA28',
-  severityMedium: '#FFA726',
-  severityHigh:   '#EF5350',
+  severityNone:   '#34C759',
+  severityLow:    '#FFCC00',
+  severityMedium: '#FF9500',
+  severityHigh:   '#FF3B30',
 
   // Neutrals (light mode)
-  background:    '#FFF8F0',  // off-white warm
+  background:    '#F2F2F7',
   surface:       '#FFFFFF',
-  surfaceAlt:    '#F5F0EB',
-  border:        '#E8E0D8',
-  divider:       '#EDE8E4',
+  surfaceAlt:    '#EEEEF3',
+  border:        '#D1D1D6',
+  divider:       '#E5E5EA',
 
-  text:          '#1A1A1A',
-  textSecondary: '#6B5E52',
-  textDisabled:  '#B0A89E',
-  placeholder:   '#C4B8AE',
+  text:          '#000000',
+  textSecondary: '#6C6C70',
+  textDisabled:  '#6C6C70',
+  placeholder:   '#6C6C70',
 
   // Dark mode compatibility overrides
-  darkBackground:    '#1A1612',
-  darkSurface:       '#252118',
-  darkSurfaceAlt:    '#2E2921',
-  darkBorder:        '#3D352C',
-  darkText:          '#F5F0EB',
-  darkTextSecondary: '#B0A89E',
+  darkBackground:    '#000000',
+  darkSurface:       '#1C1C1E',
+  darkSurfaceAlt:    '#2C2C2E',
+  darkBorder:        '#38383A',
+  darkText:          '#FFFFFF',
+  darkTextSecondary: '#98989F',
 
   // Status
-  success: '#66BB6A',
-  warning: '#FFA726',
-  error:   '#EF5350',
-  info:    '#42A5F5',
+  success: '#34C759',
+  warning: '#FF9500',
+  error:   '#FF3B30',
+  info:    '#007AFF',
+
+  // Status colours safe to use as text (4.5:1+ on background and surface)
+  successText:   '#1E7B34',
+  warningText:   '#B25000',
+  errorText:     '#D70015',
+  infoText:      '#0066CC',
+  secondaryText: '#00798A',
 
   // Special
   white:       '#FFFFFF',
@@ -74,29 +83,49 @@ export const lightTokens: ThemeTokens = Object.freeze({
 export const darkTokens: ThemeTokens = Object.freeze({
   ...lightTokens,
 
-  // Backgrounds — dark-first
-  background:    '#1A1612',
-  surface:       '#252118',
-  surfaceAlt:    '#2E2921',
+  // Backgrounds: true black with iOS elevated grays
+  background:    '#000000',
+  surface:       '#1C1C1E',
+  surfaceAlt:    '#2C2C2E',
 
   // Text
-  text:          '#F5F0EB',
-  textSecondary: '#B0A89E',
-  textDisabled:  '#6B5E52',
-  placeholder:   '#6B5E52',
+  text:          '#FFFFFF',
+  textSecondary: '#98989F',
+  textDisabled:  '#8E8E93',  // 6.44:1 on background, 5.22:1 on surface
+  placeholder:   '#8E8E93',
 
-  // Brand — same warm coral reads well on dark
-  primary:       '#FF7D4D',
-  secondary:     '#5EDBD2',
+  // Brand: fills keep #0066CC so white text passes (5.57:1);
+  // text and icons use the lighter system blue, which passes on dark surfaces (4.66:1+)
+  tint:          '#0A84FF',
+  primary:       '#0066CC',
+  primaryText:   '#0A84FF',
+  secondary:     '#64D2FF',
+  secondaryText: '#64D2FF',
 
   // Borders
-  border:        '#3D352C',
-  divider:       '#3D352C',
+  border:        '#38383A',
+  divider:       '#38383A',
 
-  // Semantic (unchanged — already high-contrast)
-  success:  '#66BB6A',
-  warning:  '#FFA726',
-  error:    '#EF5350',
-  info:     '#64B5F6',
+  // Status fills (iOS dark system colours)
+  success:  '#30D158',
+  warning:  '#FF9F0A',
+  error:    '#FF453A',
+  info:     '#0A84FF',
+  successText: '#30D158',
+  warningText: '#FF9F0A',
+  errorText:   '#FF453A',
+  infoText:    '#0A84FF',
+
+  // Category colours (iOS dark system colours)
+  catSymptom:  '#FF453A',
+  catFood:     '#30D158',
+  catHabits:   '#0A84FF',
+  catMeds:     '#BF5AF2',
+  catBody:     '#AC8E68',
+  catMood:     '#5E5CE6',
+  catVitals:   '#FF375F',
+  severityNone:   '#30D158',
+  severityLow:    '#FFD60A',
+  severityMedium: '#FF9F0A',
+  severityHigh:   '#FF453A',
 });
-

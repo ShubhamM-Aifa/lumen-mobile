@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
   Check,
@@ -10,7 +10,7 @@ import {
   CheckSquare,
 } from 'lucide-react-native';
 import { ITask } from '../../shared/types';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface TaskItemProps {
@@ -21,6 +21,10 @@ interface TaskItemProps {
   todayStr?: string;
 }
 
+/**
+ * One task row. Rows sit inside a rounded group card (see the To Do screen),
+ * so the row draws no surface or border of its own.
+ */
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   onPress,
@@ -29,6 +33,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   todayStr = new Date().toISOString().slice(0, 10),
 }) => {
   const { palette } = useTheme();
+  const styles = useStyles();
 
   const handleToggleComplete = () => {
     Haptics.impactAsync(
@@ -47,120 +52,85 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   // Due date styling
   const isOverdue = task.dueDate && task.dueDate < todayStr && !task.isCompleted;
   const isDueToday = task.dueDate === todayStr;
+  const dueColor = isOverdue ? palette.errorText : isDueToday ? palette.infoText : palette.textSecondary;
 
   const stepsTotal = task.steps?.length || 0;
   const stepsDone = task.steps?.filter((s) => s.completed).length || 0;
 
-  // Energy cost configuration
   const energyConfig = {
-    gentle: { label: 'Gentle', bg: 'rgba(34, 197, 94, 0.15)', text: '#22C55E', dot: '🟢' },
-    moderate: { label: 'Moderate', bg: 'rgba(234, 179, 8, 0.15)', text: '#EAB308', dot: '🟡' },
-    demanding: { label: 'High Energy', bg: 'rgba(239, 68, 68, 0.15)', text: '#EF4444', dot: '🔴' },
+    gentle: { label: 'Gentle', bg: palette.success + '26', text: palette.successText, dot: '🟢' },
+    moderate: { label: 'Moderate', bg: palette.warning + '26', text: palette.warningText, dot: '🟡' },
+    demanding: { label: 'High Energy', bg: palette.error + '26', text: palette.errorText, dot: '🔴' },
   };
-
   const currentEnergy = task.energyCost ? energyConfig[task.energyCost] : null;
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        {
-          backgroundColor: palette.surface,
-          borderColor: task.isCompleted ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.1)',
-          opacity: task.isCompleted ? 0.65 : 1,
-        },
-      ]}
+      style={[styles.row, task.isCompleted && styles.rowDone]}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.6}
       accessibilityRole="button"
       accessibilityLabel={`Task: ${task.title}`}
     >
-      {/* Complete Checkbox */}
       <TouchableOpacity
         style={[
           styles.checkbox,
-          {
-            borderColor: task.isCompleted ? palette.primary : 'rgba(255, 255, 255, 0.35)',
-            backgroundColor: task.isCompleted ? palette.primary : 'transparent',
-          },
+          task.isCompleted && { borderColor: palette.primary, backgroundColor: palette.primary },
         ]}
         onPress={handleToggleComplete}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityRole="checkbox"
+        accessibilityLabel={`Complete ${task.title}`}
         accessibilityState={{ checked: task.isCompleted }}
       >
         {task.isCompleted && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
       </TouchableOpacity>
 
-      {/* Main Content */}
       <View style={styles.content}>
         <Text
-          style={[
-            styles.title,
-            {
-              color: task.isCompleted ? palette.textDisabled : palette.text,
-              textDecorationLine: task.isCompleted ? 'line-through' : 'none',
-            },
-          ]}
+          style={[styles.title, task.isCompleted && styles.titleDone]}
           numberOfLines={2}
+          maxFontSizeMultiplier={1.4}
         >
           {task.title}
         </Text>
 
-        {/* Sub-chips Row */}
         <View style={styles.metaRow}>
-          {/* Steps Indicator */}
           {stepsTotal > 0 && (
             <View style={styles.metaChip}>
-              <CheckSquare size={11} color={palette.textSecondary} />
-              <Text style={[styles.metaText, { color: palette.textSecondary }]}>
-                {stepsDone}/{stepsTotal}
-              </Text>
+              <CheckSquare size={12} color={palette.textSecondary} />
+              <Text style={styles.metaText} maxFontSizeMultiplier={1.4}>{stepsDone}/{stepsTotal}</Text>
             </View>
           )}
 
-          {/* My Day Indicator */}
           {task.inMyDay && (
             <View style={styles.metaChip}>
-              <Sun size={11} color="#38BDF8" />
-              <Text style={[styles.metaText, { color: '#38BDF8' }]}>My Day</Text>
+              <Sun size={12} color={palette.infoText} />
+              <Text style={[styles.metaText, { color: palette.infoText }]} maxFontSizeMultiplier={1.4}>My Day</Text>
             </View>
           )}
 
-          {/* Due Date Indicator */}
           {task.dueDate && (
             <View style={styles.metaChip}>
-              <Calendar
-                size={11}
-                color={
-                  isOverdue ? '#EF4444' : isDueToday ? '#38BDF8' : palette.textSecondary
-                }
-              />
+              <Calendar size={12} color={dueColor} />
               <Text
-                style={[
-                  styles.metaText,
-                  {
-                    color: isOverdue ? '#EF4444' : isDueToday ? '#38BDF8' : palette.textSecondary,
-                    fontWeight: isOverdue || isDueToday ? '600' : '400',
-                  },
-                ]}
+                style={[styles.metaText, { color: dueColor, fontWeight: isOverdue || isDueToday ? '600' : '400' }]}
+                maxFontSizeMultiplier={1.4}
               >
                 {isOverdue ? 'Overdue' : isDueToday ? 'Today' : task.dueDate}
               </Text>
             </View>
           )}
 
-          {/* Repeat Badge */}
           {task.repeat && (
             <View style={styles.metaChip}>
-              <Repeat size={11} color={palette.textSecondary} />
+              <Repeat size={12} color={palette.textSecondary} />
             </View>
           )}
 
-          {/* Energy Cost Badge */}
           {currentEnergy && (
             <View style={[styles.energyBadge, { backgroundColor: currentEnergy.bg }]}>
-              <Text style={[styles.energyText, { color: currentEnergy.text }]}>
+              <Text style={[styles.energyText, { color: currentEnergy.text }]} maxFontSizeMultiplier={1.4}>
                 {currentEnergy.dot} {currentEnergy.label}
               </Text>
             </View>
@@ -168,81 +138,51 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         </View>
       </View>
 
-      {/* Star / Important Toggle */}
       <TouchableOpacity
         style={styles.starButton}
         onPress={handleToggleImportant}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
         accessibilityRole="button"
         accessibilityLabel={task.isImportant ? 'Unmark important' : 'Mark important'}
       >
         <Star
-          size={18}
-          color={task.isImportant ? '#F59E0B' : 'rgba(255, 255, 255, 0.25)'}
-          fill={task.isImportant ? '#F59E0B' : 'transparent'}
-          strokeWidth={task.isImportant ? 2 : 1.5}
+          size={20}
+          color={task.isImportant ? palette.warning : palette.textSecondary}
+          fill={task.isImportant ? palette.warning : 'transparent'}
+          strokeWidth={task.isImportant ? 2 : 1.6}
         />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 };
 
-const styles = StyleSheet.create({
-  card: {
+const useStyles = createThemedStyles(palette => ({
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    minHeight: 52,
   },
+  rowDone: { opacity: 0.7 },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: palette.textSecondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginTop: 1,
   },
-  content: {
-    flex: 1,
-  },
-  title: {
-    ...typography.bodyMedium,
-    fontSize: 15,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-  },
-  energyBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  energyText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  starButton: {
-    paddingLeft: 8,
-    paddingRight: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+  content: { flex: 1, gap: 3 },
+  title: { ...typography.bodyLarge, color: palette.text },
+  titleDone: { color: palette.textSecondary, textDecorationLine: 'line-through' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { ...typography.footnote, color: palette.textSecondary },
+  energyBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  energyText: { ...typography.footnote, fontWeight: '600' },
+  starButton: { minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center', paddingTop: 1 },
+}));

@@ -1,7 +1,7 @@
 /**
  * Sleep Tracker Store
  * Manages sleep lifecycle tailored for autoimmune disorder recovery:
- * - Compulsory 7–8 hour target (480 mins default, 420 mins minimum recovery threshold)
+ * - Sleep goal the user can set (8 h default, 6 to 10 h); the on-target floor sits one hour below it
  * - Live tracking from "Go to bed" to "Tap when you're awake"
  * - Autoimmune immune modulation & cytokine suppression insights
  * - 1-tap sleep quality check-in (RESTFUL, GOOD, FAIR, POOR)
@@ -41,12 +41,40 @@ interface SleepTrackerState {
   recordSleepQuality: (quality: SleepQuality) => Promise<void>;
   adjustTimes: (bedtime: Date, wakeTime: Date, quality?: SleepQuality) => Promise<void>;
   getLiveElapsedMinutes: () => number;
+  setTargetGoalMinutes: (minutes: number) => Promise<void>;
 }
 
 const STORAGE_KEY_ACTIVE_SLEEP = 'lumen:sleep_active_start_v1';
 const STORAGE_KEY_LAST_RECORD = 'lumen:sleep_last_record_v1';
+const STORAGE_KEY_GOAL = 'lumen:sleep_goal_minutes_v1';
 const DEFAULT_TARGET_GOAL_MINUTES = 480; // 8 hours
 const MIN_RECOVERY_MINUTES = 420; // 7 hours
+export const SLEEP_GOAL_MIN_MINUTES = 360; // 6 hours
+export const SLEEP_GOAL_MAX_MINUTES = 600; // 10 hours
+export const SLEEP_GOAL_STEP_MINUTES = 30;
+const RECOVERY_GAP_MINUTES = 60;
+
+/** Snap a goal to the allowed range and step. */
+export function clampSleepGoal(minutes: number): number {
+  const snapped = Math.round(minutes / SLEEP_GOAL_STEP_MINUTES) * SLEEP_GOAL_STEP_MINUTES;
+  return Math.min(SLEEP_GOAL_MAX_MINUTES, Math.max(SLEEP_GOAL_MIN_MINUTES, snapped));
+}
+
+/** Nights at or above this count as on target. */
+export function recoveryFloorFor(goalMinutes: number): number {
+  return goalMinutes - RECOVERY_GAP_MINUTES;
+}
+
+/** 480 -> "8", 450 -> "7.5". */
+export function formatGoalHours(minutes: number): string {
+  const h = minutes / 60;
+  return Number.isInteger(h) ? String(h) : h.toFixed(1);
+}
+
+/** "7–8" for an 8 hour goal, "8–9" for 9 hours. */
+export function goalRangeLabel(goalMinutes: number): string {
+  return `${formatGoalHours(recoveryFloorFor(goalMinutes))}–${formatGoalHours(goalMinutes)}`;
+}
 
 export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
   isSleeping: false,
@@ -56,12 +84,29 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
   minRecoveryMinutes: MIN_RECOVERY_MINUTES,
   isLoaded: false,
 
+  setTargetGoalMinutes: async (minutes: number) => {
+    const goal = clampSleepGoal(minutes);
+    set({ targetGoalMinutes: goal, minRecoveryMinutes: recoveryFloorFor(goal) });
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_GOAL, String(goal));
+    } catch (e) {
+      console.warn('[SleepTrackerStore] setTargetGoalMinutes error:', e);
+    }
+  },
+
   loadState: async () => {
     try {
-      const [activeStart, lastRecordStr] = await Promise.all([
+      const [activeStart, lastRecordStr, goalStr] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEY_ACTIVE_SLEEP),
         AsyncStorage.getItem(STORAGE_KEY_LAST_RECORD),
+        AsyncStorage.getItem(STORAGE_KEY_GOAL),
       ]);
+
+      const savedGoal = goalStr ? Number(goalStr) : NaN;
+      if (Number.isFinite(savedGoal)) {
+        const goal = clampSleepGoal(savedGoal);
+        set({ targetGoalMinutes: goal, minRecoveryMinutes: recoveryFloorFor(goal) });
+      }
 
       let lastRecord: SleepRecord | null = null;
       if (lastRecordStr) {

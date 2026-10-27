@@ -5,10 +5,12 @@ test.describe('Reminders & Alarms System', () => {
   test('User can open Reminders screen from Today and see categories', async ({ page }) => {
     await loginAsTestUser(page);
 
-    // Click the Bell icon button on Today screen
-    const bellBtn = page.getByRole('button', { name: 'Open Reminders' });
+    // The bell on Today opens the Notifications inbox; Reminders is reached from there or Customize
+    const bellBtn = page.getByRole('button', { name: /^Notifications/ });
     await expect(bellBtn).toBeVisible();
     await bellBtn.click();
+    await expect(page).toHaveURL(/\/notifications/);
+    await page.goto('/reminders');
 
     // Verify Reminders screen
     await expect(page).toHaveURL(/\/reminders/);
@@ -26,7 +28,7 @@ test.describe('Reminders & Alarms System', () => {
     await loginAsTestUser(page);
 
     // Open reminders screen
-    await page.getByRole('button', { name: 'Open Reminders' }).click();
+    await page.goto('/reminders');
     await expect(page.getByText('Reminders', { exact: true }).last()).toBeVisible();
 
     // Click Add reminder button

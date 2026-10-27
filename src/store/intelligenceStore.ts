@@ -24,6 +24,7 @@ import {
   CHANNEL_ID_PACING,
   CHANNEL_ID_ALARM,
 } from '../services/notifications';
+import { entryFromNotification, useNotificationInboxStore } from './notificationInboxStore';
 
 const POLICY_KEY = 'lumen:intel:policy_v1';
 const LEDGER_KEY = 'lumen:intel:ledger_v1';
@@ -245,9 +246,24 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
       if (id) recordEvent({ notificationType: d.candidate.type, clientId: `${d.candidate.id}:${localDateKey(d.deliverAt)}`, status: 'TRIGGERED', scheduledFor: new Date(d.deliverAt).toISOString() });
     }
 
+    const logged = [
+      ...result.deliverNow.map(c => ({ c, at: now })),
+      ...result.deferred.map(d => ({ c: d.candidate, at: d.deliverAt })),
+      ...result.inApp.map(x => ({ c: x.candidate, at: now })),
+    ]
+      .map(({ c, at }) => entryFromNotification(
+        { title: c.title, body: c.body, data: { type: `INTEL_${c.type}`, candidateId: c.id }, at },
+      ))
+      .filter((e): e is NonNullable<typeof e> => e !== null);
+    useNotificationInboxStore.getState().add(logged).catch(() => {});
+
     const known = new Set(state.inbox.map(i => i.candidate.id));
-    const additions: InboxItem[] = result.inApp
-      .filter(x => !known.has(x.candidate.id))
+    const shownNow = [
+      ...result.deliverNow.filter(c => c.inAppNow).map(c => ({ candidate: c, reason: 'watch' as InAppReason })),
+      ...result.deferred.filter(d => d.candidate.inAppNow).map(d => ({ candidate: d.candidate, reason: 'watch' as InAppReason })),
+    ];
+    const additions: InboxItem[] = [...result.inApp, ...shownNow]
+      .filter((x, i, all) => !known.has(x.candidate.id) && all.findIndex(y => y.candidate.id === x.candidate.id) === i)
       .map(x => ({ candidate: x.candidate, reason: x.reason, addedAt: now }));
     const inbox = [...additions, ...state.inbox]
       .filter(i => i.candidate.expiresAt === undefined || i.candidate.expiresAt > now)

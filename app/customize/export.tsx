@@ -158,7 +158,7 @@ export default function ExportScreen() {
             accessibilityLabel="Import config"
           >
             {importing
-              ? <ActivityIndicator color={palette.primary} />
+              ? <ActivityIndicator color={palette.primaryText} />
               : <Text style={[styles.btnText, styles.btnSecondaryText]}>Import from file</Text>
             }
           </TouchableOpacity>
@@ -185,7 +185,7 @@ const useStyles = createThemedStyles(palette => ({
   btn: { backgroundColor: palette.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
   btnText: { ...typography.button, color: '#FFFFFF' },
   btnSecondary: { backgroundColor: palette.background, borderWidth: 1.5, borderColor: palette.primary },
-  btnSecondaryText: { color: palette.primary },
+  btnSecondaryText: { color: palette.primaryText },
   note: { backgroundColor: palette.surfaceAlt, borderRadius: 12, borderWidth: 1, borderColor: palette.border, padding: 16 },
   noteText: { ...typography.small, color: palette.textSecondary },
   noteBold: { fontWeight: '700', color: palette.text },

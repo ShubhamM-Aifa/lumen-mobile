@@ -23,12 +23,12 @@ export function DisclaimerBanner() {
     >
       <View style={styles.row}>
         <View style={styles.iconCircle}>
-          <Info size={15} color={palette.info} strokeWidth={2.4} />
+          <Info size={15} color={palette.infoText} strokeWidth={2.4} />
         </View>
         <Text style={styles.title}>About these insights</Text>
         <ChevronDown
           size={16}
-          color={palette.info}
+          color={palette.infoText}
           strokeWidth={2.2}
           style={expanded ? styles.chevronExpanded : undefined}
         />
@@ -51,7 +51,7 @@ export function DisclaimerBanner() {
 const useStyles = createThemedStyles(palette => ({
   banner: {
     backgroundColor: palette.info + '14',
-    borderRadius: 14, borderWidth: 1.5, borderColor: palette.info + '44',
+    borderRadius: 22,
     padding: 14, gap: 6,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -63,11 +63,11 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { ...typography.label, color: palette.info, fontWeight: '700', flex: 1 },
+  title: { ...typography.label, color: palette.infoText, fontWeight: '700', flex: 1 },
   chevronExpanded: {
     transform: [{ rotate: '180deg' }],
   },
-  summary: { ...typography.small, color: palette.info + 'CC', lineHeight: 18 },
+  summary: { ...typography.small, color: palette.infoText + 'CC', lineHeight: 18 },
   body: { ...typography.small, color: palette.textSecondary, lineHeight: 20 },
   bold: { fontWeight: '700', color: palette.text },
 }));

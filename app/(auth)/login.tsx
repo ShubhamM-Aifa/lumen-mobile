@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -44,13 +44,13 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.logoHeader}>
           <LumenLogo variant="badge" size={76} style={styles.logoBadge} />
-          <Text style={styles.logo}>🌿 Lumen</Text>
+          <Text style={styles.logo} accessibilityRole="header">Lumen</Text>
           <Text style={styles.tagline}>Track symptoms, triggers & health patterns</Text>
         </View>
 
         <View style={styles.card}>
           <View style={styles.badgeRow}>
-            <ShieldCheck size={16} color={palette.primary} />
+            <ShieldCheck size={16} color={palette.primaryText} />
             <Text style={styles.badgeText}>Safe & Verified Access</Text>
           </View>
           <Text style={styles.cardTitle}>Sign in to Lumen</Text>
@@ -157,53 +157,35 @@ const useStyles = createThemedStyles(palette => ({
   scroll:    { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 40 },
   logoHeader: { alignItems: 'center', marginBottom: 24 },
   logoBadge:  { marginBottom: 12 },
-  logo:       { ...typography.h1, textAlign: 'center', marginBottom: 4, color: palette.text },
-  tagline:    { ...typography.body, color: palette.textSecondary, textAlign: 'center' },
+  logo: { ...typography.largeTitle, textAlign: 'center', marginBottom: 4, color: palette.text },
+  tagline: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center' },
   card: {
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 20,
+    borderRadius: 26,
     padding: 20,
     gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: palette.primary + '18',
-    paddingHorizontal: 10,
+    backgroundColor: palette.tint + '1F',
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 20,
   },
-  badgeText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '600',
-  },
-  cardTitle: {
-    ...typography.h2,
-    color: palette.text,
-  },
-  cardSubtitle: {
-    ...typography.bodySmall,
-    color: palette.textSecondary,
-    lineHeight: 18,
-  },
+  badgeText: { ...typography.footnote, color: palette.primaryText, fontWeight: '600' },
+  cardTitle: { ...typography.title2, color: palette.text },
+  cardSubtitle: { ...typography.subhead, color: palette.textSecondary },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
     backgroundColor: palette.primary,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 27,
+    paddingHorizontal: 16,
     minHeight: 54,
     marginTop: 4,
   },
@@ -220,11 +202,7 @@ const useStyles = createThemedStyles(palette => ({
     fontWeight: '800',
     color: '#4285F4',
   },
-  googleText: {
-    ...typography.button,
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
+  googleText: { ...typography.headline, color: '#FFFFFF' },
   buttonDisabled: { opacity: 0.6 },
   dividerRow: {
     flexDirection: 'row',
@@ -232,21 +210,13 @@ const useStyles = createThemedStyles(palette => ({
     gap: 10,
     marginVertical: 4,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: palette.border,
-  },
-  dividerText: {
-    ...typography.caption,
-    color: palette.textDisabled,
-    textTransform: 'uppercase',
-  },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.border },
+  dividerText: { ...typography.footnote, color: palette.textSecondary, textTransform: 'uppercase' },
   accordionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    minHeight: 48,
     paddingHorizontal: 4,
   },
   accordionLeft: {
@@ -254,60 +224,36 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 8,
   },
-  accordionTitle: {
-    ...typography.bodySmall,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
+  accordionTitle: { ...typography.subheadBold, color: palette.textSecondary },
   passwordForm: {
     gap: 12,
     paddingTop: 4,
   },
-  passwordFormNotice: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    lineHeight: 16,
-  },
+  passwordFormNotice: { ...typography.footnote, color: palette.textSecondary },
   input: {
-    backgroundColor: palette.background,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 14,
-    ...typography.body,
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    ...typography.bodyLarge,
     color: palette.text,
     minHeight: 48,
   },
   button: {
-    backgroundColor: palette.surface,
-    borderWidth: 1.5,
-    borderColor: palette.primary,
-    borderRadius: 12,
-    padding: 14,
+    flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: palette.tint + '1F',
+    borderRadius: 27,
+    paddingHorizontal: 16,
+    minHeight: 52,
   },
-  buttonText: {
-    ...typography.button,
-    color: palette.primary,
-  },
-  forgotHint: {
-    ...typography.caption,
-    color: palette.textDisabled,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 16,
-  },
+  buttonText: { ...typography.headline, color: palette.primaryText },
+  forgotHint: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center', marginTop: 4 },
   linkBold: {
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
   },
-  disclaimer: {
-    ...typography.caption,
-    color: palette.textDisabled,
-    textAlign: 'center',
-    marginTop: 28,
-    lineHeight: 18,
-  },
+  disclaimer: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center', marginTop: 28 },
 }));
 

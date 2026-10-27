@@ -115,7 +115,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   cardBody: { padding: 10 },
   cardLabel: { ...typography.smallBold, color: palette.text },
-  cardLabelSelected: { color: palette.primary },
+  cardLabelSelected: { color: palette.primaryText },
   cardDesc: { ...typography.caption, color: palette.textSecondary, marginTop: 2 },
   hint: { ...typography.small, color: palette.textSecondary },
 }));

@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { X, Plus, Lightbulb, Check, AlertCircle, Calendar, Star } from 'lucide-react-native';
 import { ITask } from '../../shared/types';
 import { useTaskStore, TaskSuggestions } from '../../store/taskStore';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface SuggestionsModalProps {
@@ -27,6 +27,7 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
   boundaryHour = 4,
 }) => {
   const { palette } = useTheme();
+  const styles = useStyles();
   const { fetchSuggestions, toggleTaskMyDay, tasks } = useTaskStore();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<TaskSuggestions | null>(null);
@@ -59,14 +60,15 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
         <View style={styles.sectionHeader}>
           {icon}
           <Text style={[styles.sectionTitle, { color: iconColor }]}>{title}</Text>
-          <View style={[styles.badge, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
+          <View style={styles.badge}>
             <Text style={[styles.badgeText, { color: palette.textSecondary }]}>
               {items.length}
             </Text>
           </View>
         </View>
 
-        {items.map((item) => {
+        <View style={styles.groupCard}>
+        {items.map((item, itemIndex) => {
           // Check if current store task is already in My Day
           const current = tasks.find((t) => t._id === item._id) || item;
           const isInMyDay = current.inMyDay;
@@ -74,14 +76,14 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
           return (
             <View
               key={item._id}
-              style={[styles.itemCard, { backgroundColor: 'rgba(255, 255, 255, 0.04)' }]}
+              style={[styles.itemCard, itemIndex < items.length - 1 && styles.separated]}
             >
               <View style={styles.itemInfo}>
                 <Text
                   style={[
                     styles.itemTitle,
                     {
-                      color: isInMyDay ? palette.textDisabled : palette.text,
+                      color: isInMyDay ? palette.textSecondary : palette.text,
                       textDecorationLine: isInMyDay ? 'line-through' : 'none',
                     },
                   ]}
@@ -101,16 +103,16 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
                   styles.addBtn,
                   {
                     backgroundColor: isInMyDay
-                      ? 'rgba(56, 189, 248, 0.2)'
+                      ? palette.tint + '33'
                       : palette.primary,
                   },
                 ]}
                 onPress={() => handleAddToMyDay(item)}
                 accessibilityRole="button"
-                accessibilityLabel="Add to My Day"
+                accessibilityLabel={isInMyDay ? `${item.title} is in My Day` : `Add ${item.title} to My Day`}
               >
                 {isInMyDay ? (
-                  <Check size={16} color="#38BDF8" strokeWidth={2.5} />
+                  <Check size={16} color={palette.primaryText} strokeWidth={2.5} />
                 ) : (
                   <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
                 )}
@@ -118,6 +120,7 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
             </View>
           );
         })}
+        </View>
       </View>
     );
   };
@@ -137,14 +140,14 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: palette.surface }]}>
+        <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.topBar}>
             <View style={styles.titleRow}>
-              <Lightbulb size={22} color="#FBBF24" />
+              <Lightbulb size={22} color={palette.warning} />
               <Text style={[styles.title, { color: palette.text }]}>Suggestions</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close suggestions">
               <X size={20} color={palette.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -154,11 +157,11 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
 
           {loading ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color={palette.primary} />
+              <ActivityIndicator size="small" color={palette.tint} />
             </View>
           ) : !hasAnySuggestions ? (
             <View style={styles.emptyBox}>
-              <Text style={{ fontSize: 32 }}>✨</Text>
+              <Text style={styles.sparkle}>✨</Text>
               <Text style={[styles.emptyTitle, { color: palette.text }]}>All Caught Up!</Text>
               <Text style={[styles.emptySub, { color: palette.textSecondary }]}>
                 No overdue or suggested tasks found. Enjoy your day!
@@ -169,20 +172,20 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
               {renderSuggestionList(
                 'Overdue',
                 data?.overdue || [],
-                <AlertCircle size={16} color="#EF4444" />,
-                '#EF4444'
+                <AlertCircle size={16} color={palette.error} />,
+                palette.errorText
               )}
               {renderSuggestionList(
                 'Due Today',
                 data?.dueToday || [],
-                <Calendar size={16} color="#38BDF8" />,
-                '#38BDF8'
+                <Calendar size={16} color={palette.tint} />,
+                palette.infoText
               )}
               {renderSuggestionList(
                 'Important',
                 data?.important || [],
-                <Star size={16} color="#F59E0B" fill="#F59E0B" />,
-                '#F59E0B'
+                <Star size={16} color={palette.warning} fill={palette.warning} />,
+                palette.warningText
               )}
               {renderSuggestionList(
                 'Recently Added',
@@ -199,115 +202,62 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(palette => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     maxHeight: '85%',
     paddingBottom: 24,
+    backgroundColor: palette.background,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 6,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingTop: 12,
+    paddingBottom: 2,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    ...typography.h3,
-    fontSize: 20,
-  },
-  subtitle: {
-    fontSize: 13,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  scrollArea: {
-    paddingHorizontal: 20,
-  },
-  loadingBox: {
-    paddingVertical: 50,
-    alignItems: 'center',
-  },
-  emptyBox: {
-    paddingVertical: 50,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { ...typography.title2, color: palette.text },
+  subtitle: { ...typography.subhead, color: palette.textSecondary, paddingHorizontal: 20, marginBottom: 14 },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  scrollArea: { paddingHorizontal: 16 },
+  loadingBox: { paddingVertical: 50, alignItems: 'center' },
+  emptyBox: { paddingVertical: 50, alignItems: 'center', paddingHorizontal: 20 },
+  sparkle: { fontSize: 36 },
+  emptyTitle: { ...typography.title2, color: palette.text, marginTop: 12 },
+  emptySub: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center', marginTop: 4 },
+  section: { marginBottom: 20 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, paddingHorizontal: 4 },
+  sectionTitle: { ...typography.subheadBold },
   badge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
     marginLeft: 4,
+    backgroundColor: palette.surfaceAlt,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  badgeText: { ...typography.footnote, fontWeight: '600' },
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 6,
+    paddingHorizontal: 16,
+    minHeight: 52,
+    backgroundColor: palette.surface,
   },
-  itemInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  itemSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  addBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+  groupCard: { backgroundColor: palette.surface, borderRadius: 26, overflow: 'hidden' },
+  separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
+  itemInfo: { flex: 1, marginRight: 10 },
+  itemTitle: { ...typography.bodyLarge },
+  itemSub: { ...typography.footnote, marginTop: 2 },
+  addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+}));

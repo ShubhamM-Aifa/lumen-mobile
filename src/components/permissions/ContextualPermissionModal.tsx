@@ -94,13 +94,13 @@ export function ContextualPermissionModal({
   const renderIcon = () => {
     switch (permissionType) {
       case 'location':
-        return <MapPin size={34} color={palette.primary} strokeWidth={2.2} />;
+        return <MapPin size={34} color={palette.primaryText} strokeWidth={2.2} />;
       case 'notifications':
-        return <Bell size={34} color={palette.primary} strokeWidth={2.2} />;
+        return <Bell size={34} color={palette.primaryText} strokeWidth={2.2} />;
       case 'camera':
-        return <Camera size={34} color={palette.primary} strokeWidth={2.2} />;
+        return <Camera size={34} color={palette.primaryText} strokeWidth={2.2} />;
       case 'mediaLibrary':
-        return <Image size={34} color={palette.primary} strokeWidth={2.2} />;
+        return <Image size={34} color={palette.primaryText} strokeWidth={2.2} />;
     }
   };
 
@@ -138,7 +138,7 @@ export function ContextualPermissionModal({
           {/* Benefit Box */}
           <View style={styles.benefitBox}>
             <View style={styles.benefitHeader}>
-              <ShieldCheck size={16} color={palette.primary} />
+              <ShieldCheck size={16} color={palette.primaryText} />
               <Text style={styles.benefitTitle}>Why Lumen uses this:</Text>
             </View>
             <Text style={styles.benefitText}>{meta.benefit}</Text>

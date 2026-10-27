@@ -224,8 +224,8 @@ const useStyles = createThemedStyles((palette) => ({
     borderRadius: 12, borderWidth: 1.5, borderColor: palette.primary + '44',
     paddingHorizontal: 16, paddingVertical: 12, borderStyle: 'dashed',
   },
-  triggerIcon: { ...typography.h4, color: palette.primary },
-  triggerText: { ...typography.bodyBold, color: palette.primary },
+  triggerIcon: { ...typography.h4, color: palette.primaryText },
+  triggerText: { ...typography.bodyBold, color: palette.primaryText },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   backdropTouch: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: {
@@ -239,7 +239,7 @@ const useStyles = createThemedStyles((palette) => ({
     borderBottomWidth: 1, borderBottomColor: palette.border,
   },
   sheetTitle: { ...typography.h4, color: palette.text },
-  done: { ...typography.bodyBold, color: palette.primary },
+  done: { ...typography.bodyBold, color: palette.primaryText },
   list: { padding: 12, gap: 4, paddingBottom: 40 },
   presetRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

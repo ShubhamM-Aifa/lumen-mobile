@@ -54,7 +54,7 @@ export async function loginAsTestUser(page: Page, user?: TestUser, targetPath = 
 
   // Navigate to root which reads tokens on boot and redirects to Today
   await page.goto('/', { waitUntil: 'commit' });
-  await page.getByRole('button', { name: 'Open Reminders' }).waitFor({ timeout: 35000 });
+  await page.getByRole('button', { name: /^Notifications/ }).waitFor({ timeout: 35000 });
 
   if (targetPath && targetPath !== '/today' && targetPath !== '/') {
     await page.goto(targetPath, { waitUntil: 'commit' });

@@ -123,7 +123,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
 
           {/* Icon and title */}
           <View style={[styles.iconOrb, { backgroundColor: palette.primary + '18' }]}>
-            <Lock size={26} color={palette.primary} strokeWidth={2.4} />
+            <Lock size={26} color={palette.primaryText} strokeWidth={2.4} />
           </View>
 
           <Text style={[styles.title, { color: palette.text }]}>{title || 'Photo Vault Locked'}</Text>
@@ -161,7 +161,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
             <Text style={styles.errorText}>{errorMessage}</Text>
           ) : isVerifying ? (
             <View style={styles.verifyingRow}>
-              <ActivityIndicator size="small" color={palette.primary} />
+              <ActivityIndicator size="small" color={palette.primaryText} />
               <Text style={[styles.verifyingText, { color: palette.textSecondary }]}>Verifying…</Text>
             </View>
           ) : (
@@ -199,7 +199,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
                   accessibilityRole="button"
                   accessibilityLabel="Unlock with biometrics"
                 >
-                  <Fingerprint size={24} color={palette.primary} />
+                  <Fingerprint size={24} color={palette.primaryText} />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.keyBtnEmpty} />

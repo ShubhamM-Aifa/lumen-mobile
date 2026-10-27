@@ -25,7 +25,7 @@ import {
   Search,
 } from 'lucide-react-native';
 import { NoteBlockType } from '../../shared/types';
-import { useTheme } from '../../theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
 interface SlashMenuItem {
@@ -47,6 +47,7 @@ export const SlashMenuModal: React.FC<SlashMenuModalProps> = ({
   onSelectBlock,
 }) => {
   const { palette } = useTheme();
+  const styles = useStyles();
   const [filterQuery, setFilterQuery] = useState('');
 
   const menuItems: SlashMenuItem[] = [
@@ -54,67 +55,67 @@ export const SlashMenuModal: React.FC<SlashMenuModalProps> = ({
       type: 'paragraph',
       title: 'Text',
       description: 'Just start writing with plain text.',
-      icon: <Type size={18} color="#94A3B8" />,
+      icon: <Type size={18} color={palette.textSecondary} />,
     },
     {
       type: 'heading_1',
       title: 'Heading 1',
       description: 'Big section heading.',
-      icon: <Heading1 size={18} color="#38BDF8" />,
+      icon: <Heading1 size={18} color={palette.tint} />,
     },
     {
       type: 'heading_2',
       title: 'Heading 2',
       description: 'Medium section heading.',
-      icon: <Heading2 size={18} color="#818CF8" />,
+      icon: <Heading2 size={18} color="#5856D6" />,
     },
     {
       type: 'heading_3',
       title: 'Heading 3',
       description: 'Small section heading.',
-      icon: <Heading3 size={18} color="#A78BFA" />,
+      icon: <Heading3 size={18} color={palette.catMeds} />,
     },
     {
       type: 'todo',
       title: 'To-do list',
       description: 'Track tasks with a checkable checkbox.',
-      icon: <CheckSquare size={18} color="#10B981" />,
+      icon: <CheckSquare size={18} color={palette.success} />,
     },
     {
       type: 'callout',
       title: 'Callout Box',
       description: 'Make clinical guidelines or alerts stand out with an emoji.',
-      icon: <Lightbulb size={18} color="#FBBF24" />,
+      icon: <Lightbulb size={18} color={palette.warning} />,
     },
     {
       type: 'toggle',
       title: 'Toggle List',
       description: 'Toggles can show and hide nested medical notes.',
-      icon: <ChevronRightSquare size={18} color="#F472B6" />,
+      icon: <ChevronRightSquare size={18} color="#FF2D55" />,
     },
     {
       type: 'bullet_list',
       title: 'Bulleted list',
       description: 'Create a simple bulleted list of symptoms or points.',
-      icon: <List size={18} color="#60A5FA" />,
+      icon: <List size={18} color={palette.tint} />,
     },
     {
       type: 'numbered_list',
       title: 'Numbered list',
       description: 'Create a sequential list (1, 2, 3...).',
-      icon: <ListOrdered size={18} color="#F97316" />,
+      icon: <ListOrdered size={18} color={palette.warning} />,
     },
     {
       type: 'quote',
       title: 'Quote',
       description: 'Capture a doctor instruction or literature takeaway.',
-      icon: <Quote size={18} color="#2DD4BF" />,
+      icon: <Quote size={18} color={palette.secondary} />,
     },
     {
       type: 'divider',
       title: 'Divider',
       description: 'Visually divide blocks with a clean line.',
-      icon: <Minus size={18} color="#64748B" />,
+      icon: <Minus size={18} color={palette.textSecondary} />,
     },
   ];
 
@@ -149,7 +150,7 @@ export const SlashMenuModal: React.FC<SlashMenuModalProps> = ({
           </View>
 
           {/* Search filter input */}
-          <View style={[styles.searchRow, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
+          <View style={[styles.searchRow, { backgroundColor: palette.surfaceAlt }]}>
             <Search size={16} color={palette.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: palette.text }]}
@@ -187,10 +188,10 @@ export const SlashMenuModal: React.FC<SlashMenuModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(palette => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -238,14 +239,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: palette.border,
     gap: 14,
   },
   iconBox: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -260,4 +261,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-});
+}));

@@ -119,7 +119,7 @@ export function InitialPermissionsModal({ visible, onComplete }: Props) {
 
             {/* Privacy Promise */}
             <View style={styles.privacyBanner}>
-              <Shield size={16} color={palette.primary} />
+              <Shield size={16} color={palette.primaryText} />
               <Text style={styles.privacyText}>
                 Your health data is completely private and never shared with third parties.
               </Text>

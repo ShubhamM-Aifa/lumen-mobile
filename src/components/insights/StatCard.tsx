@@ -63,8 +63,8 @@ export function StatCard({ icon, title, value, sub, trend, trendGoodDirection, s
 
 const useStyles = createThemedStyles(palette => ({
   card: {
-    backgroundColor: palette.surface, borderRadius: 16,
-    borderWidth: 1.5, padding: 14, gap: 8, flex: 1,
+    backgroundColor: palette.surface, borderRadius: 22,
+    padding: 14, gap: 8, flexGrow: 1, flexShrink: 1, flexBasis: '46%', minWidth: 150,
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBadge: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
@@ -73,6 +73,6 @@ const useStyles = createThemedStyles(palette => ({
   valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   value: { ...typography.h3 },
   trend: { ...typography.h4, fontWeight: '700' },
-  sub: { ...typography.caption, color: palette.textDisabled },
+  sub: { ...typography.caption, color: palette.textSecondary },
   spark: { marginTop: 2 },
 }));

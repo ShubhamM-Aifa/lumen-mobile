@@ -110,7 +110,7 @@ export function WeatherReportModal({ visible, onClose }: WeatherReportModalProps
           <View style={styles.headerRow}>
             <View style={styles.locationHeader}>
               <View style={styles.locationIconWrap}>
-                <MapPin size={18} color={palette.primary} />
+                <MapPin size={18} color={palette.primaryText} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cityText} numberOfLines={1}>
@@ -135,7 +135,7 @@ export function WeatherReportModal({ visible, onClose }: WeatherReportModalProps
                 accessibilityLabel="Refresh live weather"
               >
                 {isRefreshing || refreshSpinning ? (
-                  <ActivityIndicator size="small" color={palette.primary} />
+                  <ActivityIndicator size="small" color={palette.primaryText} />
                 ) : (
                   <RefreshCw size={17} color={palette.textSecondary} />
                 )}
@@ -162,7 +162,7 @@ export function WeatherReportModal({ visible, onClose }: WeatherReportModalProps
             {permissionStatus === 'denied' && (
               <View style={styles.permissionBox}>
                 <View style={[styles.permissionIconBadge, { backgroundColor: palette.primary + '18' }]}>
-                  <MapPin size={32} color={palette.primary} />
+                  <MapPin size={32} color={palette.primaryText} />
                 </View>
                 <Text style={styles.permissionTitle}>Location Access Needed</Text>
                 <Text style={styles.permissionDesc}>
@@ -181,7 +181,7 @@ export function WeatherReportModal({ visible, onClose }: WeatherReportModalProps
             {/* Loading Spinner */}
             {isLoading && !weather && (
               <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color={palette.primary} />
+                <ActivityIndicator size="large" color={palette.primaryText} />
                 <Text style={styles.loadingText}>Fetching hyper-local atmospheric conditions...</Text>
               </View>
             )}
@@ -416,7 +416,7 @@ export function WeatherReportModal({ visible, onClose }: WeatherReportModalProps
                       <Text style={styles.metricValueUnit}> km/h</Text>
                     </View>
                     <View style={[styles.metricTag, { backgroundColor: '#10B98120' }]}>
-                      <Text style={[styles.metricTagText, { color: '#10B981' }]}>
+                      <Text style={[styles.metricTagText, { color: palette.successText }]}>
                         {weather.windSpeedKmh < 10
                           ? 'Light Breeze'
                           : weather.windSpeedKmh < 25

@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { Clock, Plus, Minus, X, Check } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { useSleepTrackerStore, SleepRecord } from '../../store/sleepTrackerStore';
+import { formatGoalHours, goalRangeLabel } from '../../store/sleepTrackerStore';
 import { PressableScale } from '../common/PressableScale';
 
 interface AdjustSleepTimesModalProps {
@@ -80,7 +81,7 @@ export function AdjustSleepTimesModal({
             <View>
               <Text style={[styles.title, { color: palette.text }]}>Adjust Sleep Times</Text>
               <Text style={[styles.subtitle, { color: palette.textSecondary }]}>
-                Ensure your 7–8h autoimmune sleep progress is accurate
+                Ensure your {goalRangeLabel(targetGoalMinutes)}h autoimmune sleep progress is accurate
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: palette.surfaceAlt }]}>
@@ -98,11 +99,11 @@ export function AdjustSleepTimesModal({
               },
             ]}
           >
-            <Text style={[styles.durationVal, { color: isGoalMet ? '#10B981' : '#F59E0B' }]}>
+            <Text style={[styles.durationVal, { color: isGoalMet ? palette.successText : palette.warningText }]}>
               {hours}h {mins}m
             </Text>
             <Text style={[styles.durationLabel, { color: palette.textSecondary }]}>
-              {isGoalMet ? 'Autoimmune 7–8h goal achieved' : 'Under 7h minimum recovery threshold'}
+              {isGoalMet ? `Autoimmune ${goalRangeLabel(targetGoalMinutes)}h goal achieved` : `Under ${formatGoalHours(minRecoveryMinutes)}h minimum recovery threshold`}
             </Text>
           </View>
 

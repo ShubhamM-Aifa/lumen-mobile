@@ -11,16 +11,12 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
   ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { AppDateTimePicker } from '../../../src/components/common/AppDateTimePicker';
-import { ChevronLeft, Check, Clock, Calendar, AlertCircle } from 'lucide-react-native';
+import { AlertCircle, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { safeGoBack } from '../../../src/utils/navigation';
@@ -31,6 +27,9 @@ import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
 import { QuestionCard } from '../../../src/components/QuestionCard';
+import { ScreenTopBar, HeaderTextButton } from '../../../src/components/ios/ScreenTopBar';
+import { NoteField } from '../../../src/components/ios/NoteField';
+import { InsetGroup, GroupedRow } from '../../../src/components/ios/InsetGroup';
 import { validateAnswers } from '../../../src/utils/validateAnswers';
 import { uploadAnswerImages } from '../../../src/utils/uploadAnswerImages';
 
@@ -206,11 +205,36 @@ export default function EditLogScreen() {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert('Delete entry', 'Remove this log entry? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setIsSubmitting(true);
+          try {
+            await api.delete(`/logs/${id}`);
+            queryClient.invalidateQueries({ queryKey: ['day-entries'] });
+            queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
+            queryClient.invalidateQueries({ queryKey: ['today-logs'] });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            safeGoBack('/(tabs)/timeline');
+          } catch (err: any) {
+            Alert.alert('Delete failed', err?.message || 'Could not delete this entry. Please try again.');
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+      },
+    ]);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.screen, styles.center]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color={palette.primary} />
+        <ActivityIndicator size="large" color={palette.primaryText} />
         <Text style={[styles.loadingText, { color: palette.textSecondary }]}>
           Loading log entry…
         </Text>
@@ -218,44 +242,25 @@ export default function EditLogScreen() {
     );
   }
 
+  const heading = questionId && questions[0] ? `Edit ${questions[0].title}` : `Edit ${category?.name ?? 'Log'}`;
+
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: questionId && questions[0] ? `Edit ${questions[0].title}` : `Edit ${category?.name ?? 'Log'}`,
-          headerStyle: { backgroundColor: palette.surface },
-          headerTintColor: palette.text,
-          headerShadowVisible: false,
-          headerLeft: () => (
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => safeGoBack('/(tabs)/timeline')}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel edit"
-            >
-              <ChevronLeft size={24} color={palette.text} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              disabled={isSubmitting}
-              accessibilityRole="button"
-              accessibilityLabel="Save changes"
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.saveBtnText}>Save</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          ),
-        }}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <ScreenTopBar
+        title={heading}
+        backLabel="Cancel edit"
+        onBack={() => safeGoBack('/(tabs)/timeline')}
+        right={
+          <HeaderTextButton
+            label="Save"
+            accessibilityLabel="Save changes"
+            prominent
+            loading={isSubmitting}
+            onPress={handleSave}
+          />
+        }
       />
 
       <ScrollView
@@ -263,25 +268,15 @@ export default function EditLogScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Date Backdating row */}
-        <View style={styles.dateTimeCard}>
-          <View style={styles.dateLabelRow}>
-            <Calendar size={16} color={palette.primary} strokeWidth={2.2} />
-            <Text style={styles.dateTimeHeading}>Date Logged</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.datePickerBtn}
+        <InsetGroup title="Date Logged">
+          <GroupedRow
+            label={fmtDateOnly(occurredAt)}
+            value={occurredAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            chevron
+            accessibilityLabel={`Change log date, currently ${fmtDateOnly(occurredAt)}`}
             onPress={() => setShowDatePicker(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Change log date"
-          >
-            <Text style={[styles.datePickerText, { color: palette.text }]}>
-              {fmtDateOnly(occurredAt)}
-            </Text>
-            <Text style={[styles.changeTimeHint, { color: palette.primary }]}>Change</Text>
-          </TouchableOpacity>
-        </View>
+          />
+        </InsetGroup>
 
         <AppDateTimePicker
           visible={showDatePicker}
@@ -294,156 +289,62 @@ export default function EditLogScreen() {
         />
 
         {/* Question cards with full interactive option pickers, body maps, and photos */}
-        {questions.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <AlertCircle size={24} color={palette.textDisabled} />
-            <Text style={[styles.emptyText, { color: palette.textSecondary }]}>
-              No questions found for this category.
-            </Text>
-          </View>
-        ) : (
-          questions.map((question) => (
-            <QuestionCard
-              key={question._id}
-              question={question}
-              options={optionsByQuestion[question._id] ?? []}
-              answers={answersByQuestion[question._id] ?? []}
-              sessionAnswers={allAnswers}
-              onChange={(ans) => setQAnswers(question._id, ans)}
-              tempPrefUnit={tempPrefUnit}
-            />
-          ))
-        )}
+        <View style={styles.gutter}>
+          {questions.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <AlertCircle size={24} color={palette.textSecondary} />
+              <Text style={styles.emptyText}>No questions found for this category.</Text>
+            </View>
+          ) : (
+            questions.map((question) => (
+              <QuestionCard
+                key={question._id}
+                question={question}
+                options={optionsByQuestion[question._id] ?? []}
+                answers={answersByQuestion[question._id] ?? []}
+                sessionAnswers={allAnswers}
+                onChange={(ans) => setQAnswers(question._id, ans)}
+                tempPrefUnit={tempPrefUnit}
+              />
+            ))
+          )}
 
-        {/* Notes block */}
-        <View style={styles.noteCard}>
-          <Text style={styles.noteHeading}>Notes & Observations</Text>
-          <TextInput
-            style={[styles.noteInput, { color: palette.text, borderColor: palette.border }]}
-            placeholder="Add context, triggers, or how you felt…"
-            placeholderTextColor={palette.placeholder}
+          <NoteField
+            title="Notes & Observations"
             value={note}
             onChangeText={setNote}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
+            placeholder="Add context, triggers, or how you felt…"
+            accessibilityLabel="Notes and observations"
           />
         </View>
 
-        <View style={{ height: 40 }} />
+        <InsetGroup>
+          <GroupedRow
+            icon={Trash2}
+            tile={palette.error}
+            label="Delete Entry"
+            destructive
+            accessibilityLabel="Delete entry"
+            onPress={handleDelete}
+          />
+        </InsetGroup>
       </ScrollView>
     </View>
   );
 }
 
 const useStyles = createThemedStyles((palette) => ({
-  screen: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  center: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    ...typography.body,
-    fontWeight: '500',
-  },
-  headerBtn: {
-    padding: 6,
-    marginLeft: -4,
-  },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: palette.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  saveBtnDisabled: {
-    opacity: 0.6,
-  },
-  saveBtnText: {
-    ...typography.caption,
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  scrollContent: {
-    padding: 16,
-    gap: 14,
-  },
-  dateTimeCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 14,
-    gap: 8,
-  },
-  dateLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dateTimeHeading: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  datePickerBtn: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  datePickerText: {
-    ...typography.bodyBold,
-    fontSize: 15,
-  },
-  changeTimeHint: {
-    ...typography.caption,
-    fontWeight: '700',
-  },
-  noteCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 14,
-    gap: 8,
-  },
-  noteHeading: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  noteInput: {
-    ...typography.body,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 88,
-    backgroundColor: palette.background,
-  },
+  screen: { flex: 1, backgroundColor: palette.background },
+  center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { ...typography.bodyLarge, fontWeight: '500' },
+  scrollContent: { paddingTop: 14, paddingBottom: 48, gap: 18 },
+  gutter: { paddingHorizontal: 16, gap: 14 },
   emptyCard: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 24,
     alignItems: 'center',
     gap: 8,
   },
-  emptyText: {
-    ...typography.body,
-    textAlign: 'center',
-  },
+  emptyText: { ...typography.bodyLarge, color: palette.textSecondary, textAlign: 'center' },
 }));

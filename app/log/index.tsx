@@ -1,25 +1,26 @@
 /**
- * Category picker — first step of the log flow.
- * Grouped by role: Symptoms first, then Trigger candidates, then Context.
- * Displays per-category progress bars with question completion and daily summary.
+ * New Entry sheet: first step of the log flow, opened by the "+" button.
+ * Progress card, two shortcuts (Quick Log, Check-in), then the user's categories
+ * grouped by role: Symptoms first, then Daily Habits & Food, then Context.
  */
 import React, { useEffect, useMemo } from 'react';
-import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { Check, Calendar, Sparkles } from 'lucide-react-native';
-import { ICategory } from '@lumen/shared';
+import { X, Zap, HeartPulse, Calendar } from 'lucide-react-native';
 import { useConfigStore } from '../../src/store/configStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
-import { useCategoryProgress, CategoryProgressInfo } from '../../src/hooks/useCategoryProgress';
+import { useCategoryProgress } from '../../src/hooks/useCategoryProgress';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { InsetGroup, GroupedRow, IconTile } from '../../src/components/ios/InsetGroup';
+import { ProgressRing } from '../../src/components/ios/ProgressRing';
 
 const ROLE_ORDER = ['symptom', 'trigger_candidate', 'context'] as const;
 const ROLE_LABEL: Record<string, string> = {
-  symptom:           'Symptoms',
+  symptom: 'Symptoms',
   trigger_candidate: 'Daily Habits & Food',
-  context:           'Context',
+  context: 'Context',
 };
 
 export default function LogCategoryPicker() {
@@ -32,7 +33,6 @@ export default function LogCategoryPicker() {
     overallPercentage,
     completedCategoriesCount,
     totalCategoriesCount,
-    isLoading: isProgressLoading,
   } = useCategoryProgress(date);
 
   useEffect(() => { fetchConfig(); }, []);
@@ -47,190 +47,154 @@ export default function LogCategoryPicker() {
     return date;
   }, [date]);
 
-  const categories = config?.categories.filter(c => c.isActive) ?? [];
+  const grouped = useMemo(() => {
+    const categories = config?.categories.filter(c => c.isActive) ?? [];
+    return ROLE_ORDER
+      .map(role => ({
+        role,
+        label: ROLE_LABEL[role],
+        items: categories.filter(c => c.role === role).sort((a, b) => a.order - b.order),
+      }))
+      .filter(g => g.items.length > 0);
+  }, [config?.categories]);
 
-  const grouped = ROLE_ORDER
-    .map(role => ({
-      role,
-      label: ROLE_LABEL[role],
-      items: categories
-        .filter(c => c.role === role)
-        .sort((a, b) => a.order - b.order),
-    }))
-    .filter(g => g.items.length > 0);
-
-  if (isConfigLoading && !config) {
-    return (
-      <View style={styles.center}>
-        <Stack.Screen options={{ title: 'Log Something' }} />
-        <ActivityIndicator color={palette.primary} size="large" />
-      </View>
-    );
-  }
-
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/today' as never));
   const isAllComplete = overallPercentage >= 100;
+  const left = Math.max(0, totalCategoriesCount - completedCategoriesCount);
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: formattedDate ? `Log for ${formattedDate}` : 'What would you like to log?',
-        }}
-      />
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {formattedDate && (
-        <View style={styles.pastDateBanner}>
-          <Calendar size={15} color={palette.primary} strokeWidth={2.4} />
-          <Text style={styles.pastDateBannerText}>
-            Logging for <Text style={styles.pastDateHighlight}>{formattedDate}</Text>
-          </Text>
-        </View>
-      )}
-
-      {/* Daily Progress Overview Card */}
-      <View style={styles.overviewCard}>
-        <View style={styles.overviewHeader}>
-          <View style={styles.overviewLeft}>
-            <View style={styles.overviewTitleRow}>
-              <Text style={styles.overviewTitle}>Daily Logging Progress</Text>
-              {isAllComplete && (
-                <Sparkles size={14} color={palette.success} strokeWidth={2.4} />
-              )}
-            </View>
-            <Text style={styles.overviewSubtitle}>
-              {completedCategoriesCount} of {totalCategoriesCount} categories completed
-            </Text>
-          </View>
-
-          <View style={[styles.overviewBadge, isAllComplete && styles.overviewBadgeComplete]}>
-            {isAllComplete ? (
-              <Check size={12} color="#FFFFFF" strokeWidth={3} />
-            ) : null}
-            <Text style={[styles.overviewBadgeText, isAllComplete && styles.overviewBadgeTextComplete]}>
-              {overallPercentage}%
-            </Text>
-          </View>
-        </View>
-
-        {/* Overview Bar */}
-        <View style={styles.overviewTrack}>
-          <View
-            style={[
-              styles.overviewFill,
-              {
-                width: `${overallPercentage}%`,
-                backgroundColor: isAllComplete ? palette.success : palette.primary,
-              },
-            ]}
-          />
-        </View>
+      <View style={styles.topBar}>
+        <GlassCircleButton accessibilityLabel="Close" onPress={close}>
+          <X size={20} color={palette.text} strokeWidth={2.4} />
+        </GlassCircleButton>
+        <Text style={styles.topTitle} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
+          {formattedDate ? 'Log Entry' : 'New Entry'}
+        </Text>
+        <View style={styles.topSpacer} />
       </View>
 
-      <FlatList
-        data={grouped}
-        keyExtractor={g => g.role}
-        contentContainerStyle={styles.list}
-        renderItem={({ item: group }) => (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{group.label}</Text>
-            {group.items.map(cat => (
-              <CategoryRow
-                key={cat._id}
-                category={cat}
-                progressInfo={getCategoryProgress(cat._id)}
-                onPress={() =>
-                  router.push({
-                    pathname: `/log/${cat._id}`,
-                    params: date ? { date } : undefined,
-                  })
-                }
-              />
-            ))}
+      {isConfigLoading && !config ? (
+        <View style={styles.center}><ActivityIndicator color={palette.tint} size="large" /></View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {formattedDate ? (
+            <View style={styles.dateBanner} accessibilityLabel={`Logging for ${formattedDate}`}>
+              <Calendar size={16} color={palette.primaryText} strokeWidth={2.4} />
+              <Text style={styles.dateBannerText}>
+                Logging for <Text style={styles.dateBannerStrong}>{formattedDate}</Text>
+              </Text>
+            </View>
+          ) : null}
+
+          <View
+            style={styles.progressCard}
+            accessible
+            accessibilityLabel={`Daily logging progress, ${overallPercentage} percent. ${completedCategoriesCount} of ${totalCategoriesCount} categories completed.`}
+          >
+            <ProgressRing
+              size={68}
+              strokeWidth={7}
+              progress={overallPercentage / 100}
+              color={isAllComplete ? palette.success : palette.tint}
+              trackColor={palette.surfaceAlt}
+            >
+              <Text style={styles.pct} maxFontSizeMultiplier={1.2}>{overallPercentage}%</Text>
+            </ProgressRing>
+            <View style={styles.progressText}>
+              <Text style={styles.progressKicker}>Daily Logging Progress</Text>
+              <Text style={styles.progressTitle}>
+                {completedCategoriesCount} of {totalCategoriesCount} categories done
+              </Text>
+              <Text style={styles.progressHint}>
+                {isAllComplete ? 'All done for today' : `${left} left · tap a category below`}
+              </Text>
+            </View>
           </View>
-        )}
-      />
-    </View>
+
+          <View style={styles.tiles}>
+            <ShortcutTile
+              icon={Zap}
+              color="#FF9500"
+              title="Quick Log"
+              sub="A few fast questions"
+              onPress={() => router.push('/quick-log' as never)}
+            />
+            <ShortcutTile
+              icon={HeartPulse}
+              color="#FF2D55"
+              title="Check-in"
+              sub="Morning & evening"
+              onPress={() => router.push('/check-in' as never)}
+            />
+          </View>
+
+          {grouped.map(group => (
+            <InsetGroup
+              key={group.role}
+              title={group.label}
+              footer={group.role === ROLE_ORDER[0] ? 'Tap a category to answer what’s left.' : undefined}
+            >
+              {group.items.map(cat => {
+                const p = getCategoryProgress(cat._id);
+                const sub = p.totalQuestions > 0
+                  ? `${p.answeredQuestions} of ${p.totalQuestions} answered`
+                  : p.isLoggedToday
+                    ? (p.count > 1 ? `${p.count}x · ${p.latestTimeStr ?? 'logged'}` : 'Logged today')
+                    : 'Not logged today';
+                return (
+                  <GroupedRow
+                    key={cat._id}
+                    emoji={cat.icon}
+                    tile={cat.color || palette.tint}
+                    label={cat.name}
+                    sub={sub}
+                    progress={p.totalQuestions > 0 ? p.progress : undefined}
+                    progressColor={p.isComplete ? palette.success : palette.tint}
+                    value={p.isComplete ? 'Done' : undefined}
+                    chevron
+                    accessibilityLabel={`Log ${cat.name}, ${sub}${p.isComplete ? ', complete' : ''}`}
+                    onPress={() =>
+                      router.push({
+                        pathname: `/log/${cat._id}`,
+                        params: date ? { date } : undefined,
+                      })
+                    }
+                  />
+                );
+              })}
+            </InsetGroup>
+          ))}
+        </ScrollView>
+      )}
+    </SafeAreaView>
   );
 }
 
-function CategoryRow({
-  category,
-  progressInfo,
-  onPress,
+function ShortcutTile({
+  icon, color, title, sub, onPress,
 }: {
-  category: ICategory;
-  progressInfo: CategoryProgressInfo;
+  icon: React.ComponentProps<typeof IconTile>['icon'];
+  color: string;
+  title: string;
+  sub: string;
   onPress: () => void;
 }) {
-  const { palette } = useTheme();
   const styles = useStyles();
-
-  const {
-    percentage,
-    progress,
-    isComplete,
-    isLoggedToday,
-    answeredQuestions,
-    totalQuestions,
-    count,
-    latestTimeStr,
-  } = progressInfo;
-
   return (
     <TouchableOpacity
-      style={[
-        styles.row,
-        isComplete && styles.rowComplete,
-      ]}
+      style={styles.tile}
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Log ${category.name}, progress ${percentage} percent${isComplete ? ', complete' : ''}`}
       activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${sub}`}
     >
-      <View style={styles.rowMain}>
-        <View style={[styles.dot, { backgroundColor: category.color || palette.primary }]}>
-          <Text style={styles.dotIcon}>{category.icon}</Text>
-        </View>
-
-        <View style={styles.titleColumn}>
-          <Text style={styles.rowLabel}>{category.name}</Text>
-          <Text style={styles.progressSubtitle}>
-            {totalQuestions > 0
-              ? `${answeredQuestions} of ${totalQuestions} questions answered`
-              : (isLoggedToday ? (count > 1 ? `${count}x • ${latestTimeStr || 'logged'}` : 'Logged today') : 'Not logged today')}
-          </Text>
-        </View>
-
-        {/* Status / Percentage Badge */}
-        {isComplete ? (
-          <View style={styles.loggedBadge}>
-            <Check size={11} color={palette.success} strokeWidth={2.8} />
-            <Text style={styles.loggedBadgeText}>100%</Text>
-          </View>
-        ) : progress > 0 ? (
-          <View style={styles.inProgressBadge}>
-            <Text style={styles.inProgressBadgeText}>{percentage}%</Text>
-          </View>
-        ) : (
-          <View style={styles.notLoggedBadge}>
-            <Text style={styles.notLoggedText}>0%</Text>
-          </View>
-        )}
-
-        <Text style={styles.chevron}>›</Text>
-      </View>
-
-      {/* Sleek Horizontal Progress Bar along the bottom of the card */}
-      <View style={styles.progressBarTrack}>
-        <View
-          style={[
-            styles.progressBarFill,
-            {
-              width: `${percentage}%`,
-              backgroundColor: isComplete ? palette.success : (category.color || palette.primary),
-            },
-          ]}
-        />
+      <IconTile icon={icon} color={color} size={34} />
+      <View>
+        <Text style={styles.tileTitle} maxFontSizeMultiplier={1.3}>{title}</Text>
+        <Text style={styles.tileSub} maxFontSizeMultiplier={1.3}>{sub}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -238,218 +202,54 @@ function CategoryRow({
 
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background },
-  pastDateBanner: {
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  topTitle: { ...typography.headline, color: palette.text },
+  topSpacer: { width: 44 },
+  content: { gap: 20, paddingTop: 14, paddingBottom: 40 },
+  dateBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: palette.primary + '14',
-    borderWidth: 1,
-    borderColor: palette.primary + '30',
-  },
-  pastDateBannerText: {
-    ...typography.caption,
-    fontSize: 13,
-    color: palette.text,
-    fontWeight: '600',
-  },
-  pastDateHighlight: {
-    color: palette.primary,
-    fontWeight: '800',
-  },
-
-  // Daily Progress Overview Card
-  overviewCard: {
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: palette.surface,
-    borderRadius: 16,
+  },
+  dateBannerText: { ...typography.subhead, color: palette.text },
+  dateBannerStrong: { color: palette.primaryText, fontWeight: '700' },
+  progressCard: {
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-    gap: 10,
-  },
-  overviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  overviewLeft: {
-    gap: 2,
-    flex: 1,
-  },
-  overviewTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  overviewTitle: {
-    ...typography.smallBold,
-    fontSize: 13.5,
-    color: palette.text,
-    fontWeight: '700',
-  },
-  overviewSubtitle: {
-    ...typography.caption,
-    fontSize: 12,
-    color: palette.textSecondary,
-    fontWeight: '500',
-  },
-  overviewBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: palette.primary + '16',
-    borderWidth: 1,
-    borderColor: palette.primary + '30',
-  },
-  overviewBadgeComplete: {
-    backgroundColor: palette.success,
-    borderColor: palette.success,
-  },
-  overviewBadgeText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  overviewBadgeTextComplete: {
-    color: '#FFFFFF',
-  },
-  overviewTrack: {
-    height: 6,
-    width: '100%',
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  overviewFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-
-  list: { padding: 16, gap: 20 },
-  section: { gap: 8 },
-  sectionLabel: {
-    ...typography.label,
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-    marginLeft: 4,
-  },
-  row: {
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  rowComplete: {
-    borderColor: palette.success + '40',
-  },
-  rowMain: {
+    borderRadius: 26,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 16,
   },
-  dot: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotIcon: { fontSize: 19 },
-  titleColumn: {
+  pct: { ...typography.headline, color: palette.text, fontVariant: ['tabular-nums'] },
+  progressText: { flex: 1, gap: 3 },
+  progressKicker: { ...typography.sectionLabel, color: palette.textSecondary },
+  progressTitle: { ...typography.headline, color: palette.text },
+  progressHint: { ...typography.subhead, color: palette.textSecondary },
+  tiles: { flexDirection: 'row', gap: 10, paddingHorizontal: 16 },
+  tile: {
     flex: 1,
-    gap: 2,
+    minHeight: 112,
+    borderRadius: 22,
+    backgroundColor: palette.surface,
+    padding: 14,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  rowLabel: {
-    ...typography.body,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  progressSubtitle: {
-    ...typography.caption,
-    fontSize: 11.5,
-    color: palette.textSecondary,
-    fontWeight: '500',
-  },
-  progressBarTrack: {
-    height: 3.5,
-    width: '100%',
-    backgroundColor: palette.surfaceAlt,
-  },
-  progressBarFill: {
-    height: '100%',
-  },
-  loggedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: palette.success + '16',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: palette.success + '30',
-  },
-  loggedBadgeText: {
-    ...typography.caption,
-    color: palette.success,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-  inProgressBadge: {
-    backgroundColor: palette.primary + '16',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: palette.primary + '30',
-  },
-  inProgressBadgeText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-  notLoggedBadge: {
-    backgroundColor: palette.surfaceAlt,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  notLoggedText: {
-    ...typography.caption,
-    color: palette.textDisabled,
-    fontWeight: '600',
-    fontSize: 11.5,
-  },
-  chevron: { ...typography.h4, color: palette.textDisabled, marginLeft: 2 },
+  tileTitle: { ...typography.headline, color: palette.text },
+  tileSub: { ...typography.subhead, color: palette.textSecondary },
 }));

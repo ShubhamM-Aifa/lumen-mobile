@@ -85,7 +85,7 @@ export const DiscordServerRail: React.FC<Props> = ({
             accessibilityRole="button"
             accessibilityLabel="Create a new community server"
           >
-            <Plus size={22} color={palette.primary} strokeWidth={2.4} />
+            <Plus size={22} color={palette.primaryText} strokeWidth={2.4} />
           </TouchableOpacity>
         </View>
 

@@ -130,7 +130,7 @@ const useStyles = createThemedStyles((palette) => ({
     backgroundColor: palette.error + '22',
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
   },
-  chipText: { ...typography.small, color: palette.error, fontWeight: '600' },
+  chipText: { ...typography.small, color: palette.errorText, fontWeight: '600' },
   instruction: { ...typography.small, color: palette.textSecondary, textAlign: 'center' },
   hint: { ...typography.small, color: palette.textSecondary },
 }));

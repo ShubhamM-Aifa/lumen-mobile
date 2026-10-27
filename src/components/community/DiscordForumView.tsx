@@ -79,7 +79,7 @@ export const DiscordForumView: React.FC<Props> = ({
       {/* Forum Header */}
       <View style={[styles.headerBox, { backgroundColor: palette.surface, borderBottomColor: palette.border }]}>
         <View style={styles.headerTitleRow}>
-          <Bookmark size={18} color={palette.primary} style={{ marginRight: 6 }} />
+          <Bookmark size={18} color={palette.primaryText} style={{ marginRight: 6 }} />
           <Text style={[styles.channelTitle, { color: palette.text }]}>#{channel.name}</Text>
         </View>
         <Text style={[styles.topicText, { color: palette.textSecondary }]}>
@@ -138,7 +138,7 @@ export const DiscordForumView: React.FC<Props> = ({
               <View style={styles.postTagsRow}>
                 {post.tags.map((t, idx) => (
                   <View key={idx} style={[styles.postTag, { backgroundColor: `${palette.primary}20` }]}>
-                    <Text style={[styles.postTagText, { color: palette.primary }]}>#{t}</Text>
+                    <Text style={[styles.postTagText, { color: palette.primaryText }]}>#{t}</Text>
                   </View>
                 ))}
               </View>
@@ -164,7 +164,7 @@ export const DiscordForumView: React.FC<Props> = ({
                   </Text>
                   {post.author.senderRoleBadges?.[0] && (
                     <View style={[styles.authorBadge, { backgroundColor: `${palette.primary}20` }]}>
-                      <Text style={[styles.authorBadgeText, { color: palette.primary }]}>
+                      <Text style={[styles.authorBadgeText, { color: palette.primaryText }]}>
                         {post.author.senderRoleBadges[0]}
                       </Text>
                     </View>

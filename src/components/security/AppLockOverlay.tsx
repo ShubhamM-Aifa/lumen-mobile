@@ -100,7 +100,7 @@ export function AppLockOverlay() {
 
           {authError ? (
             <View style={[styles.errorBox, { backgroundColor: palette.error + '14', borderColor: palette.error + '38' }]}>
-              <Text style={[styles.errorText, { color: palette.error }]}>{authError}</Text>
+              <Text style={[styles.errorText, { color: palette.errorText }]}>{authError}</Text>
             </View>
           ) : null}
 

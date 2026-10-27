@@ -197,7 +197,7 @@ export function ChestMap({ value = [], onChange }: Props) {
                   style={[styles.chip, { borderColor: palette.primary, backgroundColor: palette.primary + '18' }]}
                   onPress={() => toggle(k)}
                 >
-                  <Text style={[styles.chipText, { color: palette.primary }]}>
+                  <Text style={[styles.chipText, { color: palette.primaryText }]}>
                     {region.label} ✕
                   </Text>
                 </TouchableOpacity>
@@ -240,7 +240,7 @@ const useStyles = createThemedStyles((palette) => ({
   },
   clearBtnText: {
     fontSize: 11,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '600',
   },
   svgCard: {

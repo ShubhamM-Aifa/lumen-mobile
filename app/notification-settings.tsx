@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Minus, Plus } from 'lucide-react-native';
+import { ArrowLeft, Minus, Plus, Clock, MessageCircleQuestion, Flame, BatteryMedium } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../src/theme/ThemeContext';
 import { typography } from '../src/theme/typography';
+import { LargeTitleHeader } from '../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../src/components/ios/GlassCircleButton';
+import { InsetGroup, GroupedRow } from '../src/components/ios/InsetGroup';
 import { useIntelligenceStore, PolicyPatch } from '../src/store/intelligenceStore';
 import { parseHHMM } from '../src/services/intelligence/budgetEngine';
 
@@ -12,26 +15,36 @@ const CAPABILITIES: Array<{
   key: 'adaptiveTiming' | 'triggerWatch' | 'flareRisk' | 'pacing';
   label: string;
   description: string;
+  icon: typeof Clock;
+  tile: string;
 }> = [
   {
     key: 'adaptiveTiming',
     label: 'Smarter reminder times',
-    description: 'Suggests moving reminders to the times you usually respond. Medication times are never changed for you.',
+    description: 'Suggests moving reminders to when you usually respond',
+    icon: Clock,
+    tile: '#007AFF',
   },
   {
     key: 'triggerWatch',
     label: 'Check-ins after a possible trigger',
-    description: 'After you log something you have linked to symptoms before, asks how you feel at the time your own history suggests.',
+    description: 'Asks how you feel after you log something linked to symptoms before',
+    icon: MessageCircleQuestion,
+    tile: '#FF9500',
   },
   {
     key: 'flareRisk',
     label: 'Gentle heads-ups',
-    description: 'Points out when recent sleep and symptoms look like days you later logged a flare. An observation, never a prediction.',
+    description: 'Points out when recent days look like days you later logged a flare',
+    icon: Flame,
+    tile: '#FF3B30',
   },
   {
     key: 'pacing',
     label: 'Pacing nudges',
-    description: 'Lets you know when an activity runs well past your usual, so you can choose to pause.',
+    description: 'Lets you know when an activity runs well past your usual',
+    icon: BatteryMedium,
+    tile: '#34C759',
   },
 ];
 
@@ -62,172 +75,149 @@ export default function NotificationSettingsScreen() {
 
   const patch = (p: PolicyPatch) => { updatePolicy(p); };
   const off = !policy.masterEnabled;
-  const trackColor = { false: palette.border, true: palette.primary };
+  const quietOff = off || !policy.quietHours.enabled;
+
+  const stepper = (opts: {
+    value: string;
+    onMinus: () => void;
+    onPlus: () => void;
+    minusDisabled?: boolean;
+    plusDisabled?: boolean;
+    minusLabel: string;
+    plusLabel: string;
+    valueLabel?: string;
+  }) => (
+    <View style={styles.stepper}>
+      <TouchableOpacity
+        style={[styles.stepBtn, opts.minusDisabled && styles.stepBtnOff]}
+        disabled={opts.minusDisabled}
+        onPress={opts.onMinus}
+        accessibilityRole="button"
+        accessibilityLabel={opts.minusLabel}
+      >
+        <Minus size={18} color={palette.text} />
+      </TouchableOpacity>
+      <Text style={styles.stepValue} accessibilityLabel={opts.valueLabel ?? opts.value} maxFontSizeMultiplier={1.3}>{opts.value}</Text>
+      <TouchableOpacity
+        style={[styles.stepBtn, opts.plusDisabled && styles.stepBtnOff]}
+        disabled={opts.plusDisabled}
+        onPress={opts.onPlus}
+        accessibilityRole="button"
+        accessibilityLabel={opts.plusLabel}
+      >
+        <Plus size={18} color={palette.text} />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.back}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <ArrowLeft size={22} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.title} accessibilityRole="header">Notifications & Intelligence</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <LargeTitleHeader
+          title="Notifications & Intelligence"
+          leading={
+            <GlassCircleButton accessibilityLabel="Go back" onPress={() => router.back()}>
+              <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+        />
         <Text style={styles.intro}>
           Lumen only points out patterns in your own logs. It never says what caused a symptom and never suggests changing treatment.
           Reminders you set yourself are not affected by anything on this page.
         </Text>
         {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
 
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Smart notifications</Text>
-              <Text style={styles.desc}>Turn all of the options below on or off at once.</Text>
-            </View>
-            <Switch
-              value={policy.masterEnabled}
-              onValueChange={v => patch({ masterEnabled: v })}
-              trackColor={trackColor}
-              accessibilityLabel="Smart notifications"
-            />
-          </View>
-        </View>
+        <InsetGroup footer="Turn all of the options below on or off at once.">
+          <GroupedRow
+            label="Smart notifications"
+            toggle
+            toggled={policy.masterEnabled}
+            onToggle={v => patch({ masterEnabled: v })}
+          />
+        </InsetGroup>
 
-        <Text style={styles.sectionTitle}>What Lumen can tell you</Text>
-        <View style={[styles.card, off && styles.dimmed]}>
-          {CAPABILITIES.map((c, i) => (
-            <View key={c.key} style={[styles.row, i > 0 && styles.divider]}>
-              <View style={styles.rowText}>
-                <Text style={styles.label}>{c.label}</Text>
-                <Text style={styles.desc}>{c.description}</Text>
-              </View>
-              <Switch
-                value={policy.capabilities[c.key]}
+        <View style={off && styles.dimmed}>
+          <InsetGroup title="What Lumen can tell you" footer="Medication times are never changed for you.">
+            {CAPABILITIES.map(c => (
+              <GroupedRow
+                key={c.key}
+                icon={c.icon}
+                tile={c.tile}
+                label={c.label}
+                sub={c.description}
+                toggle
                 disabled={off}
-                onValueChange={v => patch({ capabilities: { [c.key]: v } })}
-                trackColor={trackColor}
-                accessibilityLabel={c.label}
+                toggled={policy.capabilities[c.key]}
+                onToggle={v => patch({ capabilities: { [c.key]: v } })}
               />
-            </View>
-          ))}
+            ))}
+          </InsetGroup>
         </View>
 
-        <Text style={styles.sectionTitle}>How often</Text>
-        <View style={[styles.card, off && styles.dimmed]}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Most per day</Text>
-              <Text style={styles.desc}>Extra observations wait for you in the "For you today" card.</Text>
-            </View>
-            <View style={styles.stepper}>
-              <TouchableOpacity
-                style={styles.stepBtn}
-                disabled={off || policy.dailyBudget <= 1}
-                onPress={() => patch({ dailyBudget: policy.dailyBudget - 1 })}
-                accessibilityRole="button"
-                accessibilityLabel="Fewer notifications per day"
-              >
-                <Minus size={18} color={palette.text} />
-              </TouchableOpacity>
-              <Text style={styles.stepValue} accessibilityLabel={`${policy.dailyBudget} per day`}>{policy.dailyBudget}</Text>
-              <TouchableOpacity
-                style={styles.stepBtn}
-                disabled={off || policy.dailyBudget >= 5}
-                onPress={() => patch({ dailyBudget: policy.dailyBudget + 1 })}
-                accessibilityRole="button"
-                accessibilityLabel="More notifications per day"
-              >
-                <Plus size={18} color={palette.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={off && styles.dimmed}>
+          <InsetGroup title="How often" footer={'Extra observations wait for you in the \u201cFor you today\u201d card.'}>
+            <GroupedRow
+              label="Most per day"
+              trailing={stepper({
+                value: String(policy.dailyBudget),
+                valueLabel: `${policy.dailyBudget} per day`,
+                minusDisabled: off || policy.dailyBudget <= 1,
+                plusDisabled: off || policy.dailyBudget >= 5,
+                onMinus: () => patch({ dailyBudget: policy.dailyBudget - 1 }),
+                onPlus: () => patch({ dailyBudget: policy.dailyBudget + 1 }),
+                minusLabel: 'Fewer notifications per day',
+                plusLabel: 'More notifications per day',
+              })}
+            />
+          </InsetGroup>
         </View>
 
-        <Text style={styles.sectionTitle}>Quiet hours</Text>
-        <View style={[styles.card, off && styles.dimmed]}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Hold notifications overnight</Text>
-              <Text style={styles.desc}>Held items arrive when quiet hours end. Medication reminders still ring.</Text>
-            </View>
-            <Switch
-              value={policy.quietHours.enabled}
+        <View style={off && styles.dimmed}>
+          <InsetGroup title="Quiet hours" footer="Held items arrive when quiet hours end. Medication reminders still ring.">
+            <GroupedRow
+              label="Hold notifications overnight"
+              toggle
               disabled={off}
-              onValueChange={v => patch({ quietHours: { enabled: v } })}
-              trackColor={trackColor}
+              toggled={policy.quietHours.enabled}
+              onToggle={v => patch({ quietHours: { enabled: v } })}
               accessibilityLabel="Quiet hours"
             />
-          </View>
-          {policy.quietHours.enabled && (
-            <>
-              {(['start', 'end'] as const).map(which => (
-                <View key={which} style={[styles.row, styles.divider]}>
-                  <Text style={styles.label}>{which === 'start' ? 'Starts at' : 'Ends at'}</Text>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      disabled={off}
-                      onPress={() => patch({ quietHours: { [which]: shiftTime(policy.quietHours[which], -30) } })}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move quiet hours ${which} 30 minutes earlier`}
-                    >
-                      <Minus size={18} color={palette.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.timeValue}>{formatTime(policy.quietHours[which])}</Text>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      disabled={off}
-                      onPress={() => patch({ quietHours: { [which]: shiftTime(policy.quietHours[which], 30) } })}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move quiet hours ${which} 30 minutes later`}
-                    >
-                      <Plus size={18} color={palette.text} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
+            {(['start', 'end'] as const).map(which => (
+              <View key={which} style={quietOff && styles.dimmed}>
+                <GroupedRow
+                  label={which === 'start' ? 'From' : 'To'}
+                  trailing={stepper({
+                    value: formatTime(policy.quietHours[which]),
+                    minusDisabled: quietOff,
+                    plusDisabled: quietOff,
+                    onMinus: () => patch({ quietHours: { [which]: shiftTime(policy.quietHours[which], -30) } }),
+                    onPlus: () => patch({ quietHours: { [which]: shiftTime(policy.quietHours[which], 30) } }),
+                    minusLabel: `Move quiet hours ${which} 30 minutes earlier`,
+                    plusLabel: `Move quiet hours ${which} 30 minutes later`,
+                  })}
+                />
+              </View>
+            ))}
+          </InsetGroup>
         </View>
 
-        <Text style={styles.sectionTitle}>Flare mode</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Flare mode</Text>
-              <Text style={styles.desc}>
-                Keeps everything quiet except medication reminders while you are having a hard time.
-              </Text>
-            </View>
-            <Switch
-              value={policy.flareMode.active}
-              onValueChange={v => setFlareMode(v)}
-              trackColor={trackColor}
-              accessibilityLabel="Flare mode"
-            />
-          </View>
-          <View style={[styles.row, styles.divider]}>
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Turn on automatically</Text>
-              <Text style={styles.desc}>
-                When your logged symptoms stay above your own usual range for two days in a row. Needs about two weeks of logs.
-              </Text>
-            </View>
-            <Switch
-              value={policy.flareMode.auto}
-              onValueChange={v => patch({ flareAutoDetect: v })}
-              trackColor={trackColor}
-              accessibilityLabel="Turn on flare mode automatically"
-            />
-          </View>
-        </View>
+        <InsetGroup title="Flare mode" footer="Flare mode keeps everything quiet except medication reminders. Turning it on automatically needs about two weeks of logs.">
+          <GroupedRow
+            label="Flare mode"
+            sub="Switches Today to a simpler layout"
+            toggle
+            toggled={policy.flareMode.active}
+            onToggle={v => setFlareMode(v)}
+          />
+          <GroupedRow
+            label="Turn on automatically"
+            sub="When your logged symptoms stay above your usual range for two days"
+            toggle
+            toggled={policy.flareMode.auto}
+            onToggle={v => patch({ flareAutoDetect: v })}
+            accessibilityLabel="Turn on flare mode automatically"
+          />
+        </InsetGroup>
       </ScrollView>
     </SafeAreaView>
   );
@@ -235,35 +225,19 @@ export default function NotificationSettingsScreen() {
 
 const useStyles = createThemedStyles(palette => ({
   safe: { flex: 1, backgroundColor: palette.background },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4 },
-  back: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { ...typography.h3, color: palette.text, flex: 1 },
-  scroll: { padding: 16, paddingBottom: 48, gap: 12 },
-  intro: { ...typography.small, color: palette.textSecondary, lineHeight: 20 },
-  error: { ...typography.small, color: palette.error },
-  sectionTitle: { ...typography.h4, color: palette.text, marginTop: 12 },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: 'hidden',
-  },
+  scroll: { paddingTop: 6, paddingBottom: 48, gap: 22 },
+  intro: { ...typography.footnote, color: palette.textSecondary, paddingHorizontal: 20, marginTop: -8 },
+  error: { ...typography.footnote, color: palette.errorText, paddingHorizontal: 20 },
   dimmed: { opacity: 0.5 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, minHeight: 56 },
-  divider: { borderTopWidth: 1, borderTopColor: palette.border },
-  rowText: { flex: 1, gap: 2 },
-  label: { ...typography.bodyBold, color: palette.text },
-  desc: { ...typography.small, color: palette.textSecondary, lineHeight: 18 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stepBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.surfaceAlt,
   },
-  stepValue: { ...typography.h3, color: palette.text, minWidth: 28, textAlign: 'center' },
-  timeValue: { ...typography.bodyBold, color: palette.text, minWidth: 84, textAlign: 'center' },
+  stepBtnOff: { opacity: 0.4 },
+  stepValue: { ...typography.headline, color: palette.text, minWidth: 28, textAlign: 'center' },
 }));

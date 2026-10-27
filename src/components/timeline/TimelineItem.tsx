@@ -8,7 +8,7 @@
  * - Dedicated Edit action and Delete action
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Trash2, Pencil, ChevronDown, ChevronUp, Clock, FileText, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { ILogEntry, ICategory, IOption, IQuestion, IQuickAction, FieldValue, Answer } from '@lumen/shared';
@@ -16,6 +16,7 @@ import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { BodyMapPreview } from './BodyMapPreview';
 import { LogPhotoGallery } from './LogPhotoGallery';
+import { IconTile } from '../ios/InsetGroup';
 
 interface Props {
   entry: ILogEntry;
@@ -63,30 +64,32 @@ function formatStoolType(val: unknown): string | null {
   return desc[num] || `Type ${num}`;
 }
 
-function formatSeverity(val: unknown): { label: string; color: string } {
+type Tone = 'success' | 'warning' | 'error';
+
+function formatSeverity(val: unknown): { label: string; tone?: Tone } {
   const num = Number(val);
-  if (isNaN(num)) return { label: `${val}`, color: '#888' };
-  if (num <= 3) return { label: `${num}/10 Mild`, color: '#10B981' };
-  if (num <= 6) return { label: `${num}/10 Mod`, color: '#F59E0B' };
-  return { label: `${num}/10 Severe`, color: '#EF4444' };
+  if (isNaN(num)) return { label: `${val}` };
+  if (num <= 3) return { label: `${num}/10 Mild`, tone: 'success' };
+  if (num <= 6) return { label: `${num}/10 Mod`, tone: 'warning' };
+  return { label: `${num}/10 Severe`, tone: 'error' };
 }
 
-function getOptionValueSummary(ans: Answer): { label: string; color?: string }[] {
+function getOptionValueSummary(ans: Answer): { label: string; tone?: Tone }[] {
   if (!ans.values || ans.values.length === 0) return [];
-  const items: { label: string; color?: string }[] = [];
+  const items: { label: string; tone?: Tone }[] = [];
 
   for (const v of ans.values) {
     if (v.dataType === 'location' || v.dataType === 'image') continue;
     if (v.dataType === 'range') {
       const sev = formatSeverity(v.value);
-      items.push({ label: sev.label, color: sev.color });
+      items.push({ label: sev.label, tone: sev.tone });
     } else if (
       v.fieldKey.toLowerCase().includes('type') ||
       v.fieldKey.toLowerCase().includes('bristol') ||
       v.fieldKey.toLowerCase().includes('stool')
     ) {
       const stool = formatStoolType(v.value);
-      if (stool) items.push({ label: stool, color: '#10B981' });
+      if (stool) items.push({ label: stool });
     } else if (v.dataType === 'temperature') {
       items.push({ label: `${Number(v.value).toFixed(1)} °C` });
     } else if (v.dataType === 'duration') {
@@ -118,9 +121,8 @@ export function TimelineItem({
   defaultExpanded = false,
   forceExpanded,
 }: Props) {
-  const { palette, colorScheme } = useTheme();
+  const { palette } = useTheme();
   const styles = useStyles();
-  const isDark = colorScheme === 'dark';
 
   const isQuickAction = entry.source === 'quick_action' || !!entry.quickActionId;
   const title = isQuickAction
@@ -256,586 +258,226 @@ export function TimelineItem({
     return sum + 1;
   }, 0);
 
+  const toneColor = (tone?: Tone): string | undefined => {
+    if (tone === 'success') return palette.successText;
+    if (tone === 'warning') return palette.warningText;
+    if (tone === 'error') return palette.errorText;
+    return undefined;
+  };
+
+  // One-line-per-answer summary shown under the title, e.g. "Joint pain 6/10 Mod, Fatigue"
+  const answerParts = isQuickAction
+    ? []
+    : (entry.answers ?? []).map((ans) => {
+        const opt = lookupOptions.find((o) => o._id === ans.optionId);
+        const label =
+          ans.optionLabelSnapshot ??
+          opt?.label ??
+          (ans.optionId === '__other__' ? ans.otherText : 'Option');
+        return { label: label ?? 'Option', values: getOptionValueSummary(ans) };
+      });
+
+  const extras = [
+    locationFields.length > 0 ? `${totalAreasCount} area${totalAreasCount === 1 ? '' : 's'}` : null,
+    imageFields.length > 0 ? `${totalPhotosCount} photo${totalPhotosCount === 1 ? '' : 's'}` : null,
+    entry.note ? 'Note' : null,
+    locationLabel,
+    standardFields.length > 0 ? `${standardFields.length} metric${standardFields.length === 1 ? '' : 's'}` : null,
+  ].filter(Boolean) as string[];
+
+  const sourceLabel = SOURCE_LABEL[entry.source] ?? entry.source;
+  const timeText = formatTime(entry.occurredAt);
+  const plainSummary = isQuickAction
+    ? [quickValueText, sourceLabel].filter(Boolean).join(' · ')
+    : answerParts.map((p) => [p.label, ...p.values.map((v) => v.label)].join(' ')).join(', ') || sourceLabel;
+
   return (
-    <View style={styles.card}>
-      {/* Category accent colour strip */}
-      <View style={[styles.strip, { backgroundColor: accentColor }]} />
-
-      <View style={styles.body}>
-        {/* Top Header Row */}
-        <TouchableOpacity
-          style={styles.topRow}
-          onPress={hasDetails ? toggleExpand : onPress}
-          activeOpacity={hasDetails ? 0.75 : 1}
-        >
-          <View style={styles.titleRow}>
-            {icon ? <Text style={styles.catIcon}>{icon}</Text> : null}
-            <Text style={styles.catName} numberOfLines={1}>
-              {title}
-            </Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <View style={styles.timeBadgeRow}>
-              <Text style={styles.time}>{formatTime(entry.occurredAt)}</Text>
-              <Text
-                style={[
-                  styles.sourceBadge,
-                  {
-                    borderColor: accentColor + '44',
-                    color: accentColor,
-                    backgroundColor: accentColor + '12',
-                  },
-                ]}
-              >
-                {SOURCE_LABEL[entry.source] ?? entry.source}
+    <View>
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => { toggleExpand(); onPress?.(); }}
+        activeOpacity={0.6}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isExpanded }}
+        accessibilityLabel={`${title}, ${plainSummary}, ${timeText}`}
+        accessibilityHint={isExpanded ? 'Collapse details' : 'Show details, edit or delete'}
+      >
+        <IconTile emoji={icon ?? '📝'} color={accentColor} />
+        <View style={styles.rowBody}>
+          <View style={styles.rowMain}>
+            <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={1.4}>{title}</Text>
+            {isQuickAction ? (
+              <Text style={styles.sub} maxFontSizeMultiplier={1.4}>
+                {quickValueText ? <Text style={styles.subStrong}>{quickValueText} · </Text> : null}
+                {sourceLabel}
               </Text>
-            </View>
-
-            {/* Expand / Collapse Chevron Button */}
-            {hasDetails && (
-              <TouchableOpacity
-                style={styles.chevronBtn}
-                onPress={toggleExpand}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel={isExpanded ? 'Collapse entry' : 'Expand entry'}
-              >
-                {isExpanded ? (
-                  <ChevronUp size={16} color={palette.textSecondary} />
-                ) : (
-                  <ChevronDown size={16} color={palette.textSecondary} />
-                )}
-              </TouchableOpacity>
+            ) : answerParts.length > 0 ? (
+              <Text style={styles.sub} numberOfLines={isExpanded ? undefined : 3} maxFontSizeMultiplier={1.4}>
+                {answerParts.map((p, i) => (
+                  <Text key={i}>
+                    {i > 0 ? ', ' : ''}
+                    <Text style={styles.subStrong}>{p.label}</Text>
+                    {p.values.map((v, vi) => (
+                      <Text key={vi} style={{ color: toneColor(v.tone) }}> {v.label}</Text>
+                    ))}
+                  </Text>
+                ))}
+              </Text>
+            ) : (
+              <Text style={styles.sub} maxFontSizeMultiplier={1.4}>{sourceLabel}</Text>
             )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Quick action value pill */}
-        {isQuickAction && quickValueText && (
-          <View style={styles.chips}>
-            <View
-              style={[
-                styles.chip,
-                { borderColor: accentColor + '55', backgroundColor: accentColor + '14' },
-              ]}
-            >
-              <Text style={[styles.chipText, { color: accentColor, fontWeight: '700' }]}>
-                {quickValueText}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Question Groups with Answer Chips & Inline Values */}
-        {!isQuickAction && questionGroups.length > 0 && (
-          <View style={styles.questionGroupsContainer}>
-            {questionGroups.map((group, gIdx) => {
-              const showQTitle = Boolean(group.questionTitle);
-              return (
-                <View key={`q-group-${gIdx}`} style={styles.questionGroup}>
-                  {showQTitle && (
-                    <Text style={styles.groupQuestionTitle} numberOfLines={2}>
-                      {group.questionTitle}
-                    </Text>
-                  )}
-                  <View style={styles.chips}>
-                    {group.answers.map((ans, i) => {
-                      const opt = lookupOptions.find((o) => o._id === ans.optionId);
-                      const label =
-                        ans.optionLabelSnapshot ??
-                        opt?.label ??
-                        (ans.optionId === '__other__' ? ans.otherText : 'Option');
-                      const valSummaries = getOptionValueSummary(ans);
-
-                      return (
-                        <View
-                          key={`ans-chip-${gIdx}-${i}`}
-                          style={[
-                            styles.chip,
-                            {
-                              borderColor: accentColor + '44',
-                              backgroundColor: accentColor + '10',
-                            },
-                          ]}
-                        >
-                          {opt?.icon && <Text style={styles.chipIcon}>{opt.icon}</Text>}
-                          <Text style={[styles.chipText, { color: palette.text }]}>{label}</Text>
-
-                          {/* Inline value pills for this option */}
-                          {valSummaries.map((val, vi) => (
-                            <View
-                              key={`val-${vi}`}
-                              style={[
-                                styles.inlineValPill,
-                                {
-                                  backgroundColor: val.color
-                                    ? val.color + '22'
-                                    : isDark
-                                    ? 'rgba(255, 255, 255, 0.09)'
-                                    : 'rgba(0, 0, 0, 0.07)',
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.inlineValText,
-                                  { color: val.color || palette.textSecondary },
-                                ]}
-                              >
-                                {val.label}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Unified Metadata & Details Toggle Row */}
-        {hasDetails && (
-          <TouchableOpacity
-            style={[
-              styles.collapsedSummaryRow,
-              {
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
-              },
-            ]}
-            onPress={toggleExpand}
-            activeOpacity={0.8}
-          >
-            <View style={styles.miniBadgesWrap}>
-              {locationFields.length > 0 && (
-                <View style={styles.miniBadge}>
-                  <Text style={styles.miniBadgeText}>🧍 {totalAreasCount} areas</Text>
-                </View>
-              )}
-              {imageFields.length > 0 && (
-                <View style={styles.miniBadge}>
-                  <Text style={styles.miniBadgeText}>
-                    📷 {totalPhotosCount} photo{totalPhotosCount > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              )}
-              {entry.note ? (
-                <View style={styles.miniBadge}>
-                  <Text style={styles.miniBadgeText}>📝 Note</Text>
-                </View>
-              ) : null}
-              {locationLabel ? (
-                <View style={styles.miniBadge}>
-                  <Text style={styles.miniBadgeText}>📍 {locationLabel}</Text>
-                </View>
-              ) : null}
-              {standardFields.length > 0 && (
-                <View style={styles.miniBadge}>
-                  <Text style={styles.miniBadgeText}>⚙️ {standardFields.length} metrics</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.expandPromptWrap}>
-              <Text style={[styles.expandPromptText, { color: palette.primary }]}>
-                {isExpanded ? 'Hide details' : 'Show details'}
-              </Text>
-              {isExpanded ? (
-                <ChevronUp size={12} color={palette.primary} />
-              ) : (
-                <ChevronDown size={12} color={palette.primary} />
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Expanded Detailed Sections */}
-        {isExpanded && (
-          <>
-            {/* Rich Anatomical Body Map Previews for Swelling / Pain / Symptoms */}
-            {locationFields.map((loc, idx) => (
-              <BodyMapPreview
-                key={`loc-preview-${idx}`}
-                selectedKeys={loc.field.value as string[] | string}
-                fieldLabel={`${loc.answerLabel} • ${loc.field.fieldKey}`}
-              />
-            ))}
-
-            {/* Rich Photo Gallery for Stool, Skin, or Attached Images */}
-            {imageFields.map((img, idx) => (
-              <LogPhotoGallery
-                key={`img-gallery-${idx}`}
-                uris={img.field.value as string[] | string}
-                isSensitive={true}
-                fieldLabel={`${img.answerLabel} • Photo`}
-              />
-            ))}
-
-            {/* Standard text/numeric fields (e.g. Duration, Temperature) */}
-            {standardFields.length > 0 && (
-              <View style={styles.standardFieldsList}>
-                {standardFields.map((f, idx) => {
-                  let displayVal = String(f.field.value);
-                  if (f.field.dataType === 'temperature') {
-                    displayVal = `${Number(f.field.value).toFixed(1)} °C`;
-                  } else if (f.field.dataType === 'duration') {
-                    const s = Number(f.field.value);
-                    const h = Math.floor(s / 3600);
-                    const m = Math.floor((s % 3600) / 60);
-                    displayVal = h > 0 ? `${h}h ${m}m` : `${m}m`;
-                  } else if (f.field.unit) {
-                    displayVal = `${displayVal} ${f.field.unit}`;
-                  }
-
-                  return (
-                    <View key={`std-${idx}`} style={styles.fieldLine}>
-                      <Text style={[styles.fieldKey, { color: palette.textSecondary }]}>
-                        {f.answerLabel} • {f.field.fieldKey}:
-                      </Text>
-                      <Text style={[styles.fieldVal, { color: palette.text }]}>{displayVal}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Captured Location block */}
-            {entry.location ? (
-              <View
-                style={[
-                  styles.expandedLocationBox,
-                  {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.025)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.06)',
-                  },
-                ]}
-              >
-                <MapPin size={14} color={palette.primary} style={{ marginTop: 2 }} />
-                <View style={{ flex: 1, marginLeft: 6 }}>
-                  <Text style={[styles.expandedLocationTitle, { color: palette.text }]}>
-                    {entry.location.formattedAddress || locationLabel}
-                  </Text>
-                  <Text style={[styles.expandedLocationSub, { color: palette.textSecondary }]}>
-                    {entry.location.latitude.toFixed(4)}°, {entry.location.longitude.toFixed(4)}°
-                    {entry.location.accuracy ? ` • ±${Math.round(entry.location.accuracy)}m` : ''}
-                  </Text>
-                </View>
-              </View>
+            {extras.length > 0 && !isExpanded ? (
+              <Text style={styles.extras} numberOfLines={1} maxFontSizeMultiplier={1.4}>{extras.join(' · ')}</Text>
             ) : null}
+          </View>
+          <Text style={styles.time} maxFontSizeMultiplier={1.4}>{timeText}</Text>
+          {isExpanded ? (
+            <ChevronUp size={16} color={palette.textSecondary} />
+          ) : (
+            <ChevronDown size={16} color={palette.textSecondary} />
+          )}
+        </View>
+      </TouchableOpacity>
 
-            {/* Notes callout block */}
-            {entry.note ? (
-              <View
-                style={[
-                  styles.noteBox,
-                  {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.025)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.06)',
-                  },
-                ]}
-              >
-                <FileText size={13} color={palette.textSecondary} style={{ marginTop: 2 }} />
-                <Text style={[styles.noteText, { color: palette.textSecondary }]}>
-                  {entry.note}
+      {isExpanded ? (
+        <View style={styles.details}>
+          {/* Anatomical body map previews for swelling / pain / symptoms */}
+          {locationFields.map((loc, idx) => (
+            <BodyMapPreview
+              key={`loc-preview-${idx}`}
+              selectedKeys={loc.field.value as string[] | string}
+              fieldLabel={`${loc.answerLabel} • ${loc.field.fieldKey}`}
+            />
+          ))}
+
+          {/* Photo gallery (privacy blur) */}
+          {imageFields.map((img, idx) => (
+            <LogPhotoGallery
+              key={`img-gallery-${idx}`}
+              uris={img.field.value as string[] | string}
+              isSensitive={true}
+              fieldLabel={`${img.answerLabel} • Photo`}
+            />
+          ))}
+
+          {/* Standard text/numeric fields (e.g. duration, temperature) */}
+          {standardFields.length > 0 && (
+            <View style={styles.standardFieldsList}>
+              {standardFields.map((f, idx) => {
+                let displayVal = String(f.field.value);
+                if (f.field.dataType === 'temperature') {
+                  displayVal = `${Number(f.field.value).toFixed(1)} °C`;
+                } else if (f.field.dataType === 'duration') {
+                  const s = Number(f.field.value);
+                  const h = Math.floor(s / 3600);
+                  const m = Math.floor((s % 3600) / 60);
+                  displayVal = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                } else if (f.field.unit) {
+                  displayVal = `${displayVal} ${f.field.unit}`;
+                }
+
+                return (
+                  <View key={`std-${idx}`} style={styles.fieldLine}>
+                    <Text style={styles.fieldKey}>{f.answerLabel} • {f.field.fieldKey}</Text>
+                    <Text style={styles.fieldVal}>{displayVal}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {entry.location ? (
+            <View style={styles.infoBox}>
+              <MapPin size={14} color={palette.primaryText} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>{entry.location.formattedAddress || locationLabel}</Text>
+                <Text style={styles.infoSub}>
+                  {entry.location.latitude.toFixed(4)}°, {entry.location.longitude.toFixed(4)}°
+                  {entry.location.accuracy ? ` • ±${Math.round(entry.location.accuracy)}m` : ''}
                 </Text>
               </View>
-            ) : null}
-          </>
-        )}
+            </View>
+          ) : null}
 
-        {/* Bottom Actions Bar (Edit & Delete) */}
-        <View style={styles.bottomBar}>
-          <View style={{ flex: 1 }} />
+          {entry.note ? (
+            <View style={styles.infoBox}>
+              <FileText size={14} color={palette.textSecondary} style={{ marginTop: 2 }} />
+              <Text style={styles.noteText}>{entry.note}</Text>
+            </View>
+          ) : null}
 
-          <View style={styles.actionsGroup}>
-            {/* Edit Button */}
-            {onEdit && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  {
-                    backgroundColor: isDark ? 'rgba(255, 125, 77, 0.12)' : 'rgba(255, 107, 53, 0.08)',
-                    borderColor: isDark ? 'rgba(255, 125, 77, 0.25)' : 'rgba(255, 107, 53, 0.2)',
-                  },
-                ]}
-                onPress={handleEdit}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Edit log entry"
-              >
-                <Pencil size={13} color={palette.primary} strokeWidth={2.2} />
-                <Text style={[styles.actionBtnText, { color: palette.primary }]}>Edit</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Delete Button */}
-            {onDelete && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  styles.deleteButton,
-                  {
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
-                    borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.18)',
-                  },
-                ]}
-                onPress={handleDelete}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Delete log entry"
-              >
-                <Trash2 size={13} color="#EF4444" strokeWidth={2} />
-                <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>Delete</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          {onEdit || onDelete ? (
+            <View style={styles.actions}>
+              {onEdit ? (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: palette.tint + '1F' }]}
+                  onPress={handleEdit}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit log entry"
+                >
+                  <Pencil size={15} color={palette.primaryText} strokeWidth={2.2} />
+                  <Text style={[styles.actionText, { color: palette.primaryText }]}>Edit</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onDelete ? (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: palette.error + '1F' }]}
+                  onPress={handleDelete}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete log entry"
+                >
+                  <Trash2 size={15} color={palette.errorText} strokeWidth={2.2} />
+                  <Text style={[styles.actionText, { color: palette.errorText }]}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }
 
+/**
+ * Row of an hour group. The hour card (see DayView) supplies the white rounded
+ * surface and hairline separators, so a row draws no card of its own.
+ */
 const useStyles = createThemedStyles((palette) => ({
-  card: {
-    flexDirection: 'row',
-    backgroundColor: palette.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: 'hidden',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  strip: {
-    width: 6,
-  },
-  body: {
-    flex: 1,
-    padding: 14,
-    gap: 8,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-    paddingRight: 8,
-  },
-  catIcon: {
-    fontSize: 18,
-  },
-  catName: {
-    ...typography.bodyBold,
-    fontSize: 16,
-    color: palette.text,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  timeBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  time: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  sourceBadge: {
-    ...typography.caption,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  chevronBtn: {
-    padding: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  questionGroupsContainer: {
-    gap: 8,
-    marginTop: 2,
-  },
-  questionGroup: {
-    gap: 4,
-  },
-  groupQuestionTitle: {
-    ...typography.caption,
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: palette.textSecondary,
-    letterSpacing: 0.2,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  chipIcon: {
-    fontSize: 13,
-  },
-  chipText: {
-    ...typography.caption,
-    fontWeight: '600',
-  },
-  inlineValPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 8,
-    marginLeft: 3,
-  },
-  inlineValText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 16, minHeight: 52 },
+  rowBody: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 16, paddingVertical: 10 },
+  rowMain: { flex: 1, gap: 2 },
+  title: { ...typography.bodyLarge, color: palette.text },
+  sub: { ...typography.footnote, color: palette.textSecondary, lineHeight: 19 },
+  subStrong: { color: palette.text, fontWeight: '500' },
+  extras: { ...typography.footnote, color: palette.textSecondary },
+  time: { ...typography.subhead, color: palette.textSecondary, fontVariant: ['tabular-nums'] },
 
-  // Collapsed summary preview
-  collapsedSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginTop: 2,
-  },
-  miniBadgesWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    flex: 1,
-  },
-  miniBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: 'rgba(150, 150, 150, 0.1)',
-  },
-  miniBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
-  expandPromptWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingLeft: 6,
-  },
-  expandPromptText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  // Expanded fields
-  standardFieldsList: {
-    gap: 3,
-    marginTop: 4,
-    paddingLeft: 4,
-  },
-  fieldLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  fieldKey: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  fieldVal: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  noteBox: {
-    flexDirection: 'row',
-    gap: 6,
-    padding: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginTop: 2,
-  },
-  noteText: {
-    ...typography.small,
-    fontSize: 12.5,
-    fontStyle: 'italic',
-    flex: 1,
-    lineHeight: 18,
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: 4,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150, 150, 150, 0.1)',
-  },
-  actionsGroup: {
+  details: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
+  standardFieldsList: { gap: 4 },
+  fieldLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  fieldKey: { ...typography.footnote, color: palette.textSecondary, flexShrink: 1 },
+  fieldVal: { ...typography.footnote, color: palette.text, fontWeight: '600' },
+  infoBox: {
     flexDirection: 'row',
     gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: palette.surfaceAlt,
   },
+  infoTitle: { ...typography.footnote, color: palette.text, fontWeight: '600' },
+  infoSub: { ...typography.footnote, color: palette.textSecondary, marginTop: 2 },
+  noteText: { ...typography.footnote, color: palette.textSecondary, flex: 1, fontStyle: 'italic' },
+  actions: { flexDirection: 'row', gap: 10 },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: 22,
   },
-  deleteButton: {},
-  actionBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  expandedLocationBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  expandedLocationTitle: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  expandedLocationSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
+  actionText: { ...typography.subheadBold },
 }));

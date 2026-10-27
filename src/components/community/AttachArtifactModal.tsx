@@ -271,8 +271,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(128, 128, 128, 0.18)',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
   tabText: {
     fontSize: 12,
@@ -293,8 +293,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(128, 128, 128, 0.12)',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
   itemEmoji: {
     fontSize: 20,

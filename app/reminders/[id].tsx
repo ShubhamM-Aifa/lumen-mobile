@@ -14,15 +14,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Switch,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
+import { ScreenTopBar, HeaderTextButton } from '../../src/components/ios/ScreenTopBar';
 import { ChevronLeft, Check, Trash2, BellRing } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
@@ -120,14 +121,8 @@ export default function EditReminderScreen() {
 
   if (!reminder) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
-            <ChevronLeft size={24} color={palette.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reminder Not Found</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
+        <ScreenTopBar title="Reminder Not Found" sheet backLabel="Back" onBack={() => safeGoBack('/reminders')} />
         <View style={styles.notFoundCenter}>
           <Text style={styles.notFoundText}>This reminder could not be found or was deleted.</Text>
           <TouchableOpacity style={styles.notFoundBtn} onPress={() => safeGoBack('/reminders')}>
@@ -217,29 +212,18 @@ export default function EditReminderScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Top Bar */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/reminders')}>
-            <ChevronLeft size={24} color={palette.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Reminder</Text>
-          <TouchableOpacity
-            style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
-            onPress={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveBtnText}>Save</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        <ScreenTopBar
+          title="Edit Reminder"
+          sheet
+          backLabel="Back"
+          onBack={() => safeGoBack('/reminders')}
+          right={<HeaderTextButton label="Save" accessibilityLabel="Save reminder" prominent loading={isSaving} onPress={handleSave} />}
+        />
 
         <ScrollView
           style={styles.content}
@@ -295,7 +279,7 @@ export default function EditReminderScreen() {
                 <Text style={[styles.scheduleTypeTitle, scheduleType === st.value && styles.scheduleTypeTitleActive]}>
                   {st.label}
                 </Text>
-                {scheduleType === st.value ? <Check size={18} color={palette.primary} /> : null}
+                {scheduleType === st.value ? <Check size={18} color={palette.primaryText} /> : null}
               </TouchableOpacity>
             ))}
           </View>
@@ -464,11 +448,11 @@ export default function EditReminderScreen() {
             <Text style={styles.toggleLabel}>Enable Alarm</Text>
             <Text style={styles.toggleSub}>Active alarms trigger notifications & sound</Text>
           </View>
-          <Switch
+          <AppleSwitch
             value={enabled}
             onValueChange={setEnabled}
-            trackColor={{ false: palette.border, true: palette.secondary }}
-            thumbColor={palette.surface}
+            activeColor={palette.success || '#34C759'}
+            accessibilityLabel="Enable Alarm"
           />
         </View>
 
@@ -487,7 +471,7 @@ export default function EditReminderScreen() {
 
         {/* Archive / Delete Button */}
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-          <Trash2 size={16} color={palette.error} />
+          <Trash2 size={16} color={palette.errorText} />
           <Text style={styles.deleteBtnText}>Archive This Reminder</Text>
         </TouchableOpacity>
 
@@ -513,66 +497,19 @@ const useStyles = createThemedStyles(palette => ({
     flex: 1,
     backgroundColor: palette.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    ...typography.h3,
-    fontSize: 18,
-    color: palette.text,
-    fontWeight: '700',
-  },
-  saveBtn: {
-    backgroundColor: palette.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 9999,
-    minWidth: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveBtnText: {
-    ...typography.bodyBold,
-    color: '#FFFFFF',
-  },
   content: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 16,
-    gap: 20,
-  },
-  section: {
-    gap: 8,
-  },
-  label: {
-    ...typography.label,
-    color: palette.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  subDesc: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginBottom: 4,
-  },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40, gap: 18 },
+  section: { gap: 7 },
+  label: { ...typography.sectionLabel, color: palette.textSecondary, paddingHorizontal: 4 },
+  subDesc: { ...typography.footnote, color: palette.textSecondary },
   textInput: {
+    ...typography.bodyLarge,
     backgroundColor: palette.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    ...typography.body,
+    minHeight: 48,
     color: palette.text,
   },
   iconScroll: {
@@ -586,14 +523,8 @@ const useStyles = createThemedStyles(palette => ({
     backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
   },
-  iconChipActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primary + '18',
-    borderWidth: 2,
-  },
+  iconChipActive: { backgroundColor: palette.tint + '33' },
   iconEmoji: {
     fontSize: 22,
   },
@@ -602,25 +533,15 @@ const useStyles = createThemedStyles(palette => ({
     paddingVertical: 4,
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    minHeight: 36,
+    borderRadius: 18,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
-  },
-  chipText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-  },
+  chipActive: { backgroundColor: palette.primary },
+  chipText: { ...typography.subhead, color: palette.text },
   chipTextActive: {
     color: '#FFFFFF',
   },
@@ -634,42 +555,17 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 12,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
+    paddingHorizontal: 16,
+    minHeight: 52,
+    borderRadius: 22,
   },
-  scheduleTypeCardActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primary + '10',
-    borderWidth: 1.5,
-  },
-  scheduleTypeTitle: {
-    ...typography.body,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  scheduleTypeTitleActive: {
-    color: palette.primary,
-    fontWeight: '700',
-  },
-  configBox: {
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    gap: 10,
-  },
-  boxTitle: {
-    ...typography.bodyBold,
-    color: palette.text,
-  },
-  boxHint: {
-    ...typography.caption,
-    color: palette.textSecondary,
-  },
+  scheduleTypeCardActive: { backgroundColor: palette.tint + '1F' },
+  scheduleTypeTitle: { ...typography.bodyLarge, color: palette.text },
+  scheduleTypeTitleActive: { fontWeight: '600', color: palette.primaryText },
+  configBox: { backgroundColor: palette.surface, borderRadius: 26, padding: 16, gap: 12 },
+  boxTitle: { ...typography.headline, color: palette.text },
+  boxHint: { ...typography.footnote, color: palette.textSecondary },
   inputRow: {
     flexDirection: 'row',
     gap: 12,
@@ -678,21 +574,15 @@ const useStyles = createThemedStyles(palette => ({
     flex: 1,
     gap: 4,
   },
-  subLabel: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '600',
-  },
+  subLabel: { ...typography.footnote, color: palette.textSecondary, marginBottom: 4 },
   smallInput: {
-    backgroundColor: palette.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
+    ...typography.bodyLarge,
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 14,
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    ...typography.body,
-    color: palette.text,
+    minHeight: 44,
     textAlign: 'center',
+    color: palette.text,
   },
   minuteSelectRow: {
     flexDirection: 'row',
@@ -700,26 +590,15 @@ const useStyles = createThemedStyles(palette => ({
   },
   minChip: {
     flex: 1,
-    paddingVertical: 8,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
+    backgroundColor: palette.surfaceAlt,
   },
-  minChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
-  },
-  minChipText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  minChipTextActive: {
-    color: '#FFFFFF',
-  },
+  minChipActive: { backgroundColor: palette.success + '2E' },
+  minChipText: { ...typography.headline, color: palette.text },
+  minChipTextActive: { color: palette.successText },
   daysRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -731,99 +610,54 @@ const useStyles = createThemedStyles(palette => ({
     backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
   },
-  dayCircleActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
-  },
-  dayCircleText: {
-    ...typography.bodyBold,
-    color: palette.text,
-  },
-  dayCircleTextActive: {
-    color: '#FFFFFF',
-  },
+  dayCircleActive: { backgroundColor: palette.primary },
+  dayCircleText: { ...typography.subheadBold, color: palette.textSecondary },
+  dayCircleTextActive: { color: '#FFFFFF' },
   snoozeRow: {
     flexDirection: 'row',
     gap: 8,
   },
   snoozeChip: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 22,
     backgroundColor: palette.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
-  snoozeChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
-  },
-  snoozeChipText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  snoozeChipTextActive: {
-    color: '#FFFFFF',
-  },
+  snoozeChipActive: { backgroundColor: palette.primary },
+  snoozeChipText: { ...typography.subheadBold, color: palette.textSecondary },
+  snoozeChipTextActive: { color: '#FFFFFF' },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.surface,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    minHeight: 56,
   },
-  toggleLabel: {
-    ...typography.bodyBold,
-    color: palette.text,
-  },
-  toggleSub: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 2,
-  },
+  toggleLabel: { ...typography.bodyLarge, color: palette.text },
+  toggleSub: { ...typography.footnote, color: palette.textSecondary },
   bottomSaveBtn: {
     backgroundColor: palette.primary,
-    paddingVertical: 14,
-    borderRadius: 14,
+    minHeight: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  bottomSaveBtnText: {
-    ...typography.bodyBold,
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
+  bottomSaveBtnText: { ...typography.headline, color: '#FFFFFF' },
   deleteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: palette.error + '12',
-    borderWidth: 1,
-    borderColor: palette.error + '30',
+    minHeight: 52,
+    borderRadius: 26,
+    backgroundColor: palette.error + '1F',
   },
-  deleteBtnText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.error,
-  },
+  deleteBtnText: { ...typography.headline, color: palette.errorText },
   notFoundCenter: {
     flex: 1,
     alignItems: 'center',
@@ -837,13 +671,12 @@ const useStyles = createThemedStyles(palette => ({
     textAlign: 'center',
   },
   notFoundBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 9999,
+    minHeight: 48,
+    paddingHorizontal: 24,
+    borderRadius: 24,
     backgroundColor: palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  notFoundBtnText: {
-    ...typography.bodyBold,
-    color: '#FFFFFF',
-  },
+  notFoundBtnText: { ...typography.headline, color: '#FFFFFF' },
 }));

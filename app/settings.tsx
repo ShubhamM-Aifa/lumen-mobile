@@ -16,7 +16,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
   TextInput,
   Modal,
   ActivityIndicator,
@@ -24,8 +23,10 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
+import { ScreenTopBar } from '../src/components/ios/ScreenTopBar';
+import { InsetGroup, GroupedRow } from '../src/components/ios/InsetGroup';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -58,6 +59,15 @@ import {
   MapPin,
   Users,
   ArrowRightLeft,
+  UserPlus,
+  Cake,
+  FlaskConical,
+  Bell,
+  ScanFace,
+  FileText,
+  Archive,
+  Target,
+  Minus,
 } from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeContext';
@@ -73,6 +83,14 @@ import { typography } from '../src/theme/typography';
 import { ThemeTokens } from '../src/theme/tokens';
 import { LumenLogo } from '../src/components/common/LumenLogo';
 import { DayClockCard } from '../src/components/DayClockCard';
+import {
+  useSleepTrackerStore,
+  formatGoalHours,
+  goalRangeLabel,
+  SLEEP_GOAL_MIN_MINUTES,
+  SLEEP_GOAL_MAX_MINUTES,
+  SLEEP_GOAL_STEP_MINUTES,
+} from '../src/store/sleepTrackerStore';
 import { ModularAvatar } from '../src/components/avatar/ModularAvatar';
 import { AvatarStudioModal } from '../src/components/avatar/AvatarStudioModal';
 
@@ -132,6 +150,28 @@ const GENDER_OPTIONS: { key: 'male' | 'female' | 'non-binary' | 'other' | 'prefe
 
 const APP_LOCK_KEY = 'lumen:security:app_lock';
 
+/** iOS system colours for the icon tiles in the settings list. */
+const TILE = {
+  blue: '#007AFF',
+  indigo: '#5856D6',
+  pink: '#FF2D55',
+  orange: '#FF9500',
+  red: '#FF3B30',
+  green: '#34C759',
+  gray: '#8E8E93',
+};
+
+/** Sub-screens of Settings, opened as /settings?section=<key>. */
+const SECTION_TITLES: Record<string, string> = {
+  sleep: 'Sleep & Recovery',
+  sleepgoal: 'Sleep Goal',
+  vitals: 'Personal Vitals',
+  conditions: 'Conditions & Health Focus',
+  units: 'Units & Day Reset',
+  appearance: 'Appearance',
+  security: 'Security & Credentials',
+};
+
 export default function SettingsScreen() {
   const { palette, preference, setPreference } = useTheme();
   const {
@@ -145,6 +185,17 @@ export default function SettingsScreen() {
     deleteAccountAndData,
     purgeAllLocalData,
   } = useAuthStore();
+
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const sleepGoalMinutes = useSleepTrackerStore(st => st.targetGoalMinutes);
+  const sleepGoalLoaded = useSleepTrackerStore(st => st.isLoaded);
+  const loadSleepState = useSleepTrackerStore(st => st.loadState);
+  const setSleepGoal = useSleepTrackerStore(st => st.setTargetGoalMinutes);
+  useEffect(() => {
+    if (!sleepGoalLoaded) loadSleepState();
+  }, [sleepGoalLoaded, loadSleepState]);
+  const sectionTitle = section ? SECTION_TITLES[section] : undefined;
+  const openSection = (key: string) => router.push({ pathname: '/settings', params: { section: key } });
 
   const [accountSwitcherVisible, setAccountSwitcherVisible] = useState(false);
   const [avatarStudioVisible, setAvatarStudioVisible] = useState(false);
@@ -511,161 +562,73 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      {/* Header Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => safeGoBack('/(tabs)/today')}
-          {...buttonProps('Go back')}
-        >
-          <ChevronLeft size={24} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.topBarTitle}>Profile & Settings</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ScreenTopBar
+        title={sectionTitle ?? 'Settings'}
+        backLabel="Go back"
+        sheet
+        onBack={() => (sectionTitle ? router.back() : safeGoBack('/(tabs)/today'))}
+      />
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={sectionTitle ? styles.scroll : styles.hubScroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* User Hero Profile Card */}
-        <View style={styles.profileHeroCard}>
-          <TouchableOpacity
-            style={styles.avatarContainer}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setAvatarStudioVisible(true);
-            }}
-            activeOpacity={0.85}
-            {...buttonProps('Customize animated avatar')}
-          >
-            <ModularAvatar size={74} animated={true} interactive={true} />
-            <View style={styles.avatarBadge}>
-              <Sparkles size={13} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
-
-          <View style={styles.heroDetails}>
-            <View style={styles.heroNameRow}>
-              <Text style={styles.heroName} numberOfLines={1}>
-                {user?.name || 'Lumen Member'}
-              </Text>
-              <TouchableOpacity
-                style={styles.editNameBtn}
-                onPress={() => setEditNameVisible(true)}
-                {...buttonProps('Edit name')}
-              >
-                <Edit2 size={16} color={palette.primary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.heroEmailRow}>
-              <Mail size={14} color={palette.textSecondary} />
-              <Text style={styles.heroEmail} numberOfLines={1}>
-                {user?.email || '—'}
-              </Text>
-            </View>
-
-            <View style={styles.badgeRow}>
-              <View style={[
-                styles.accountBadge,
-                !isPrimaryUser && { backgroundColor: palette.surfaceAlt, borderColor: palette.border }
-              ]}>
-                <Lock size={11} color={isPrimaryUser ? palette.primary : palette.textSecondary} />
-                <Text style={[
-                  styles.accountBadgeText,
-                  !isPrimaryUser && { color: palette.textSecondary }
-                ]}>
-                  {isPrimaryUser ? '👑 Primary Account Owner' : '👥 Shared Member Access'}
-                </Text>
-              </View>
-              {memberSince ? (
-                <Text style={styles.memberSinceText}>Joined {memberSince}</Text>
-              ) : null}
-            </View>
-
-            <TouchableOpacity
-              style={styles.customizeAvatarHeroBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setAvatarStudioVisible(true);
-              }}
-              activeOpacity={0.8}
-              {...buttonProps('Customize Animated Avatar')}
+        {sectionTitle ? (
+          <>
+        {section === 'sleepgoal' ? (
+          <View style={styles.goalWrap}>
+            <InsetGroup
+              footer={`Nights of ${formatGoalHours(sleepGoalMinutes - 60)} hours or more count as on target. This is your own target, not medical advice. Your care team can tell you what suits you.`}
             >
-              <Sparkles size={13} color={palette.primary} />
-              <Text style={styles.customizeAvatarHeroText}>
-                Customize Animated Avatar 🎨
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.switchAccountHeroBtn}
-              onPress={() => setAccountSwitcherVisible(true)}
-              activeOpacity={0.8}
-              {...buttonProps('Switch Account')}
-            >
-              <ArrowRightLeft size={13} color={palette.primary} />
-              <Text style={styles.switchAccountHeroText}>
-                Switch / Manage Accounts ({savedAccounts?.length || 1})
-              </Text>
-            </TouchableOpacity>
+              <GroupedRow
+                icon={Target}
+                tile={TILE.indigo}
+                label="Sleep goal"
+                sub={`${goalRangeLabel(sleepGoalMinutes)} hours`}
+                trailing={
+                  <View style={styles.goalStepper}>
+                    <TouchableOpacity
+                      style={[styles.goalBtn, sleepGoalMinutes <= SLEEP_GOAL_MIN_MINUTES && styles.goalBtnOff]}
+                      disabled={sleepGoalMinutes <= SLEEP_GOAL_MIN_MINUTES}
+                      onPress={() => { Haptics.selectionAsync(); setSleepGoal(sleepGoalMinutes - SLEEP_GOAL_STEP_MINUTES); }}
+                      {...buttonProps('Lower sleep goal by 30 minutes', false)}
+                    >
+                      <Minus size={18} color={palette.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.goalValue} maxFontSizeMultiplier={1.3} accessibilityLabel={`${formatGoalHours(sleepGoalMinutes)} hours`}>
+                      {formatGoalHours(sleepGoalMinutes)} h
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.goalBtn, sleepGoalMinutes >= SLEEP_GOAL_MAX_MINUTES && styles.goalBtnOff]}
+                      disabled={sleepGoalMinutes >= SLEEP_GOAL_MAX_MINUTES}
+                      onPress={() => { Haptics.selectionAsync(); setSleepGoal(sleepGoalMinutes + SLEEP_GOAL_STEP_MINUTES); }}
+                      {...buttonProps('Raise sleep goal by 30 minutes', false)}
+                    >
+                      <Plus size={18} color={palette.text} />
+                    </TouchableOpacity>
+                  </View>
+                }
+              />
+            </InsetGroup>
           </View>
-        </View>
-
-        {/* Multi-Account Management Section */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Accounts & Access</Text>
-          <View style={styles.accountCountBadge}>
-            <Users size={11} color={palette.primary} />
-            <Text style={styles.accountCountText}>
-              {savedAccounts?.length || 1} {savedAccounts?.length === 1 ? 'account' : 'accounts'}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.sectionDescription}>
-          Switch between clinical profiles, family members, or personal tracking spaces without signing out.
-        </Text>
-        <View style={styles.accountSwitchCard}>
-          <TouchableOpacity
-            style={styles.accountSwitchRow}
-            onPress={() => setAccountSwitcherVisible(true)}
-            activeOpacity={0.7}
-            {...buttonProps('Manage multi-accounts')}
-          >
-            <View style={styles.accountSwitchIconBox}>
-              <Users size={20} color={palette.primary} />
-            </View>
-            <View style={styles.accountSwitchInfo}>
-              <Text style={styles.accountSwitchLabel}>Switch or Add Account</Text>
-              <Text style={styles.accountSwitchSubLabel} numberOfLines={1}>
-                Active: {user?.name || user?.email || 'Current Account'}
-              </Text>
-            </View>
-            <View style={styles.accountSwitchActionPill}>
-              <ArrowRightLeft size={13} color={palette.primary} />
-              <Text style={styles.accountSwitchActionPillText}>Switch</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
+        ) : null}
+        {section === 'sleep' ? (
+          <>
         {/* Sleep & Recovery Summary Card */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Sleep & Recovery</Text>
-        </View>
-        <Text style={styles.sectionDescription}>
-          Track sleep quality, duration, and cellular recovery milestones.
-        </Text>
-        <View style={{ marginBottom: 18 }}>
+        <View>
           <DayClockCard />
         </View>
 
+          </>
+        ) : null}
+        {section === 'vitals' ? (
+          <>
         {/* Personal Vitals & Demographics */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Personal Vitals & Demographics</Text>
+          <View />
           {vitalsSaved && (
             <View style={styles.savedPill}>
-              <Check size={12} color="#10B981" />
+              <Check size={12} color={palette.successText} />
               <Text style={styles.savedPillText}>Saved</Text>
             </View>
           )}
@@ -785,10 +748,14 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+          </>
+        ) : null}
+        {section === 'conditions' ? (
+          <>
         {/* Health Conditions & Diagnoses */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Conditions & Health Focus</Text>
-          {isUpdatingConditions && <ActivityIndicator size="small" color={palette.primary} />}
+          {isUpdatingConditions && <ActivityIndicator size="small" color={palette.primaryText} />}
         </View>
         <Text style={styles.sectionDescription}>
           Select the chronic conditions or symptoms you are tracking. Lumen tailors questionnaires, trigger correlations, and reminder triggers around these.
@@ -843,14 +810,17 @@ export default function SettingsScreen() {
               onPress={() => setAddConditionVisible(true)}
               {...buttonProps('Add custom condition')}
             >
-              <Plus size={14} color={palette.primary} />
+              <Plus size={14} color={palette.primaryText} />
               <Text style={styles.addConditionText}>Add Condition</Text>
             </TouchableOpacity>
           </View>
         </View>
 
+          </>
+        ) : null}
+        {section === 'units' ? (
+          <>
         {/* Units & Measurements */}
-        <Text style={styles.sectionTitle}>Measurement & Scale Units</Text>
         <View style={styles.card}>
           {/* Units System */}
           <View style={styles.row}>
@@ -956,26 +926,11 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Notifications & Intelligence */}
-        <Text style={styles.sectionTitle}>Notifications & Intelligence</Text>
-        <View style={styles.accountSwitchCard}>
-          <TouchableOpacity
-            style={styles.accountSwitchRow}
-            onPress={() => router.push('/notification-settings')}
-            activeOpacity={0.7}
-            {...buttonProps('Open notifications and intelligence settings')}
-          >
-            <View style={styles.accountSwitchInfo}>
-              <Text style={styles.accountSwitchLabel}>Smart notifications & flare mode</Text>
-              <Text style={styles.accountSwitchSubLabel}>
-                Choose what Lumen tells you, how often, and when it stays quiet.
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
+          </>
+        ) : null}
+        {section === 'appearance' ? (
+          <>
         {/* Appearance */}
-        <Text style={styles.sectionTitle}>Appearance</Text>
         <View style={styles.card}>
           <View style={styles.segRowTop}>
             {THEME_OPTIONS.map(opt => {
@@ -1009,13 +964,16 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+          </>
+        ) : null}
+        {section === 'security' ? (
+          <>
         {/* Security & Credentials */}
-        <Text style={styles.sectionTitle}>Security & Credentials</Text>
         <View style={styles.card}>
           {/* Account Password Section */}
           <View style={styles.row}>
             <View style={styles.rowLeft}>
-              <KeyRound size={18} color={palette.primary} />
+              <KeyRound size={18} color={palette.primaryText} />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <Text style={styles.rowLabel}>Account Password</Text>
@@ -1068,7 +1026,7 @@ export default function SettingsScreen() {
           {/* Sensitive Photo Vault PIN */}
           <View style={[styles.row, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
             <View style={styles.rowLeft}>
-              <Lock size={18} color={palette.primary} />
+              <Lock size={18} color={palette.primaryText} />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <Text style={styles.rowLabel}>Sensitive Photo PIN</Text>
@@ -1119,112 +1077,108 @@ export default function SettingsScreen() {
               </Text>
             </View>
           )}
+        </View>
 
-          {/* Biometric App Lock */}
-          <View style={[styles.row, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
-            <View style={styles.rowLeft}>
-              <Shield size={18} color={palette.textSecondary} />
-              <View>
-                <Text style={styles.rowLabel}>Biometric App Lock</Text>
-                <Text style={styles.rowSub}>
-                  {biometricType === 'FACE'
-                    ? 'Require Face ID or device passcode upon launch'
-                    : biometricType === 'FINGERPRINT'
-                    ? 'Require fingerprint or device passcode upon launch'
-                    : 'Require biometrics or device passcode upon launch'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isAppLockEnabled}
-              onValueChange={handleToggleAppLock}
-              trackColor={{ false: palette.border, true: palette.primary + '88' }}
-              thumbColor={isAppLockEnabled ? palette.primary : palette.textDisabled}
-              accessibilityLabel="Biometric App Lock"
-            />
+          </>
+        ) : null}
+          </>
+        ) : (
+          <>
+        {/* Hub: profile + grouped rows */}
+        <View style={styles.hubHero}>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAvatarStudioVisible(true);
+            }}
+            activeOpacity={0.85}
+            {...buttonProps('Customize animated avatar')}
+          >
+            <ModularAvatar size={74} animated={true} interactive={false} />
+          </TouchableOpacity>
+          <View style={styles.heroNameRow}>
+            <Text style={styles.heroName} numberOfLines={1}>{user?.name || 'Lumen Member'}</Text>
+            <TouchableOpacity style={styles.editNameBtn} onPress={() => setEditNameVisible(true)} {...buttonProps('Edit name')}>
+              <Edit2 size={16} color={palette.primaryText} />
+            </TouchableOpacity>
           </View>
-
-          {/* Automatic Location Tagging */}
-          <View style={[styles.row, styles.rowLast, { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 }]}>
-            <View style={styles.rowLeft}>
-              <MapPin size={18} color={palette.textSecondary} />
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.rowLabel}>Auto-Tag Location on Logs</Text>
-                <Text style={styles.rowSub}>
-                  Silently capture location context for Quick Taps, check-ins, and symptom questionnaires to correlate environmental triggers.
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isLocationTaggingEnabled}
-              onValueChange={handleToggleLocationTagging}
-              trackColor={{ false: palette.border, true: palette.primary + '88' }}
-              thumbColor={isLocationTaggingEnabled ? palette.primary : palette.textDisabled}
-              accessibilityLabel="Auto-tag location on logs"
-            />
+          <Text style={styles.heroEmail} numberOfLines={1}>{user?.email || '—'}</Text>
+          <Text style={styles.hubMeta}>
+            {isPrimaryUser ? 'Primary account owner' : 'Shared member access'}{memberSince ? ` · Joined ${memberSince}` : ''}
+          </Text>
+          <View style={styles.hubHeroButtons}>
+            <TouchableOpacity
+              style={styles.hubPill}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setAvatarStudioVisible(true);
+              }}
+              activeOpacity={0.8}
+              {...buttonProps('Edit avatar')}
+            >
+              <Sparkles size={15} color={palette.primaryText} />
+              <Text style={styles.hubPillText}>Edit Avatar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.hubPill}
+              onPress={() => setAccountSwitcherVisible(true)}
+              activeOpacity={0.8}
+              {...buttonProps('Switch account')}
+            >
+              <ArrowRightLeft size={15} color={palette.primaryText} />
+              <Text style={styles.hubPillText}>Switch Account</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Health Data & Backups */}
-        <Text style={styles.sectionTitle}>Health Data & Backups</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => router.push('/reports')}
-            {...buttonProps('Export clinical health report')}
-          >
-            <View style={styles.rowLeft}>
-              <Heart size={18} color={palette.primary} />
-              <View>
-                <Text style={styles.rowLabel}>Export Health Summary</Text>
-                <Text style={styles.rowSub}>Generate PDF or CSV reports for doctors</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textDisabled} />
-          </TouchableOpacity>
+        <InsetGroup title="Accounts & Access">
+          <GroupedRow icon={Users} tile={TILE.blue} label="Switch Account" value={savedAccounts && savedAccounts.length > 1 ? `${savedAccounts.length} accounts` : undefined} chevron onPress={() => setAccountSwitcherVisible(true)} />
+          <GroupedRow icon={UserPlus} tile={TILE.blue} label="Add Another Account" chevron onPress={() => setAccountSwitcherVisible(true)} />
+        </InsetGroup>
 
-          <TouchableOpacity
-            style={[styles.row, styles.rowLast]}
-            onPress={() => router.push('/customize/export')}
-            {...buttonProps('Export or import configuration')}
-          >
-            <View style={styles.rowLeft}>
-              <Globe size={18} color={palette.secondary} />
-              <View>
-                <Text style={styles.rowLabel}>Configuration Backup</Text>
-                <Text style={styles.rowSub}>Export or import custom trackers & questions</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={palette.textDisabled} />
-          </TouchableOpacity>
-        </View>
+        <InsetGroup title="Sleep & Recovery">
+          <GroupedRow icon={Moon} tile={TILE.indigo} label="Sleep & Day Session" sub="Wake, bedtime and sleep quality" chevron onPress={() => openSection('sleep')} />
+          <GroupedRow icon={Target} tile={TILE.indigo} label="Sleep Goal" value={`${formatGoalHours(sleepGoalMinutes)} h`} chevron onPress={() => openSection('sleepgoal')} />
+        </InsetGroup>
 
-        {/* Session & Sign Out */}
-        <Text style={styles.sectionTitle}>Account Session</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.row, styles.rowLast]}
-            onPress={handleLogout}
-            disabled={isLoggingOut}
-            {...buttonProps('Log out of Lumen')}
-          >
-            <View style={styles.rowLeft}>
-              <LogOut size={18} color={palette.warning} />
-              <View>
-                <Text style={[styles.rowLabel, { color: palette.warning }]}>
-                  Log Out
-                </Text>
-                <Text style={styles.rowSub}>Safely close session and clear local cache</Text>
-              </View>
-            </View>
-            {isLoggingOut ? (
-              <ActivityIndicator size="small" color={palette.warning} />
-            ) : (
-              <ChevronRight size={18} color={palette.warning} />
-            )}
-          </TouchableOpacity>
-        </View>
+        <InsetGroup title="Personal Vitals & Demographics">
+          <GroupedRow icon={Cake} tile={TILE.pink} label="Age" value={user?.age != null ? String(user.age) : undefined} chevron onPress={() => openSection('vitals')} />
+          <GroupedRow icon={Scale} tile={TILE.orange} label="Weight" value={user?.weight != null ? `${user.weight} ${activeUnits === 'imperial' ? 'lb' : 'kg'}` : undefined} chevron onPress={() => openSection('vitals')} />
+          <GroupedRow icon={UserIcon} tile={TILE.gray} label="Sex" value={GENDER_OPTIONS.find(o => o.key === user?.gender)?.label} chevron onPress={() => openSection('vitals')} />
+        </InsetGroup>
 
+        <InsetGroup title="Conditions & Health Focus">
+          <GroupedRow icon={Heart} tile={TILE.pink} label="Conditions" value={userConditions.length ? String(userConditions.length) : undefined} chevron onPress={() => openSection('conditions')} />
+        </InsetGroup>
+
+        <InsetGroup title="Measurement & Scale Units">
+          <GroupedRow icon={Ruler} tile={TILE.gray} label="Units" value={`${activeUnits === 'imperial' ? 'Imperial' : 'Metric'} · °${activeTempUnit}`} chevron onPress={() => openSection('units')} />
+          <GroupedRow icon={FlaskConical} tile={TILE.gray} label="Custom Units" chevron onPress={() => router.push('/customize/units')} />
+        </InsetGroup>
+
+        <InsetGroup>
+          <GroupedRow icon={Bell} tile={TILE.red} label="Notifications & Intelligence" chevron onPress={() => router.push('/notification-settings')} />
+          <GroupedRow icon={SunMoon} tile={TILE.blue} label="Appearance" value={THEME_OPTIONS.find(o => o.key === preference)?.label} chevron onPress={() => openSection('appearance')} />
+        </InsetGroup>
+
+        <InsetGroup title="Security & Credentials">
+          <GroupedRow icon={ScanFace} tile={TILE.green} label="Biometric App Lock" toggle toggled={isAppLockEnabled} onToggle={handleToggleAppLock} />
+          <GroupedRow icon={Lock} tile={TILE.gray} label="Sensitive Photo PIN" value={user?.hasPhotoPin ? 'On' : 'Off'} chevron onPress={() => openSection('security')} />
+          <GroupedRow icon={MapPin} tile={TILE.blue} label="Auto-Tag Location on Logs" toggle toggled={isLocationTaggingEnabled} onToggle={handleToggleLocationTagging} />
+          <GroupedRow icon={KeyRound} tile={TILE.gray} label="Account Password" value={user?.hasPassword ? 'Set' : 'Not set'} chevron onPress={() => openSection('security')} />
+        </InsetGroup>
+
+        <InsetGroup title="Health Data & Backups">
+          <GroupedRow icon={FileText} tile={TILE.orange} label="Export Health Summary" sub="PDF or CSV reports for doctors" chevron onPress={() => router.push('/reports')} />
+          <GroupedRow icon={Archive} tile={TILE.gray} label="Configuration Backup" chevron onPress={() => router.push('/customize/export')} />
+        </InsetGroup>
+
+        <InsetGroup title="Account Session">
+          <GroupedRow icon={LogOut} tile={TILE.red} label="Log Out" sub="Safely close session and clear local cache" onPress={isLoggingOut ? undefined : handleLogout} destructive />
+        </InsetGroup>
+
+        <View style={styles.hubDanger}>
         {/* Danger Zone */}
         <View style={[styles.card, styles.dangerCard, !isPrimaryUser && { opacity: 0.8 }]}>
           <TouchableOpacity
@@ -1234,7 +1188,7 @@ export default function SettingsScreen() {
           >
             <View style={styles.dangerRow}>
               {isDeletingAccount ? (
-                <ActivityIndicator size="small" color={palette.error} style={{ marginRight: 6 }} />
+                <ActivityIndicator size="small" color={palette.errorText} style={{ marginRight: 6 }} />
               ) : (
                 <Trash2 size={18} color={isPrimaryUser ? palette.error : palette.textSecondary} />
               )}
@@ -1249,7 +1203,8 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
         </View>
- 
+        </View>
+
         {/* About Lumen Brand Section */}
         <View style={styles.brandFooter}>
           <LumenLogo variant="full" size={54} />
@@ -1257,6 +1212,8 @@ export default function SettingsScreen() {
             Version 0.1.0 • Built with care for Autoimmune Health
           </Text>
         </View>
+          </>
+        )}
 
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -1518,9 +1475,9 @@ export default function SettingsScreen() {
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingCard}>
             <View style={styles.loadingIconCircle}>
-              <Trash2 size={28} color={palette.error} />
+              <Trash2 size={28} color={palette.errorText} />
             </View>
-            <ActivityIndicator size="large" color={palette.error} style={{ marginVertical: 14 }} />
+            <ActivityIndicator size="large" color={palette.errorText} style={{ marginVertical: 14 }} />
             <Text style={styles.loadingTitle}>Deleting Account & All Data</Text>
             <Text style={styles.loadingDesc}>
               Permanently purging your health logs, activity sessions, scheduled reminders, and server profile. Please do not close the app.
@@ -1550,53 +1507,52 @@ function makeStyles(palette: ThemeTokens) {
       flex: 1,
       backgroundColor: palette.background,
     },
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: palette.border,
-      backgroundColor: palette.surface,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 20,
-      backgroundColor: palette.surfaceAlt,
-    },
-    topBarTitle: {
-      ...typography.h3,
-      fontSize: 18,
-      color: palette.text,
-      fontWeight: '700',
-    },
     scroll: {
-      padding: 18,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 40,
       gap: 8,
     },
-    // Hero Card
-    profileHeroCard: {
+    hubScroll: { paddingTop: 10, paddingBottom: 40, gap: 22 },
+    hubHero: { alignItems: 'center', gap: 4, paddingHorizontal: 16, paddingTop: 4 },
+    hubMeta: { ...typography.footnote, color: palette.textSecondary },
+    hubHeroButtons: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    hubPill: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 6,
+      minHeight: 44,
+      paddingHorizontal: 18,
+      borderRadius: 22,
+      backgroundColor: palette.tint + '1F',
+    },
+    hubPillText: { ...typography.subheadBold, color: palette.primaryText },
+    hubDanger: { paddingHorizontal: 16 },
+    goalWrap: { marginHorizontal: -16 },
+    goalStepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    goalBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surfaceAlt,
+    },
+    goalBtnOff: { opacity: 0.4 },
+    goalValue: { ...typography.headline, color: palette.text, minWidth: 48, textAlign: 'center' },
+    // Hero Card
+    profileHeroCard: {
+      flexDirection: 'column',
+      alignItems: 'center',
       backgroundColor: palette.surface,
-      borderRadius: 20,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: palette.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      elevation: 3,
+      borderRadius: 26,
+      paddingVertical: 20,
+      paddingHorizontal: 16,
       marginBottom: 10,
     },
     avatarContainer: {
       position: 'relative',
-      marginRight: 16,
+      marginBottom: 8,
     },
     avatarCircle: {
       width: 64,
@@ -1631,39 +1587,45 @@ function makeStyles(palette: ThemeTokens) {
       borderColor: palette.surface,
     },
     heroDetails: {
-      flex: 1,
+      alignSelf: 'stretch',
+      alignItems: 'center',
       gap: 4,
     },
     heroNameRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
+      gap: 8,
     },
     heroName: {
-      ...typography.h3,
-      fontSize: 19,
-      fontWeight: '700',
+      ...typography.title2,
       color: palette.text,
-      flex: 1,
+      flexShrink: 1,
+      textAlign: 'center',
     },
     editNameBtn: {
-      padding: 4,
-      borderRadius: 8,
-      backgroundColor: palette.primary + '18',
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+      backgroundColor: palette.tint + '1F',
     },
     heroEmailRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 6,
     },
     heroEmail: {
-      ...typography.caption,
+      ...typography.subhead,
       color: palette.textSecondary,
-      flex: 1,
+      flexShrink: 1,
     },
     badgeRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       flexWrap: 'wrap',
       gap: 8,
       marginTop: 4,
@@ -1672,94 +1634,83 @@ function makeStyles(palette: ThemeTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: palette.primary + '14',
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+      backgroundColor: palette.tint + '1F',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
       borderRadius: 9999,
     },
     accountBadgeText: {
-      ...typography.caption,
-      fontSize: 11,
-      color: palette.primary,
+      ...typography.footnote,
+      color: palette.primaryText,
       fontWeight: '600',
     },
     memberSinceText: {
-      ...typography.caption,
-      fontSize: 11,
-      color: palette.textDisabled,
+      ...typography.footnote,
+      color: palette.textSecondary,
     },
     customizeAvatarHeroBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      alignSelf: 'flex-start',
-      marginTop: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 10,
-      backgroundColor: palette.primary + '18',
-      borderWidth: 1,
-      borderColor: palette.primary + '40',
+      alignSelf: 'center',
+      marginTop: 8,
+      paddingHorizontal: 16,
+      minHeight: 40,
+      borderRadius: 20,
+      backgroundColor: palette.surfaceAlt,
     },
     customizeAvatarHeroText: {
-      ...typography.caption,
-      fontSize: 12,
-      fontWeight: '600',
-      color: palette.primary,
+      ...typography.subhead,
+      color: palette.primaryText,
     },
     switchAccountHeroBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      alignSelf: 'flex-start',
+      alignSelf: 'center',
       marginTop: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 10,
-      backgroundColor: palette.primary + '14',
-      borderWidth: 1,
-      borderColor: palette.primary + '30',
+      paddingHorizontal: 16,
+      minHeight: 40,
+      borderRadius: 20,
+      backgroundColor: palette.surfaceAlt,
     },
     switchAccountHeroText: {
-      ...typography.caption,
-      fontSize: 12,
-      color: palette.primary,
-      fontWeight: '700',
+      ...typography.subhead,
+      color: palette.primaryText,
     },
     accountCountBadge: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: palette.primary + '14',
-      paddingHorizontal: 8,
-      paddingVertical: 2,
+      backgroundColor: palette.tint + '1F',
+      paddingHorizontal: 10,
+      paddingVertical: 3,
       borderRadius: 9999,
     },
     accountCountText: {
-      ...typography.caption,
-      fontSize: 11,
-      color: palette.primary,
+      ...typography.footnote,
+      color: palette.primaryText,
       fontWeight: '600',
     },
     accountSwitchCard: {
       backgroundColor: palette.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: palette.border,
+      borderRadius: 26,
       overflow: 'hidden',
       marginBottom: 10,
     },
     accountSwitchRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       gap: 12,
+      minHeight: 52,
     },
     accountSwitchIconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: palette.primary + '14',
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      backgroundColor: palette.tint + '1F',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1768,63 +1719,55 @@ function makeStyles(palette: ThemeTokens) {
       gap: 2,
     },
     accountSwitchLabel: {
-      ...typography.body,
-      fontWeight: '700',
+      ...typography.bodyLarge,
       color: palette.text,
-      fontSize: 15,
     },
     accountSwitchSubLabel: {
-      ...typography.caption,
+      ...typography.footnote,
       color: palette.textSecondary,
-      fontSize: 12,
     },
     accountSwitchActionPill: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 5,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor: palette.primary + '18',
+      paddingHorizontal: 14,
+      minHeight: 36,
+      borderRadius: 18,
+      backgroundColor: palette.tint + '1F',
     },
     accountSwitchActionPillText: {
-      ...typography.caption,
-      color: palette.primary,
-      fontWeight: '700',
-      fontSize: 12,
+      ...typography.subheadBold,
+      color: palette.primaryText,
     },
     // Sections
     sectionHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      paddingHorizontal: 4,
       marginTop: 14,
       marginBottom: 2,
     },
     sectionTitle: {
-      ...typography.label,
+      ...typography.sectionLabel,
       color: palette.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
-      fontWeight: '700',
+      paddingHorizontal: 4,
       marginTop: 14,
       marginBottom: 2,
     },
     sectionDescription: {
-      ...typography.caption,
+      ...typography.footnote,
       color: palette.textSecondary,
+      paddingHorizontal: 4,
       marginBottom: 6,
-      lineHeight: 18,
     },
     card: {
       backgroundColor: palette.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: palette.border,
+      borderRadius: 26,
       overflow: 'hidden',
     },
     divider: {
-      height: 1,
+      height: StyleSheet.hairlineWidth,
       backgroundColor: palette.border,
       marginHorizontal: 16,
     },
@@ -1833,8 +1776,9 @@ function makeStyles(palette: ThemeTokens) {
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
+      paddingVertical: 10,
+      minHeight: 52,
+      borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: palette.border,
     },
     rowLast: {
@@ -1847,12 +1791,11 @@ function makeStyles(palette: ThemeTokens) {
       flex: 1,
     },
     rowLabel: {
-      ...typography.body,
+      ...typography.bodyLarge,
       color: palette.text,
-      fontWeight: '600',
     },
     rowSub: {
-      ...typography.caption,
+      ...typography.footnote,
       color: palette.textSecondary,
       marginTop: 2,
     },
@@ -1866,21 +1809,17 @@ function makeStyles(palette: ThemeTokens) {
     conditionChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 9999,
-      borderWidth: 1,
-      borderColor: palette.border,
+      paddingHorizontal: 14,
+      minHeight: 34,
+      borderRadius: 17,
       backgroundColor: palette.surfaceAlt,
     },
     conditionChipActive: {
       backgroundColor: palette.primary,
-      borderColor: palette.primary,
     },
     conditionChipText: {
-      ...typography.caption,
+      ...typography.subhead,
       color: palette.text,
-      fontWeight: '600',
     },
     conditionChipTextActive: {
       color: '#FFFFFF',
@@ -1889,18 +1828,14 @@ function makeStyles(palette: ThemeTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 9999,
-      borderWidth: 1.5,
-      borderStyle: 'dashed',
-      borderColor: palette.primary,
-      backgroundColor: palette.primary + '10',
+      paddingHorizontal: 14,
+      minHeight: 34,
+      borderRadius: 17,
+      backgroundColor: palette.tint + '1F',
     },
     addConditionText: {
-      ...typography.caption,
-      color: palette.primary,
-      fontWeight: '700',
+      ...typography.subheadBold,
+      color: palette.primaryText,
     },
     // Segment Controls
     segRow: {
@@ -1921,41 +1856,34 @@ function makeStyles(palette: ThemeTokens) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      paddingVertical: 10,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: palette.border,
+      minHeight: 44,
+      borderRadius: 22,
       backgroundColor: palette.surfaceAlt,
     },
     segSmall: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 9,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: palette.border,
+      minHeight: 40,
+      borderRadius: 20,
       backgroundColor: palette.surfaceAlt,
     },
     segActive: {
       backgroundColor: palette.primary,
-      borderColor: palette.primary,
     },
     segIcon: {
       fontSize: 14,
     },
     segLabel: {
-      ...typography.small,
-      color: palette.textSecondary,
-      fontWeight: '600',
+      ...typography.subhead,
+      color: palette.text,
     },
     segLabelActive: {
       color: '#FFFFFF',
     },
     // Danger Zone
     dangerCard: {
-      borderColor: palette.error + '44',
-      backgroundColor: palette.error + '08',
+      backgroundColor: palette.error + '14',
       marginTop: 14,
       padding: 16,
     },
@@ -1967,11 +1895,11 @@ function makeStyles(palette: ThemeTokens) {
     },
     dangerText: {
       ...typography.bodyBold,
-      color: palette.error,
+      color: palette.errorText,
     },
     dangerSub: {
       ...typography.caption,
-      color: palette.error + 'BB',
+      color: palette.errorText + 'BB',
       lineHeight: 18,
     },
     // Modal
@@ -1986,10 +1914,8 @@ function makeStyles(palette: ThemeTokens) {
       width: '100%',
       maxWidth: 400,
       backgroundColor: palette.surface,
-      borderRadius: 20,
+      borderRadius: 26,
       padding: 22,
-      borderWidth: 1,
-      borderColor: palette.border,
       gap: 12,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 8 },
@@ -1998,24 +1924,21 @@ function makeStyles(palette: ThemeTokens) {
       elevation: 6,
     },
     modalTitle: {
-      ...typography.h3,
+      ...typography.title2,
       color: palette.text,
-      fontWeight: '700',
     },
     modalDesc: {
-      ...typography.caption,
+      ...typography.subhead,
       color: palette.textSecondary,
-      lineHeight: 18,
     },
     modalInput: {
       backgroundColor: palette.surfaceAlt,
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 12,
+      borderRadius: 14,
       paddingHorizontal: 14,
       paddingVertical: 12,
+      minHeight: 48,
       color: palette.text,
-      ...typography.body,
+      ...typography.bodyLarge,
       marginTop: 6,
     },
     modalActions: {
@@ -2025,29 +1948,30 @@ function makeStyles(palette: ThemeTokens) {
       marginTop: 8,
     },
     modalCancelBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 10,
+      paddingHorizontal: 18,
+      minHeight: 44,
+      borderRadius: 22,
       backgroundColor: palette.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     modalCancelText: {
-      ...typography.body,
+      ...typography.headline,
       color: palette.textSecondary,
-      fontWeight: '600',
+      fontWeight: '500',
     },
     modalSaveBtn: {
       paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 10,
+      minHeight: 44,
+      borderRadius: 22,
       backgroundColor: palette.primary,
       minWidth: 100,
       alignItems: 'center',
       justifyContent: 'center',
     },
     modalSaveText: {
-      ...typography.body,
+      ...typography.headline,
       color: '#FFFFFF',
-      fontWeight: '700',
     },
     // Vitals section
     vitalsInputsRow: {
@@ -2062,18 +1986,14 @@ function makeStyles(palette: ThemeTokens) {
       gap: 6,
     },
     vitalFieldLabel: {
-      ...typography.caption,
+      ...typography.footnote,
       color: palette.textSecondary,
-      fontWeight: '600',
-      fontSize: 12,
     },
     vitalFieldBox: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: palette.surfaceAlt,
-      borderWidth: 1.5,
-      borderColor: palette.border,
-      borderRadius: 12,
+      borderRadius: 14,
       paddingHorizontal: 14,
       height: 48,
     },
@@ -2087,10 +2007,8 @@ function makeStyles(palette: ThemeTokens) {
       paddingVertical: 0,
     },
     vitalUnitSuffix: {
-      ...typography.caption,
-      color: palette.textDisabled,
-      fontWeight: '700',
-      fontSize: 12,
+      ...typography.footnote,
+      color: palette.textSecondary,
       marginLeft: 6,
     },
     vitalsActionRow: {
@@ -2098,19 +2016,17 @@ function makeStyles(palette: ThemeTokens) {
     },
     saveVitalsButton: {
       backgroundColor: palette.primary,
-      paddingVertical: 13,
-      borderRadius: 12,
+      minHeight: 50,
+      borderRadius: 25,
       alignItems: 'center',
       justifyContent: 'center',
     },
     saveVitalsButtonSuccess: {
-      backgroundColor: '#10B981',
+      backgroundColor: palette.success,
     },
     saveVitalsButtonText: {
-      ...typography.body,
+      ...typography.headline,
       color: '#FFFFFF',
-      fontWeight: '700',
-      fontSize: 14,
     },
     btnRow: {
       flexDirection: 'row',
@@ -2121,16 +2037,15 @@ function makeStyles(palette: ThemeTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: '#10B9811A',
-      paddingHorizontal: 8,
+      backgroundColor: palette.success + '26',
+      paddingHorizontal: 10,
       paddingVertical: 3,
       borderRadius: 12,
     },
     savedPillText: {
-      ...typography.caption,
-      color: '#10B981',
-      fontWeight: '700',
-      fontSize: 11,
+      ...typography.footnote,
+      color: palette.successText,
+      fontWeight: '600',
     },
     loadingOverlay: {
       flex: 1,
@@ -2143,11 +2058,9 @@ function makeStyles(palette: ThemeTokens) {
       width: '100%',
       maxWidth: 340,
       backgroundColor: palette.surface,
-      borderRadius: 24,
+      borderRadius: 26,
       padding: 28,
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: palette.border,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.3,
@@ -2190,10 +2103,13 @@ function makeStyles(palette: ThemeTokens) {
     },
     passwordActionBtn: {
       marginTop: 10,
-      paddingVertical: 12,
+      marginHorizontal: 16,
+      marginBottom: 14,
+      minHeight: 48,
       paddingHorizontal: 16,
-      borderRadius: 12,
+      borderRadius: 24,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     passwordActionBtnText: {
       ...typography.button,
@@ -2202,24 +2118,22 @@ function makeStyles(palette: ThemeTokens) {
     },
     elevateNoticeBox: {
       backgroundColor: palette.surfaceAlt,
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 12,
-      padding: 12,
+      borderRadius: 18,
+      padding: 14,
       marginTop: 10,
       gap: 10,
     },
     elevateNoticeText: {
-      ...typography.caption,
+      ...typography.footnote,
       color: palette.textSecondary,
-      lineHeight: 16,
     },
     elevateBtn: {
       backgroundColor: palette.primary,
-      paddingVertical: 10,
+      minHeight: 44,
       paddingHorizontal: 14,
-      borderRadius: 10,
+      borderRadius: 22,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     elevateBtnText: {
       ...typography.button,

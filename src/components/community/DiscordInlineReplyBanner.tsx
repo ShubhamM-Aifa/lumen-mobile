@@ -17,10 +17,10 @@ export const DiscordInlineReplyBanner: React.FC<Props> = ({ reply, onDismiss }) 
 
   return (
     <View style={[styles.container, { backgroundColor: palette.surface, borderLeftColor: palette.primary }]}>
-      <CornerDownRight size={14} color={palette.primary} style={styles.icon} />
+      <CornerDownRight size={14} color={palette.primaryText} style={styles.icon} />
       <View style={styles.textContainer}>
         <Text style={[styles.replyingTo, { color: palette.textSecondary }]} numberOfLines={1}>
-          Replying to <Text style={{ color: palette.primary, fontWeight: '700' }}>@{reply.senderDisplayName}</Text>
+          Replying to <Text style={{ color: palette.primaryText, fontWeight: '700' }}>@{reply.senderDisplayName}</Text>
         </Text>
         <Text style={[styles.snippet, { color: palette.textDisabled }]} numberOfLines={1}>
           "{reply.snippet}"

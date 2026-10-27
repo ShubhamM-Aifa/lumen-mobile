@@ -113,17 +113,17 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
             <View style={styles.headerTitleRow}>
-              <Sparkles size={20} color={palette.primary} style={{ marginRight: 8 }} />
+              <Sparkles size={20} color={palette.primaryText} style={{ marginRight: 8 }} />
               <Text style={[styles.headerTitle, { color: palette.text }]}>Avatar Studio</Text>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
                 onPress={handleRandomize}
-                style={[styles.diceBtn, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}
+                style={[styles.diceBtn, { backgroundColor: 'rgba(128, 128, 128, 0.12)' }]}
                 accessibilityLabel="Randomize avatar"
               >
-                <Dices size={18} color={palette.primary} />
-                <Text style={[styles.diceBtnText, { color: palette.primary }]}>Roll</Text>
+                <Dices size={18} color={palette.primaryText} />
+                <Text style={[styles.diceBtnText, { color: palette.primaryText }]}>Roll</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose} style={styles.doneBtn}>
                 <Check size={20} color="#FFFFFF" strokeWidth={2.5} />
@@ -132,7 +132,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
           </View>
 
           {/* Interactive Showcase Preview */}
-          <View style={[styles.previewCard, { backgroundColor: 'rgba(255, 255, 255, 0.03)', borderColor: palette.border }]}>
+          <View style={[styles.previewCard, { backgroundColor: 'rgba(128, 128, 128, 0.12)', borderColor: palette.border }]}>
             <ModularAvatar
               config={config}
               size={135}
@@ -199,7 +199,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                     key={archetype.id}
                     style={[
                       styles.archetypeCard,
-                      { backgroundColor: 'rgba(255, 255, 255, 0.04)', borderColor: palette.border },
+                      { backgroundColor: 'rgba(128, 128, 128, 0.12)', borderColor: palette.border },
                     ]}
                     onPress={() => {
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -240,7 +240,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                       ]}
                       onPress={() => handleSelectAura(item.id as any)}
                     >
-                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primary, fontWeight: '700' }]}>
+                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primaryText, fontWeight: '700' }]}>
                         {item.label}
                       </Text>
                       <Text style={[styles.optionSub, { color: palette.textSecondary }]}>{item.sub}</Text>
@@ -274,7 +274,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                       ]}
                       onPress={() => handleSelectEyes(item.id as any)}
                     >
-                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primary, fontWeight: '700' }]}>
+                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primaryText, fontWeight: '700' }]}>
                         {item.label}
                       </Text>
                     </TouchableOpacity>
@@ -310,7 +310,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                         ]}
                         onPress={() => handleSelectHair(item.id as any)}
                       >
-                        <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primary, fontWeight: '700' }]}>
+                        <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primaryText, fontWeight: '700' }]}>
                           {item.label}
                         </Text>
                       </TouchableOpacity>
@@ -372,7 +372,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                         ]}
                         onPress={() => handleSelectOutfit(item.id as any)}
                       >
-                        <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primary, fontWeight: '700' }]}>
+                        <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primaryText, fontWeight: '700' }]}>
                           {item.label}
                         </Text>
                       </TouchableOpacity>
@@ -432,7 +432,7 @@ export const AvatarStudioModal: React.FC<Props> = ({ visible, onClose }) => {
                       ]}
                       onPress={() => handleSelectAccessory(item.id as any)}
                     >
-                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primary, fontWeight: '700' }]}>
+                      <Text style={[styles.optionLabel, { color: palette.text }, isSelected && { color: palette.primaryText, fontWeight: '700' }]}>
                         {item.label}
                       </Text>
                       <Text style={[styles.optionSub, { color: palette.textSecondary }]}>{item.sub}</Text>
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'transparent',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
   tabText: {
     fontSize: 12,
@@ -604,8 +604,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(128, 128, 128, 0.12)',
+    backgroundColor: 'rgba(128, 128, 128, 0.12)',
   },
   optionLabel: {
     fontSize: 13,
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(128, 128, 128, 0.3)',
   },
   colorCircleSelected: {
     borderColor: '#FFFFFF',

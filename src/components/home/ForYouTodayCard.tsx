@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { Sparkles } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { useIntelligenceStore } from '../../store/intelligenceStore';
+import { IconTile } from '../ios/InsetGroup';
 
 /**
- * "For you today": shows flare mode status and any observations the daily budget kept off the
- * lock screen. Renders nothing when there is nothing to show, so it never adds noise.
+ * "For you today": flare mode status and the observations Lumen has for the patient, such as
+ * "You logged Dairy at lunch. Digestive issues have been more common 6-24 h after it."
+ * Renders nothing when there is nothing to show, so it never adds noise.
  */
 export function ForYouTodayCard() {
   const styles = useStyles();
@@ -19,12 +22,13 @@ export function ForYouTodayCard() {
   const dismiss = useIntelligenceStore(s => s.dismissInboxItem);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  if (!flareActive && inbox.length === 0) return null;
+  const now = Date.now();
+  const items = inbox.filter(i => i.candidate.expiresAt === undefined || i.candidate.expiresAt > now);
+
+  if (!flareActive && items.length === 0) return null;
 
   return (
     <View style={styles.wrap} accessibilityRole="summary" accessibilityLabel="For you today">
-      <Text style={styles.heading}>For you today</Text>
-
       {flareActive && (
         <View style={styles.flareBox}>
           <Text style={styles.flareTitle}>Flare mode is on</Text>
@@ -53,12 +57,36 @@ export function ForYouTodayCard() {
         </View>
       )}
 
-      {inbox.map(({ candidate }) => {
+      {items.map(({ candidate }, index) => {
         const open = expandedId === candidate.id;
+        const route = typeof candidate.data?.route === 'string' ? candidate.data.route : undefined;
+        const isWatch = candidate.type === 'TRIGGER_WATCH';
         return (
-          <View key={candidate.id} style={styles.item}>
-            <Text style={styles.itemTitle}>{candidate.title}</Text>
-            <Text style={styles.body}>{candidate.body}</Text>
+          <View key={candidate.id} style={[styles.item, (index > 0 || flareActive) && styles.itemSeparated]}>
+            <View style={styles.head}>
+              <IconTile icon={Sparkles} color="#5856D6" size={26} />
+              <Text style={styles.label} maxFontSizeMultiplier={1.3}>For you today</Text>
+            </View>
+
+            {isWatch ? (
+              <Text style={styles.paragraph}>{`${candidate.title}. ${candidate.body}`}</Text>
+            ) : (
+              <>
+                <Text style={styles.itemTitle}>{candidate.title}</Text>
+                <Text style={styles.body}>{candidate.body}</Text>
+              </>
+            )}
+
+            {route ? (
+              <TouchableOpacity
+                style={styles.primaryLink}
+                onPress={() => router.push(route as never)}
+                accessibilityRole="button"
+                accessibilityLabel="See pattern"
+              >
+                <Text style={styles.primaryLinkText} maxFontSizeMultiplier={1.3}>{isWatch ? 'See Pattern' : 'See details'}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {open && candidate.provenance && candidate.provenance.length > 0 && (
               <View style={styles.provenance}>
@@ -105,41 +133,38 @@ export function ForYouTodayCard() {
 const useStyles = createThemedStyles(palette => ({
   wrap: {
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
+    marginHorizontal: 16,
+    borderRadius: 26,
     padding: 16,
     gap: 12,
-    marginBottom: 16,
   },
-  heading: { ...typography.h3, color: palette.text },
   flareBox: {
     backgroundColor: palette.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 14,
     gap: 8,
   },
-  flareTitle: { ...typography.body, fontWeight: '700', color: palette.text },
-  item: {
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    paddingTop: 12,
-    gap: 6,
-  },
-  itemTitle: { ...typography.body, fontWeight: '700', color: palette.text },
-  body: { ...typography.small, color: palette.textSecondary, lineHeight: 20 },
-  provenance: { backgroundColor: palette.surfaceAlt, borderRadius: 10, padding: 10, gap: 4 },
-  provenanceLine: { ...typography.caption, color: palette.textSecondary, lineHeight: 18 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
-  linkBtn: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 10 },
-  linkText: { ...typography.small, fontWeight: '600', color: palette.primary },
+  flareTitle: { ...typography.headline, color: palette.text },
+  item: { gap: 8 },
+  itemSeparated: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  label: { ...typography.sectionLabel, color: palette.textSecondary },
+  paragraph: { ...typography.bodyLarge, color: palette.text },
+  itemTitle: { ...typography.headline, color: palette.text },
+  body: { ...typography.subhead, color: palette.textSecondary },
+  primaryLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  primaryLinkText: { ...typography.subheadBold, color: palette.primaryText },
+  provenance: { backgroundColor: palette.surfaceAlt, borderRadius: 14, padding: 12, gap: 4 },
+  provenanceLine: { ...typography.footnote, color: palette.textSecondary },
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 },
+  linkBtn: { minHeight: 44, justifyContent: 'center', paddingRight: 12 },
+  linkText: { ...typography.footnote, fontWeight: '600', color: palette.primaryText },
   secondaryBtn: {
-    minHeight: 48,
+    minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 18,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: palette.primary,
+    borderRadius: 22,
+    backgroundColor: palette.tint + '1F',
   },
-  secondaryText: { ...typography.small, fontWeight: '700', color: palette.primary },
+  secondaryText: { ...typography.subheadBold, color: palette.primaryText },
 }));

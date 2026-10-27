@@ -81,7 +81,7 @@ export default function QuickLogQuestionsScreen() {
         <View style={styles.counterCard}>
           <View style={styles.counterHeader}>
             <View style={styles.counterPill}>
-              <Sparkles size={14} color={palette.primary} />
+              <Sparkles size={14} color={palette.primaryText} />
               <Text style={styles.counterText}>
                 {selectedCount} / {MAX_QUICK_LOG_QUESTIONS} Selected
               </Text>
@@ -217,9 +217,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   counterCard: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 16,
     gap: 8,
   },
@@ -240,7 +238,7 @@ const useStyles = createThemedStyles(palette => ({
   counterText: {
     ...typography.caption,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   maxBadge: {
     backgroundColor: palette.warning + '20',
@@ -252,7 +250,7 @@ const useStyles = createThemedStyles(palette => ({
     ...typography.caption,
     fontSize: 10,
     fontWeight: '700',
-    color: palette.warning,
+    color: palette.warningText,
   },
   counterTitle: {
     ...typography.h3,
@@ -296,9 +294,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   questionsCard: {
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     overflow: 'hidden',
   },
   questionRow: {
@@ -338,7 +334,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   questionTitleActive: {
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   questionHelp: {
     ...typography.caption,

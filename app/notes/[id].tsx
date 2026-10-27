@@ -35,7 +35,7 @@ import {
   Pill,
 } from 'lucide-react-native';
 import { useNoteStore } from '../../src/store/noteStore';
-import { useTheme } from '../../src/theme/ThemeContext';
+import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { BlockRenderer } from '../../src/components/notes/BlockRenderer';
 import { SlashMenuModal } from '../../src/components/notes/SlashMenuModal';
@@ -58,6 +58,7 @@ export default function NoteEditorScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { palette } = useTheme();
+  const styles = useStyles();
   const { isKeyboardVisible } = useKeyboard();
 
   const {
@@ -98,7 +99,7 @@ export default function NoteEditorScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <ArrowLeft size={22} color={palette.text} />
           </TouchableOpacity>
         </View>
@@ -166,7 +167,7 @@ export default function NoteEditorScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Top Navbar */}
-        <View style={[styles.topBar, { borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
+        <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => router.back()}
@@ -188,8 +189,8 @@ export default function NoteEditorScreen() {
             >
               <Star
                 size={20}
-                color={note.isPinned ? '#F59E0B' : palette.textSecondary}
-                fill={note.isPinned ? '#F59E0B' : 'transparent'}
+                color={note.isPinned ? palette.warning : palette.textSecondary}
+                fill={note.isPinned ? palette.warning : 'transparent'}
               />
             </TouchableOpacity>
 
@@ -208,7 +209,7 @@ export default function NoteEditorScreen() {
               accessibilityRole="button"
               accessibilityLabel="Delete note"
             >
-              <Trash2 size={20} color="#EF4444" />
+              <Trash2 size={20} color={palette.errorText} />
             </TouchableOpacity>
           </View>
         </View>
@@ -252,7 +253,7 @@ export default function NoteEditorScreen() {
             <TextInput
               style={[styles.titleInput, { color: palette.text }]}
               placeholder="Untitled Note"
-              placeholderTextColor={palette.textDisabled}
+              placeholderTextColor={palette.placeholder}
               value={title}
               onChangeText={handleTitleChange}
               multiline
@@ -261,7 +262,7 @@ export default function NoteEditorScreen() {
             {/* Health Context Linkages Row */}
             <View style={styles.healthLinkRow}>
               <TouchableOpacity
-                style={[styles.addLinkBtn, { borderColor: 'rgba(255, 255, 255, 0.15)' }]}
+                style={[styles.addLinkBtn, { borderColor: palette.border }]}
                 onPress={() => setHealthLinkModalOpen(true)}
               >
                 <Link size={12} color={palette.textSecondary} />
@@ -273,24 +274,24 @@ export default function NoteEditorScreen() {
               {(note.linkedSymptomIds || []).map((symId) => (
                 <TouchableOpacity
                   key={symId}
-                  style={[styles.activeLinkChip, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}
+                  style={[styles.activeLinkChip, { backgroundColor: palette.error + '26' }]}
                   onPress={() => toggleHealthLink(note._id, 'symptom', symId)}
                 >
-                  <Stethoscope size={11} color="#EF4444" />
-                  <Text style={[styles.activeLinkText, { color: '#EF4444' }]}>{symId}</Text>
-                  <X size={11} color="#EF4444" />
+                  <Stethoscope size={12} color={palette.errorText} />
+                  <Text style={[styles.activeLinkText, { color: palette.errorText }]}>{symId}</Text>
+                  <X size={12} color={palette.errorText} />
                 </TouchableOpacity>
               ))}
 
               {(note.linkedMedicationIds || []).map((medId) => (
                 <TouchableOpacity
                   key={medId}
-                  style={[styles.activeLinkChip, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}
+                  style={[styles.activeLinkChip, { backgroundColor: palette.catMeds + '26' }]}
                   onPress={() => toggleHealthLink(note._id, 'medication', medId)}
                 >
-                  <Pill size={11} color="#A855F7" />
-                  <Text style={[styles.activeLinkText, { color: '#A855F7' }]}>{medId}</Text>
-                  <X size={11} color="#A855F7" />
+                  <Pill size={12} color={palette.text} />
+                  <Text style={[styles.activeLinkText, { color: palette.text }]}>{medId}</Text>
+                  <X size={12} color={palette.text} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -340,7 +341,7 @@ export default function NoteEditorScreen() {
             styles.stickyToolbar,
             {
               backgroundColor: palette.surface,
-              borderTopColor: 'rgba(255, 255, 255, 0.08)',
+              borderTopColor: palette.border,
               paddingBottom: isKeyboardVisible
                 ? (Platform.OS === 'ios' ? 8 : 6)
                 : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)),
@@ -351,13 +352,17 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => setSlashMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Insert block"
             >
-              <Text style={[styles.slashBtnText, { color: palette.primary }]}>/</Text>
+              <Text style={[styles.slashBtnText, { color: palette.primaryText }]}>/</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('heading_1')}
+              accessibilityRole="button"
+              accessibilityLabel="Heading 1"
             >
               <Heading1 size={17} color={palette.text} />
             </TouchableOpacity>
@@ -365,6 +370,8 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('heading_2')}
+              accessibilityRole="button"
+              accessibilityLabel="Heading 2"
             >
               <Heading2 size={17} color={palette.text} />
             </TouchableOpacity>
@@ -372,6 +379,8 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('todo')}
+              accessibilityRole="button"
+              accessibilityLabel="Checklist"
             >
               <CheckSquare size={17} color={palette.text} />
             </TouchableOpacity>
@@ -379,20 +388,26 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('callout')}
+              accessibilityRole="button"
+              accessibilityLabel="Callout"
             >
-              <Lightbulb size={17} color="#FBBF24" />
+              <Lightbulb size={17} color={palette.warning} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('toggle')}
+              accessibilityRole="button"
+              accessibilityLabel="Toggle"
             >
-              <ChevronRightSquare size={17} color="#F472B6" />
+              <ChevronRightSquare size={17} color={palette.text} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('bullet_list')}
+              accessibilityRole="button"
+              accessibilityLabel="Bulleted list"
             >
               <List size={17} color={palette.text} />
             </TouchableOpacity>
@@ -400,6 +415,8 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('quote')}
+              accessibilityRole="button"
+              accessibilityLabel="Quote"
             >
               <Quote size={17} color={palette.text} />
             </TouchableOpacity>
@@ -407,6 +424,8 @@ export default function NoteEditorScreen() {
             <TouchableOpacity
               style={styles.toolBtn}
               onPress={() => handleInsertBlockFromToolbar('divider')}
+              accessibilityRole="button"
+              accessibilityLabel="Divider"
             >
               <Minus size={17} color={palette.textSecondary} />
             </TouchableOpacity>
@@ -435,7 +454,7 @@ export default function NoteEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(palette => ({
   container: {
     flex: 1,
   },
@@ -456,9 +475,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -497,12 +516,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
+    borderWidth: 3,
+    borderColor: palette.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -24,
     marginBottom: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   emojiText: {
     fontSize: 26,
@@ -526,13 +545,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    minHeight: 36,
+    borderRadius: 18,
     borderWidth: 1,
   },
   addLinkText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
   },
   activeLinkChip: {
@@ -571,10 +590,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toolBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -582,4 +601,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
-});
+}));

@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Search, X, Camera, RotateCcw, ChevronLeft, ChevronRight, Calendar, Sparkles, Check, Plus } from 'lucide-react-native';
+import { Search, X, Camera, RotateCcw, Calendar } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useConfigStore } from '../../src/store/configStore';
 import { useAuthStore } from '../../src/store/authStore';
@@ -29,9 +29,18 @@ import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { api } from '../../src/api/client';
-import { PressableScale } from '../../src/components/common/PressableScale';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
 
 type TypeFilter = 'all' | 'detailed' | 'quick' | 'photos' | 'bodymap';
+
+function parseDay(date: string): Date {
+  const parts = (date || '').split('-');
+  return parts.length === 3
+    ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
+    : new Date();
+}
 
 export default function TimelineScreen() {
   const { palette } = useTheme();
@@ -54,7 +63,6 @@ export default function TimelineScreen() {
     const p = dStr.split('-');
     return p.length === 3 ? parseInt(p[1], 10) - 1 : new Date().getMonth();
   });
-  const [showCalendar, setShowCalendar] = useState(true);
   const [calViewMode, setCalViewMode] = useState<'week' | 'month'>('week');
 
   useEffect(() => {
@@ -167,26 +175,6 @@ export default function TimelineScreen() {
     const next = toLocalDateString(d);
     if (next <= today) jumpToDate(next);
   }, [selectedDate, today]);
-
-  // Swipe between days via arrow buttons
-  const prevDay = () => {
-    const parts = (selectedDate || '').split('-');
-    const d = parts.length === 3
-      ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
-      : new Date();
-    d.setDate(d.getDate() - 1);
-    jumpToDate(toLocalDateString(d));
-  };
-
-  const nextDay = () => {
-    const parts = (selectedDate || '').split('-');
-    const d = parts.length === 3
-      ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
-      : new Date();
-    d.setDate(d.getDate() + 1);
-    const next = toLocalDateString(d);
-    if (next <= today) jumpToDate(next);
-  };
 
   const isToday = selectedDate === today;
 
@@ -335,25 +323,6 @@ export default function TimelineScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.heading}>Timeline</Text>
-        <PressableScale
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowCalendar(v => !v);
-          }}
-          style={styles.toggleChip}
-          haptic="none"
-          activeScale={0.93}
-          accessibilityRole="button"
-          accessibilityLabel={showCalendar ? 'Hide calendar' : 'Show calendar'}
-        >
-          <Calendar size={13} color={palette.primary} strokeWidth={2.2} />
-          <Text style={styles.toggleChipText}>{showCalendar ? 'Hide calendar' : 'Show calendar'}</Text>
-        </PressableScale>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -367,159 +336,82 @@ export default function TimelineScreen() {
           />
         }
       >
-        {/* Calendar heat map */}
-        {showCalendar && (
-          <View style={styles.calWrap}>
-            <CalendarHeatMap
-              year={calYear}
-              month={calMonth}
-              data={summary}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-              onPrevMonth={prevMonth}
-              onNextMonth={nextMonth}
-              viewMode={calViewMode}
-              onToggleViewMode={setCalViewMode}
-              onPrevWeek={prevWeek}
-              onNextWeek={nextWeek}
-              todayDate={today}
-            />
-          </View>
-        )}
+        <LargeTitleHeader
+          title="Timeline"
+          actions={
+            <GlassCircleButton
+              accessibilityLabel={isToday ? 'Showing today' : 'Jump to today'}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                jumpToDate(today);
+              }}
+            >
+              <Calendar size={20} color={isToday ? palette.textSecondary : palette.tint} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+        />
 
-        {/* Day nav card */}
-        <View style={styles.dayNavCard}>
-          <PressableScale
-            onPress={prevDay}
-            style={styles.dayNavArrowBtn}
-            haptic="light"
-            activeScale={0.88}
-            accessibilityRole="button"
-            accessibilityLabel="Previous day"
-          >
-            <ChevronLeft size={18} color={palette.primary} strokeWidth={2.4} />
-          </PressableScale>
-          <View style={styles.dayNavCenter}>
-            <Text style={styles.dayLabel}>
-              {isToday
-                ? `Today • ${(() => {
-                    const parts = (today || '').split('-');
-                    const d = parts.length === 3
-                      ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
-                      : new Date();
-                    return d.toLocaleDateString(undefined, {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                    });
-                  })()}`
-                : (() => {
-                    const parts = (selectedDate || '').split('-');
-                    const d = parts.length === 3
-                      ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
-                      : new Date();
-                    return d.toLocaleDateString(undefined, {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                    });
-                  })()}
-            </Text>
-            {!isToday && (
-              <PressableScale
-                onPress={() => jumpToDate(today)}
-                style={styles.todayPill}
-                haptic="light"
-                activeScale={0.92}
-                accessibilityRole="button"
-                accessibilityLabel="Jump to Today"
-              >
-                <Text style={styles.todayPillText}>Today</Text>
-              </PressableScale>
-            )}
-          </View>
-          <PressableScale
-            onPress={nextDay}
-            style={[styles.dayNavArrowBtn, isToday && styles.dim]}
-            disabled={isToday}
-            haptic="light"
-            activeScale={0.88}
-            accessibilityRole="button"
-            accessibilityLabel="Next day"
-          >
-            <ChevronRight size={18} color={palette.primary} strokeWidth={2.4} />
-          </PressableScale>
+        <View style={styles.calWrap}>
+          <CalendarHeatMap
+            year={calYear}
+            month={calMonth}
+            data={summary}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            viewMode={calViewMode}
+            onToggleViewMode={setCalViewMode}
+            onPrevWeek={prevWeek}
+            onNextWeek={nextWeek}
+            todayDate={today}
+          />
         </View>
 
-        {/* Selected Day Progress Breakdown Card */}
-        <View style={styles.dayProgressCard}>
-          <View style={styles.dayProgressHeader}>
-            <View style={styles.dayProgressTitleWrap}>
-              <View style={[styles.dayProgressIconBox, selectedDayInfo?.isComplete && styles.dayProgressIconBoxComplete]}>
-                {selectedDayInfo?.isComplete ? (
-                  <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
-                ) : (
-                  <Sparkles size={14} color={palette.primary} strokeWidth={2.4} />
-                )}
-              </View>
-              <View style={styles.dayProgressTextCol}>
-                <Text style={styles.dayProgressTitle}>
-                  {selectedDayInfo?.isComplete
-                    ? 'All questions completed!'
-                    : (selectedDayInfo && selectedDayInfo.progress !== undefined && selectedDayInfo.progress > 0
-                        ? `${selectedDayInfo.percentage}% logged for this day`
-                        : 'No logs for this day')}
-                </Text>
-                <Text style={styles.dayProgressSubtitle}>
-                  {selectedDayInfo && selectedDayInfo.answeredCount !== undefined && selectedDayInfo.answeredCount > 0
-                    ? `${selectedDayInfo.answeredCount} of ${selectedDayInfo.totalQuestions} questions answered`
-                    : `${(config?.questions ?? []).filter(q => q.isActive).length} active questions to track`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.dayProgressBadge, selectedDayInfo?.isComplete && styles.dayProgressBadgeComplete]}>
-              <Text style={[styles.dayProgressBadgeText, selectedDayInfo?.isComplete && styles.dayProgressBadgeTextComplete]}>
-                {selectedDayInfo?.percentage ?? 0}%
-              </Text>
-            </View>
-          </View>
-
-          {/* Progress bar */}
-          <View style={styles.dayProgressTrack}>
-            <View
-              style={[
-                styles.dayProgressFill,
-                {
-                  width: `${selectedDayInfo?.percentage ?? 0}%`,
-                  backgroundColor: selectedDayInfo?.isComplete ? palette.success : palette.primary,
-                },
-              ]}
-            />
-          </View>
-
-          {/* Category count & Quick Action */}
-          <View style={styles.dayProgressFooter}>
-            <Text style={styles.dayProgressFooterStats}>
-              {selectedDayInfo?.completedCategoriesCount !== undefined && selectedDayInfo?.totalCategoriesCount !== undefined
-                ? `${selectedDayInfo.completedCategoriesCount} of ${selectedDayInfo.totalCategoriesCount} categories completed`
-                : ''}
+        {/* Selected day: title, how much is answered, and a way to add to it */}
+        <View style={styles.dayHeader}>
+          <View style={styles.dayHeaderText}>
+            <Text style={styles.dayTitle} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
+              {isToday
+                ? 'Today'
+                : parseDay(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
             </Text>
-
-            <TouchableOpacity
-              style={styles.dayProgressLogBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push({ pathname: '/log', params: { date: selectedDate } });
-              }}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Log for ${selectedDate}`}
+            <Text style={styles.daySub} maxFontSizeMultiplier={1.3}>
+              {selectedDayInfo.answeredCount && selectedDayInfo.answeredCount > 0
+                ? `${selectedDayInfo.answeredCount} of ${selectedDayInfo.totalQuestions} questions answered`
+                : entries.length > 0
+                  ? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} logged`
+                  : 'Nothing logged yet'}
+            </Text>
+            <View
+              style={styles.dayTrack}
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel={`${selectedDayInfo.percentage ?? 0} percent logged`}
             >
-              <Plus size={12} color={palette.primary} strokeWidth={2.6} />
-              <Text style={styles.dayProgressLogBtnText}>Log this day</Text>
-            </TouchableOpacity>
+              <View
+                style={[
+                  styles.dayFill,
+                  {
+                    width: `${selectedDayInfo.percentage ?? 0}%`,
+                    backgroundColor: selectedDayInfo.isComplete ? palette.success : palette.tint,
+                  },
+                ]}
+              />
+            </View>
           </View>
+          <TouchableOpacity
+            style={styles.logDayBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({ pathname: '/log', params: { date: selectedDate } });
+            }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Log for ${selectedDate}`}
+          >
+            <Text style={styles.logDayText} maxFontSizeMultiplier={1.3}>Log This Day</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Search & Filter Toolbar */}
@@ -656,7 +548,7 @@ export default function TimelineScreen() {
               Showing {filteredEntries.length} of {entries.length} logs
             </Text>
             <TouchableOpacity onPress={resetFilters} style={styles.resetBtn}>
-              <RotateCcw size={12} color={palette.primary} />
+              <RotateCcw size={12} color={palette.primaryText} />
               <Text style={styles.resetBtnText}>Clear filters</Text>
             </TouchableOpacity>
           </View>
@@ -684,208 +576,36 @@ export default function TimelineScreen() {
 
 const useStyles = createThemedStyles(palette => ({
   safe: { flex: 1, backgroundColor: palette.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  heading: { ...typography.h2, color: palette.text, fontSize: 24, fontWeight: '800' },
-  toggleChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: palette.primary + '14',
-    borderWidth: 1,
-    borderColor: palette.primary + '2E',
-  },
-  toggleChipText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '700',
-    fontSize: 12,
-  },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 125 },
-  calWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6, backgroundColor: palette.background },
-  dayNavCard: {
+  scrollContent: { paddingTop: 6, paddingBottom: TAB_BAR_CLEARANCE },
+  calWrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14 },
+  dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  dayNavArrowBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: palette.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  dayNavCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dayLabel: { ...typography.bodyBold, color: palette.text, fontSize: 14.5 },
-  todayPill: {
-    backgroundColor: palette.primary + '18',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.primary + '33',
-  },
-  todayPillText: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '700',
-    fontSize: 11,
-  },
-  dim: { opacity: 0.25 },
-
-  // Selected Day Progress Card
-  dayProgressCard: {
-    marginHorizontal: 16,
+    gap: 12,
+    paddingLeft: 20,
+    paddingRight: 16,
+    marginTop: 4,
     marginBottom: 10,
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 13,
-    gap: 9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
   },
-  dayProgressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dayProgressTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-    flex: 1,
-  },
-  dayProgressIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: palette.primary + '16',
+  dayHeaderText: { flex: 1, gap: 2 },
+  dayTitle: { ...typography.title2, color: palette.text },
+  daySub: { ...typography.subhead, color: palette.textSecondary },
+  dayTrack: { width: 180, maxWidth: '100%', height: 5, borderRadius: 3, backgroundColor: palette.surfaceAlt, overflow: 'hidden', marginTop: 6 },
+  dayFill: { height: '100%', borderRadius: 3 },
+  logDayBtn: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: palette.tint + '1F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayProgressIconBoxComplete: {
-    backgroundColor: palette.success,
-  },
-  dayProgressTextCol: {
-    gap: 1.5,
-    flex: 1,
-  },
-  dayProgressTitle: {
-    ...typography.caption,
-    fontSize: 13,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  dayProgressSubtitle: {
-    ...typography.caption,
-    fontSize: 11.5,
-    color: palette.textSecondary,
-    fontWeight: '500',
-  },
-  dayProgressBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 9,
-    backgroundColor: palette.primary + '16',
-    borderWidth: 1,
-    borderColor: palette.primary + '30',
-  },
-  dayProgressBadgeComplete: {
-    backgroundColor: palette.success,
-    borderColor: palette.success,
-  },
-  dayProgressBadgeText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  dayProgressBadgeTextComplete: {
-    color: '#FFFFFF',
-  },
-  dayProgressTrack: {
-    height: 4.5,
-    width: '100%',
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 2.5,
-    overflow: 'hidden',
-  },
-  dayProgressFill: {
-    height: '100%',
-    borderRadius: 2.5,
-  },
-  dayProgressFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dayProgressFooterStats: {
-    ...typography.caption,
-    fontSize: 11,
-    color: palette.textDisabled,
-    fontWeight: '500',
-  },
-  dayProgressLogBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: palette.primary + '12',
-    borderWidth: 1,
-    borderColor: palette.primary + '28',
-  },
-  dayProgressLogBtnText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: palette.primary,
-  },
+  logDayText: { ...typography.subheadBold, color: palette.primaryText },
 
   // Search & Filter Toolbar
   filterToolbar: {
-    backgroundColor: palette.surface,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: palette.border,
-    paddingTop: 10,
+    paddingTop: 6,
     paddingBottom: 8,
     marginTop: 4,
     marginBottom: 6,
@@ -893,19 +613,16 @@ const useStyles = createThemedStyles(palette => ({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 12,
+    backgroundColor: palette.surface,
+    borderRadius: 22,
     marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    minHeight: 44,
   },
   searchInput: {
     flex: 1,
-    ...typography.body,
-    fontSize: 13,
+    ...typography.bodyLarge,
     color: palette.text,
     padding: 0,
   },
@@ -920,26 +637,21 @@ const useStyles = createThemedStyles(palette => ({
   typeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    height: 34,
     borderRadius: 9999,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.border,
+    backgroundColor: palette.surface,
   },
   typeChipActive: {
-    backgroundColor: palette.primary + '18',
-    borderColor: palette.primary,
+    backgroundColor: palette.text,
   },
   typeChipText: {
-    ...typography.caption,
-    fontWeight: '600',
-    color: palette.textSecondary,
-    fontSize: 12,
+    ...typography.subhead,
+    color: palette.text,
   },
   typeChipTextActive: {
-    color: palette.primary,
-    fontWeight: '700',
+    color: palette.background,
+    fontWeight: '600',
   },
 
   // Category Filter Chips
@@ -954,25 +666,20 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    paddingHorizontal: 12,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: palette.surface,
   },
   filterChipActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primary + '14',
+    backgroundColor: palette.text,
   },
   filterIcon: { fontSize: 13 },
   filterText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '600',
-    fontSize: 12,
+    ...typography.subhead,
+    color: palette.text,
   },
-  filterTextActive: { color: palette.primary, fontWeight: '700' },
+  filterTextActive: { color: palette.background, fontWeight: '600' },
   catCountBadge: {
     backgroundColor: palette.surfaceAlt,
     paddingHorizontal: 5,
@@ -990,11 +697,8 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 6,
-    backgroundColor: palette.surfaceAlt,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
   },
   activeFilterCount: {
     ...typography.caption,
@@ -1011,7 +715,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   resetBtnText: {
     ...typography.caption,
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
     fontSize: 12,
   },

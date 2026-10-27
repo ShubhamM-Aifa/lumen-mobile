@@ -163,7 +163,7 @@ export default function ChannelChatScreen() {
               </Text>
               {channel?.type === 'forum' && (
                 <View style={[styles.typeBadge, { backgroundColor: `${palette.primary}25` }]}>
-                  <Text style={[styles.typeBadgeText, { color: palette.primary }]}>Forum</Text>
+                  <Text style={[styles.typeBadgeText, { color: palette.primaryText }]}>Forum</Text>
                 </View>
               )}
             </View>
@@ -249,7 +249,7 @@ export default function ChannelChatScreen() {
 
               {isLoading && messages.length === 0 ? (
                 <View style={styles.loadingBox}>
-                  <ActivityIndicator size="small" color={palette.primary} />
+                  <ActivityIndicator size="small" color={palette.primaryText} />
                 </View>
               ) : (
                 messages.map((msg) => (
@@ -258,7 +258,7 @@ export default function ChannelChatScreen() {
                     {msg.replyTo && (
                       <View style={styles.replyHeaderRow}>
                         <CornerDownRight size={12} color={palette.textDisabled} style={{ marginRight: 4 }} />
-                        <Text style={[styles.replyHeaderUser, { color: palette.primary }]}>
+                        <Text style={[styles.replyHeaderUser, { color: palette.primaryText }]}>
                           @{msg.replyTo.senderDisplayName}
                         </Text>
                         <Text style={[styles.replyHeaderSnippet, { color: palette.textDisabled }]} numberOfLines={1}>
@@ -400,8 +400,8 @@ export default function ChannelChatScreen() {
                               style={styles.threadIconBtn}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                              <MessageSquare size={14} color={palette.primary} />
-                              <Text style={[styles.threadBtnLabel, { color: palette.primary }]}>
+                              <MessageSquare size={14} color={palette.primaryText} />
+                              <Text style={[styles.threadBtnLabel, { color: palette.primaryText }]}>
                                 {msg.threadMeta?.replyCount ? `${msg.threadMeta.replyCount} replies` : 'Thread'}
                               </Text>
                             </TouchableOpacity>

@@ -123,3 +123,52 @@ describe('intelligenceStore', () => {
     );
   });
 });
+
+describe('intelligenceStore: candidates that also show in the card', () => {
+  const HOUR = 3600000;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    await AsyncStorage.clear();
+    (api.post as jest.Mock).mockResolvedValue({});
+    (scheduleIntelligentNotification as jest.Mock).mockResolvedValue('notif-id');
+    useIntelligenceStore.setState({
+      policy: DEFAULT_POLICY, loaded: true, saving: false, error: null,
+      sentToday: { date: '2026-10-23', count: 0 }, inbox: [],
+    });
+  });
+
+  const watch = (over: Partial<Candidate> = {}): Candidate => ({
+    id: 'tw:1', type: 'TRIGGER_WATCH', title: 'You logged Dairy at lunch', body: 'Digestive issues have been more common 6-24 h after it.',
+    confidence: 0.7, timeliness: 0.7, inAppNow: true, notBefore: NOON + 6 * HOUR, expiresAt: NOON + 24 * HOUR, ...over,
+  });
+
+  it('shows the card now and schedules the check-in for later', async () => {
+    await useIntelligenceStore.getState().submit([watch()], NOON);
+    const s = useIntelligenceStore.getState();
+    expect(s.inbox.map(i => i.candidate.id)).toEqual(['tw:1']);
+    expect(s.inbox[0].reason).toBe('watch');
+    expect(scheduleIntelligentNotification).toHaveBeenCalledTimes(1);
+    expect((scheduleIntelligentNotification as jest.Mock).mock.calls[0][0].deliverAt).toBe(NOON + 6 * HOUR);
+    // a later delivery does not use up today's allowance
+    expect(s.sentToday.count).toBe(0);
+  });
+
+  it('shows nothing when trigger watch is switched off', async () => {
+    useIntelligenceStore.setState({ policy: { ...DEFAULT_POLICY, capabilities: { ...DEFAULT_POLICY.capabilities, triggerWatch: false } } });
+    await useIntelligenceStore.getState().submit([watch()], NOON);
+    expect(useIntelligenceStore.getState().inbox).toEqual([]);
+    expect(scheduleIntelligentNotification).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing during flare mode', async () => {
+    useIntelligenceStore.setState({ policy: { ...DEFAULT_POLICY, flareMode: { active: true, auto: true } } });
+    await useIntelligenceStore.getState().submit([watch()], NOON);
+    expect(useIntelligenceStore.getState().inbox).toEqual([]);
+  });
+
+  it('does not add the same card twice', async () => {
+    await useIntelligenceStore.getState().submit([watch()], NOON);
+    await useIntelligenceStore.getState().submit([watch()], NOON + 1000);
+    expect(useIntelligenceStore.getState().inbox).toHaveLength(1);
+  });
+});

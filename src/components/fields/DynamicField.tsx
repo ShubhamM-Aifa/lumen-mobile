@@ -209,5 +209,5 @@ const useStyles = createThemedStyles((palette) => ({
   wrapper: { gap: 6 },
   labelRow: { flexDirection: 'row', alignItems: 'center' },
   label: { ...typography.smallBold, color: palette.textSecondary },
-  required: { ...typography.smallBold, color: palette.error },
+  required: { ...typography.smallBold, color: palette.errorText },
 }));

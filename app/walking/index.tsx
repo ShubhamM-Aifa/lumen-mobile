@@ -13,6 +13,8 @@ import { safeGoBack } from '../../src/utils/navigation';
 import { ChevronLeft, Play, Footprints, Flame, Timer, TrendingUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { typography } from '../../src/theme/typography';
 import { useActivityStore } from '../../src/store/activityStore';
 import { IActivitySession } from '@lumen/shared';
@@ -74,26 +76,28 @@ export default function WalkingDashboardScreen() {
   const todaySteps = todaySummary?.totalSteps ?? 0;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => safeGoBack('/(tabs)/today')}>
-          <ChevronLeft size={24} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Walking Tracker</Text>
-        <View style={{ width: 32 }} />
-      </View>
-
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
+        <LargeTitleHeader
+          title="Walking"
+          subtitle={isTracking ? 'A walk is in progress' : 'Gentle pacing, tracked quietly'}
+          leading={
+            <GlassCircleButton accessibilityLabel="Back" onPress={() => safeGoBack('/(tabs)/today')}>
+              <ChevronLeft size={22} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+        />
+
         {/* Today's Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroHeader}>
             <View style={styles.heroBadge}>
-              <Footprints size={14} color={palette.primary} />
+              <Footprints size={14} color={palette.primaryText} />
               <Text style={styles.heroBadgeText}>TODAY</Text>
             </View>
             <Text style={styles.heroGoalText}>Goal: 5.0 km</Text>
@@ -117,7 +121,7 @@ export default function WalkingDashboardScreen() {
           </View>
 
           {/* Start Walking Primary CTA */}
-          <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.88}>
+          <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.88} accessibilityRole="button" accessibilityLabel={isTracking ? 'Resume walking' : 'Start walking'}>
             <Play size={20} color="#FFFFFF" fill="#FFFFFF" />
             <Text style={styles.startBtnText}>
               {isTracking ? 'RESUME WALKING' : 'START WALKING'}
@@ -130,16 +134,16 @@ export default function WalkingDashboardScreen() {
           <Text style={styles.sectionTitle}>Overview</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <View style={[styles.statIconCircle, { backgroundColor: 'rgba(255, 107, 53, 0.12)' }]}>
-                <Flame size={18} color={palette.primary} />
+              <View style={[styles.statIconCircle, { backgroundColor: palette.warning + '26' }]}>
+                <Flame size={18} color={palette.warningText} />
               </View>
               <Text style={styles.statVal}>{todaySummary?.averagePaceMinPerKm ? `${todaySummary.averagePaceMinPerKm.toFixed(1)}` : '--'}</Text>
               <Text style={styles.statLabel}>Avg Pace (min/km)</Text>
             </View>
 
             <View style={styles.statCard}>
-              <View style={[styles.statIconCircle, { backgroundColor: 'rgba(78, 205, 196, 0.12)' }]}>
-                <TrendingUp size={18} color={palette.secondary} />
+              <View style={[styles.statIconCircle, { backgroundColor: palette.secondary + '26' }]}>
+                <TrendingUp size={18} color={palette.secondaryText} />
               </View>
               <Text style={styles.statVal}>{todaySummary?.averageSpeedKmh ? `${todaySummary.averageSpeedKmh.toFixed(1)} km/h` : '--'}</Text>
               <Text style={styles.statLabel}>Avg Speed</Text>
@@ -160,7 +164,7 @@ export default function WalkingDashboardScreen() {
               <View key={session._id} style={styles.historyCard}>
                 <View style={styles.historyLeft}>
                   <View style={styles.historyIconWrap}>
-                    <Footprints size={20} color={palette.primary} />
+                    <Footprints size={20} color={palette.primaryText} />
                   </View>
                   <View>
                     <Text style={styles.historyTitle}>{session.title || 'Outdoor Walk'}</Text>
@@ -198,41 +202,11 @@ const useStyles = createThemedStyles(palette => ({
     flex: 1,
     backgroundColor: palette.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    ...typography.h2,
-    color: palette.text,
-  },
   scroll: {
     flex: 1,
   },
-  content: {
-    padding: 16,
-    gap: 20,
-  },
-  heroCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
+  content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24, gap: 20 },
+  heroCard: { backgroundColor: palette.surface, borderRadius: 26, padding: 20 },
   heroHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -243,21 +217,13 @@ const useStyles = createThemedStyles(palette => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
-    paddingHorizontal: 10,
+    backgroundColor: palette.tint + '1F',
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 9999,
   },
-  heroBadgeText: {
-    ...typography.caption,
-    fontWeight: '800',
-    color: palette.primary,
-  },
-  heroGoalText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '600',
-  },
+  heroBadgeText: { ...typography.footnote, fontWeight: '700', color: palette.primaryText, letterSpacing: 0.4 },
+  heroGoalText: { ...typography.footnote, color: palette.textSecondary },
   heroMainRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -282,12 +248,7 @@ const useStyles = createThemedStyles(palette => ({
     color: palette.text,
     textAlign: 'center',
   },
-  heroDistanceUnit: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginTop: 2,
-  },
+  heroDistanceUnit: { ...typography.footnote, color: palette.textSecondary, textAlign: 'center', marginTop: 2 },
   heroDivider: {
     width: 1,
     height: 36,
@@ -298,40 +259,20 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.primary,
-    paddingVertical: 16,
-    borderRadius: 9999,
+    minHeight: 54,
+    borderRadius: 27,
     gap: 8,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 4,
   },
-  startBtnText: {
-    ...typography.body,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
+  startBtnText: { ...typography.headline, color: '#FFFFFF' },
   section: {
     gap: 12,
   },
-  sectionTitle: {
-    ...typography.h3,
-    color: palette.text,
-  },
+  sectionTitle: { ...typography.title2, color: palette.text },
   statsGrid: {
     flexDirection: 'row',
     gap: 12,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 16,
-  },
+  statCard: { flex: 1, backgroundColor: palette.surface, borderRadius: 26, padding: 16 },
   statIconCircle: {
     width: 36,
     height: 36,
@@ -345,32 +286,24 @@ const useStyles = createThemedStyles(palette => ({
     fontSize: 20,
     color: palette.text,
   },
-  statLabel: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 2,
-  },
+  statLabel: { ...typography.footnote, color: palette.textSecondary, marginTop: 2 },
   emptyHistory: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 32,
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 16,
+    backgroundColor: palette.surface,
+    borderRadius: 26,
     gap: 8,
   },
-  emptyHistoryText: {
-    ...typography.body,
-    color: palette.textSecondary,
-  },
+  emptyHistoryText: { ...typography.subhead, color: palette.textSecondary },
   historyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 16,
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginBottom: 8,
   },
   historyLeft: {
@@ -378,24 +311,9 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 12,
   },
-  historyIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: palette.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  historyTitle: {
-    ...typography.body,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  historyDate: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 2,
-  },
+  historyIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: palette.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  historyTitle: { ...typography.bodyLarge, color: palette.text },
+  historyDate: { ...typography.footnote, color: palette.textSecondary, marginTop: 2 },
   historyRight: {
     alignItems: 'flex-end',
   },

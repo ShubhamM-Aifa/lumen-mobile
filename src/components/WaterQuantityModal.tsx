@@ -183,7 +183,7 @@ const useStyles = createThemedStyles(palette => ({
     backgroundColor: palette.surface,
   },
   customBtnText: {
-    color: palette.secondary,
+    color: palette.secondaryText,
   },
   customContainer: {
     gap: 16,

@@ -73,7 +73,9 @@ function AppBootstrap() {
           headerShown: false,
           contentStyle: { backgroundColor: palette.background },
         }}
-      />
+      >
+        <Stack.Screen name="log" options={{ animation: 'slide_from_bottom' }} />
+      </Stack>
       <CustomAlertModal />
       <AppLockOverlay />
       <InitialPermissionsModal

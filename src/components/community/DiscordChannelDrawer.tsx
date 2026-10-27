@@ -164,7 +164,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
 
                       {channel.type === 'forum' && (
                         <View style={[styles.forumPill, { backgroundColor: `${palette.primary}25` }]}>
-                          <Text style={[styles.forumPillText, { color: palette.primary }]}>Forum</Text>
+                          <Text style={[styles.forumPillText, { color: palette.primaryText }]}>Forum</Text>
                         </View>
                       )}
                     </TouchableOpacity>

@@ -78,10 +78,10 @@ export function BodyMapPreview({
   if (keys.length === 0) return null;
 
   const isDark = colorScheme === 'dark';
-  const defaultFill = isDark ? '#2E2921' : '#E8E0D8';
-  const defaultStroke = isDark ? '#3D352C' : '#D0C8BF';
+  const defaultFill = isDark ? '#2C2C2E' : '#E5E5EA';
+  const defaultStroke = isDark ? '#38383A' : '#D1D1D6';
   const highlightFill = palette.primary;
-  const highlightStroke = isDark ? '#FFA726' : '#EF5350';
+  const highlightStroke = isDark ? '#FF453A' : '#FF3B30';
 
   const labels = keys.map((k) => REGION_MAP.get(k) || k);
 
@@ -143,7 +143,7 @@ export function BodyMapPreview({
           activeOpacity={0.7}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <MapPin size={13} color={palette.primary} />
+          <MapPin size={13} color={palette.primaryText} />
           <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
             {fieldLabel} ({keys.length})
           </Text>
@@ -172,8 +172,8 @@ export function BodyMapPreview({
             accessibilityRole="button"
             accessibilityLabel="Enlarge body map"
           >
-            <Text style={[styles.expandText, { color: palette.primary }]}>View</Text>
-            <Maximize2 size={11} color={palette.primary} />
+            <Text style={[styles.expandText, { color: palette.primaryText }]}>View</Text>
+            <Maximize2 size={11} color={palette.primaryText} />
           </TouchableOpacity>
         </View>
       </View>
@@ -198,8 +198,8 @@ export function BodyMapPreview({
                 style={[
                   styles.compactChip,
                   {
-                    backgroundColor: isDark ? 'rgba(255, 125, 77, 0.14)' : 'rgba(255, 107, 53, 0.09)',
-                    borderColor: isDark ? 'rgba(255, 125, 77, 0.3)' : 'rgba(255, 107, 53, 0.2)',
+                    backgroundColor: isDark ? 'rgba(255, 69, 58, 0.14)' : 'rgba(255, 59, 48, 0.09)',
+                    borderColor: isDark ? 'rgba(255, 69, 58, 0.3)' : 'rgba(255, 59, 48, 0.2)',
                   },
                 ]}
               >
@@ -213,7 +213,7 @@ export function BodyMapPreview({
               </Text>
             )}
           </View>
-          <Text style={[styles.showMapPrompt, { color: palette.primary }]}>Show Map</Text>
+          <Text style={[styles.showMapPrompt, { color: palette.primaryText }]}>Show Map</Text>
         </TouchableOpacity>
       )}
 
@@ -243,8 +243,8 @@ export function BodyMapPreview({
                   style={[
                     styles.tag,
                     {
-                      backgroundColor: isDark ? 'rgba(255, 125, 77, 0.16)' : 'rgba(255, 107, 53, 0.1)',
-                      borderColor: isDark ? 'rgba(255, 125, 77, 0.35)' : 'rgba(255, 107, 53, 0.25)',
+                      backgroundColor: isDark ? 'rgba(255, 69, 58, 0.16)' : 'rgba(255, 59, 48, 0.1)',
+                      borderColor: isDark ? 'rgba(255, 69, 58, 0.35)' : 'rgba(255, 59, 48, 0.25)',
                     },
                   ]}
                 >
@@ -269,14 +269,14 @@ export function BodyMapPreview({
             style={[
               styles.modalCard,
               {
-                backgroundColor: isDark ? '#23201C' : '#FFFFFF',
+                backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
                 borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
               },
             ]}
           >
             <View style={styles.modalHeader}>
               <View style={styles.labelRow}>
-                <MapPin size={18} color={palette.primary} />
+                <MapPin size={18} color={palette.primaryText} />
                 <Text style={[styles.modalTitle, { color: palette.text }]}>
                   {fieldLabel} — Body Map
                 </Text>
@@ -303,8 +303,8 @@ export function BodyMapPreview({
                     styles.tag,
                     styles.modalTag,
                     {
-                      backgroundColor: isDark ? 'rgba(255, 125, 77, 0.18)' : 'rgba(255, 107, 53, 0.12)',
-                      borderColor: isDark ? 'rgba(255, 125, 77, 0.4)' : 'rgba(255, 107, 53, 0.3)',
+                      backgroundColor: isDark ? 'rgba(255, 69, 58, 0.18)' : 'rgba(255, 59, 48, 0.12)',
+                      borderColor: isDark ? 'rgba(255, 69, 58, 0.4)' : 'rgba(255, 59, 48, 0.3)',
                     },
                   ]}
                 >

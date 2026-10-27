@@ -7,8 +7,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Switch, Modal, Pressable, Platform,
+  StyleSheet, Alert, ActivityIndicator, Modal, Pressable, Platform,
 } from 'react-native';
+import { AppleSwitch } from '../../../src/components/common/AppleSwitch';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '../../../src/utils/navigation';
@@ -299,7 +300,12 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc: stri
   return (
     <View style={toggleStyles.row}>
       <View style={toggleStyles.text}><Text style={toggleStyles.label}>{label}</Text><Text style={toggleStyles.desc}>{desc}</Text></View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ false: palette.border, true: palette.primary + '88' }} thumbColor={value ? palette.primary : palette.textDisabled} />
+      <AppleSwitch
+        value={value}
+        onValueChange={onChange}
+        activeColor={palette.primary || '#34C759'}
+        accessibilityLabel={label}
+      />
     </View>
   );
 }
@@ -415,7 +421,12 @@ function InlineFieldEditor({ field, onSave, onClose }: { field: FieldDefinition;
             </InlineField>
             <View style={inlineStyles.toggleRow}>
               <Text style={inlineStyles.toggleLabel}>Required</Text>
-              <Switch value={required} onValueChange={setRequired} trackColor={{ false: palette.border, true: palette.primary + '88' }} thumbColor={required ? palette.primary : palette.textDisabled} />
+              <AppleSwitch
+                value={required}
+                onValueChange={setRequired}
+                activeColor={palette.primary || '#34C759'}
+                accessibilityLabel="Required field"
+              />
             </View>
             <Text style={inlineStyles.typeNote}>Type: {DATA_TYPE_LABELS[field.dataType] ?? field.dataType} (cannot change type after creation)</Text>
           </ScrollView>
@@ -461,9 +472,9 @@ const useFieldRowStyles = createThemedStyles((palette) => ({
   info: { flex: 1 },
   label: { ...typography.bodyBold, color: palette.text },
   type: { ...typography.small, color: palette.textSecondary, marginTop: 1 },
-  edit: { ...typography.small, color: palette.primary },
+  edit: { ...typography.small, color: palette.primaryText },
   remove: { paddingHorizontal: 16, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: palette.border, backgroundColor: palette.surfaceAlt },
-  removeText: { ...typography.body, color: palette.error },
+  removeText: { ...typography.body, color: palette.errorText },
 }));
 const useInlineStyles = createThemedStyles((palette) => ({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
@@ -471,7 +482,7 @@ const useInlineStyles = createThemedStyles((palette) => ({
   sheet: { backgroundColor: palette.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.border },
   title: { ...typography.h4, color: palette.text },
-  cancel: { ...typography.bodyBold, color: palette.primary },
+  cancel: { ...typography.bodyBold, color: palette.primaryText },
   body: { padding: 16 },
   input: { backgroundColor: palette.surfaceAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, ...typography.body, color: palette.text },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
@@ -487,8 +498,6 @@ const useInlineStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     gap: 6,
     backgroundColor: palette.surface,
-    borderColor: palette.border,
-    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -527,7 +536,7 @@ const useInlineStyles = createThemedStyles((palette) => ({
     ...typography.caption,
     fontSize: 12,
     fontWeight: '700',
-    color: palette.primary,
+    color: palette.primaryText,
   },
   typeNote: { ...typography.small, color: palette.textDisabled, marginTop: 8 },
   footer: { padding: 16, paddingBottom: 28, borderTopWidth: 1, borderTopColor: palette.border },
@@ -554,26 +563,26 @@ const useStyles = createThemedStyles((palette) => ({
     borderColor: palette.warning + '40',
     padding: 14,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warning, lineHeight: 18 },
+  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
   actionSection: { gap: 10, marginTop: 12 },
   unarchiveBtn: {
     backgroundColor: palette.secondary + '18', borderRadius: 12,
     borderWidth: 1, borderColor: palette.secondary + '60',
     paddingVertical: 14, alignItems: 'center',
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondary },
+  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
   archiveBtn: {
     backgroundColor: palette.warning + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.warning + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warning },
+  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
   deleteBtn: {
     backgroundColor: palette.error + '12', borderRadius: 12,
     borderWidth: 1, borderColor: palette.error + '40',
     paddingVertical: 14, alignItems: 'center',
   },
-  deleteBtnText: { ...typography.bodyBold, color: palette.error },
+  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 28, backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border },
   saveBtn: { backgroundColor: palette.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', minHeight: 54 },
   disabled: { opacity: 0.6 },

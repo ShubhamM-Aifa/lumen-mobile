@@ -28,6 +28,7 @@ import {
   SleepQuality,
   SleepRecord,
 } from '../../store/sleepTrackerStore';
+import { formatGoalHours, goalRangeLabel } from '../../store/sleepTrackerStore';
 import { PressableScale } from '../common/PressableScale';
 import { AdjustSleepTimesModal } from './AdjustSleepTimesModal';
 
@@ -86,6 +87,7 @@ export function MorningSleepCheckinBanner({
 }: MorningSleepCheckinBannerProps) {
   const { palette, colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
+  const qualityText: Record<string, string> = { RESTFUL: palette.successText, GOOD: palette.secondaryText, FAIR: palette.warningText, POOR: palette.errorText };
   const {
     lastSleepRecord,
     targetGoalMinutes,
@@ -100,11 +102,12 @@ export function MorningSleepCheckinBanner({
 
   const activeQuality = propQuality ?? internalQuality;
 
-  const durationMin = lastSleepRecord?.durationMinutes ?? 480;
+  const hasRecord = !!lastSleepRecord;
+  const durationMin = lastSleepRecord?.durationMinutes ?? 0;
   const hours = Math.floor(durationMin / 60);
   const mins = durationMin % 60;
   const progressPct = Math.min(100, Math.round((durationMin / targetGoalMinutes) * 100));
-  const isGoalMet = durationMin >= minRecoveryMinutes;
+  const isGoalMet = hasRecord && durationMin >= minRecoveryMinutes;
 
   const handleSelect = async (opt: QualityOption) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -119,12 +122,12 @@ export function MorningSleepCheckinBanner({
       <View style={styles.headerRow}>
         <View style={styles.titleWrap}>
           <View style={[styles.iconBadge, { backgroundColor: isGoalMet ? '#10B98118' : '#F59E0B18' }]}>
-            <Sunrise size={18} color={isGoalMet ? '#10B981' : '#EA580C'} />
+            <Sunrise size={18} color={isGoalMet ? palette.successText : palette.warningText} />
           </View>
-          <View>
+          <View style={styles.titleCol}>
             <Text style={[styles.titleText, { color: palette.text }]}>Autoimmune Sleep Recovery</Text>
             <Text style={[styles.subtitleText, { color: palette.textSecondary }]}>
-              Compulsory 7–8h Target for Inflammation Control
+              Compulsory {goalRangeLabel(targetGoalMinutes)}h Target for Inflammation Control
             </Text>
           </View>
         </View>
@@ -132,14 +135,18 @@ export function MorningSleepCheckinBanner({
         <View
           style={[
             styles.statusPill,
-            {
-              backgroundColor: isGoalMet ? '#10B98118' : '#F59E0B18',
-              borderColor: isGoalMet ? '#10B98140' : '#F59E0B40',
-            },
+            hasRecord
+              ? {
+                  backgroundColor: isGoalMet ? '#10B98118' : '#F59E0B18',
+                  borderColor: isGoalMet ? '#10B98140' : '#F59E0B40',
+                }
+              : { backgroundColor: palette.surfaceAlt, borderColor: palette.border },
           ]}
         >
-          <Text style={[styles.statusPillText, { color: isGoalMet ? '#10B981' : '#F59E0B' }]}>
-            {isGoalMet ? '✓ 7–8h Target Met' : 'Under 7h Goal'}
+          <Text style={[styles.statusPillText, { color: !hasRecord ? palette.textSecondary : isGoalMet ? palette.successText : palette.warningText }]}>
+            {!hasRecord
+              ? 'Not recorded yet'
+              : isGoalMet ? `✓ ${goalRangeLabel(targetGoalMinutes)}h Target Met` : `Under ${formatGoalHours(minRecoveryMinutes)}h Goal`}
           </Text>
         </View>
       </View>
@@ -164,8 +171,8 @@ export function MorningSleepCheckinBanner({
           onPress={() => setAdjustModalVisible(true)}
           style={[styles.adjustBtn, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}
         >
-          <Sliders size={12} color={palette.primary} style={{ marginRight: 4 }} />
-          <Text style={[styles.adjustBtnText, { color: palette.primary }]}>Adjust times</Text>
+          <Sliders size={12} color={palette.primaryText} style={{ marginRight: 4 }} />
+          <Text style={[styles.adjustBtnText, { color: palette.primaryText }]}>Adjust times</Text>
         </TouchableOpacity>
       </View>
 
@@ -176,14 +183,14 @@ export function MorningSleepCheckinBanner({
             colors={isGoalMet ? ['#10B981', '#06B6D4'] : ['#F59E0B', '#F97316']}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
-            style={[styles.progressFill, { width: `${Math.max(6, progressPct)}%` }]}
+            style={[styles.progressFill, { width: `${hasRecord ? Math.max(6, progressPct) : 0}%` }]}
           />
-          {/* 7h threshold marker at 87.5% */}
+          {/* On-target threshold marker */}
           <View
             style={[
               styles.targetTick,
               {
-                left: '87.5%',
+                left: `${Math.round((minRecoveryMinutes / targetGoalMinutes) * 1000) / 10}%`,
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.25)',
               },
             ]}
@@ -193,13 +200,18 @@ export function MorningSleepCheckinBanner({
           <Text style={[styles.progressPctText, { color: palette.textSecondary }]}>
             {progressPct}% achieved
           </Text>
-          <Text style={[styles.progressTargetText, isGoalMet ? { color: '#10B981' } : { color: palette.textSecondary }]}>
-            7h Autoimmune Baseline
+          <Text style={[styles.progressTargetText, isGoalMet ? { color: palette.successText } : { color: palette.textSecondary }]}>
+            {formatGoalHours(minRecoveryMinutes)}h Autoimmune Baseline
           </Text>
         </View>
       </View>
 
       {/* Clinical Guidance Box */}
+      {!hasRecord ? (
+        <Text style={[styles.insightText, { color: palette.textSecondary, marginBottom: 12 }]}>
+          No sleep recorded for last night yet. Tap Adjust times to add it.
+        </Text>
+      ) : (
       <View
         style={[
           styles.insightBox,
@@ -214,25 +226,26 @@ export function MorningSleepCheckinBanner({
         ]}
       >
         {isGoalMet ? (
-          <ShieldCheck size={14} color={isDark ? '#34D399' : '#10B981'} style={{ marginRight: 6 }} />
+          <ShieldCheck size={14} color={palette.successText} style={{ marginRight: 6 }} />
         ) : (
-          <AlertTriangle size={14} color={isDark ? '#FBBF24' : '#F59E0B'} style={{ marginRight: 6 }} />
+          <AlertTriangle size={14} color={palette.warningText} style={{ marginRight: 6 }} />
         )}
         <Text
           style={[
             styles.insightText,
             {
               color: isGoalMet
-                ? (isDark ? '#6EE7B7' : '#065F46')
-                : (isDark ? '#FCD34D' : '#92400E'),
+                ? palette.successText
+                : palette.warningText,
             },
           ]}
         >
           {isGoalMet
-            ? 'Restorative 7–8h sleep suppresses pro-inflammatory cytokines (IL-6, TNF-α) to protect against flare-ups.'
-            : 'Under 7h increases immune fatigue. Take extra rest breaks and stay hydrated today to prevent a flare.'}
+            ? `Restorative ${goalRangeLabel(targetGoalMinutes)}h sleep suppresses pro-inflammatory cytokines (IL-6, TNF-α) to protect against flare-ups.`
+            : `Under ${formatGoalHours(minRecoveryMinutes)}h increases immune fatigue. Take extra rest breaks and stay hydrated today to prevent a flare.`}
         </Text>
       </View>
+      )}
 
       {/* "How restorative was your sleep?" Prompt */}
       <View style={styles.qualitySection}>
@@ -265,13 +278,13 @@ export function MorningSleepCheckinBanner({
                 <Text
                   style={[
                     styles.qualityLabel,
-                    { color: isSelected ? opt.color : palette.text },
+                    { color: isSelected ? qualityText[opt.key] : palette.text },
                     isSelected && { fontWeight: '800' },
                   ]}
                 >
                   {opt.label}
                 </Text>
-                <Text style={[styles.qualityBadge, { color: isSelected ? opt.color : palette.textSecondary }]}>
+                <Text style={[styles.qualityBadge, { color: isSelected ? qualityText[opt.key] : palette.textSecondary }]}>
                   {opt.badge}
                 </Text>
               </PressableScale>
@@ -304,16 +317,22 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    rowGap: 8,
+    columnGap: 8,
     marginBottom: 12,
   },
   titleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 220,
   },
+  titleCol: { flexShrink: 1 },
   iconBadge: {
     width: 36,
     height: 36,

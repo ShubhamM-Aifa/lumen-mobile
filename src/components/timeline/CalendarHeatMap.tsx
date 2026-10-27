@@ -1,15 +1,17 @@
 /**
- * CalendarHeatMap — month grid or compact week strip with per-day symptom severity colouring
- * and circular progress rings indicating daily question completion.
- * Tap a day to select it; toggle between Week and Month view.
+ * CalendarHeatMap — Week / Month switcher with a progress ring per day.
+ * Ring colour = how much of the day was logged (green all answered, orange partly,
+ * empty track nothing). A small dot marks days with moderate or severe symptoms.
+ * Tap a day to select it.
  */
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { PressableScale } from '../common/PressableScale';
+import { IosSegmented } from '../ios/IosSegmented';
+import { ProgressRing } from '../ios/ProgressRing';
 import { toLocalDateString } from '../../hooks/useTimelineSummary';
 
 export interface DaySeverity {
@@ -41,18 +43,60 @@ interface Props {
 }
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function severityColor(severity: number, primaryColor: string): string {
-  if (severity < 0) return 'transparent';
-  if (severity === 0) return primaryColor + '22';
-  // 0–3 green-ish, 4–6 amber, 7–10 red-ish
-  if (severity <= 3) return `rgba(56, 176, 120, ${0.25 + severity * 0.08})`;
-  if (severity <= 6) return `rgba(251, 176, 52, ${0.3 + (severity - 4) * 0.1})`;
-  return `rgba(239, 80, 80, ${0.35 + (severity - 7) * 0.1})`;
+const MODES = [
+  { key: 'week' as const, label: 'Week' },
+  { key: 'month' as const, label: 'Month' },
+];
+
+interface DayCellProps {
+  num: number;
+  size: number;
+  info?: DaySeverity;
+  isToday: boolean;
+  isSelected: boolean;
+}
+
+/** Progress ring with the day number inside; selected day is a filled disc. */
+function DayRing({ num, size, info, isToday, isSelected }: DayCellProps) {
+  const { palette } = useTheme();
+  const styles = useStyles();
+  const progress = info?.progress ?? 0;
+  const complete = info?.isComplete ?? progress >= 1;
+  const ringColor = complete ? palette.success : palette.warning;
+  const inner = size - 6;
+  const severity = info?.maxSeverity ?? -1;
+  const dot = severity >= 7 ? palette.error : severity >= 4 ? palette.warning : null;
+
+  return (
+    <View style={{ width: size, height: size }}>
+      <ProgressRing size={size} strokeWidth={3} progress={progress} color={ringColor} trackColor={palette.divider}>
+        <View
+          style={[
+            { width: inner, height: inner, borderRadius: inner / 2, alignItems: 'center', justifyContent: 'center' },
+            isSelected && { backgroundColor: palette.primary },
+          ]}
+        >
+          <Text
+            style={[
+              styles.dayNum,
+              isToday && !isSelected && { color: palette.primaryText },
+              isSelected && { color: '#FFFFFF' },
+            ]}
+            maxFontSizeMultiplier={1.2}
+          >
+            {num}
+          </Text>
+        </View>
+      </ProgressRing>
+      {dot ? <View style={[styles.sevDot, { backgroundColor: dot, borderColor: palette.surface }]} /> : null}
+    </View>
+  );
 }
 
 export function CalendarHeatMap({
@@ -78,7 +122,7 @@ export function CalendarHeatMap({
     return m;
   }, [data]);
 
-  // Month grid cells
+  // Month grid cells (Monday first)
   const monthCells = useMemo(() => {
     const firstDay = new Date(year, month, 1);
     const startOffset = (firstDay.getDay() + 6) % 7;
@@ -103,12 +147,7 @@ export function CalendarHeatMap({
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(d.getDate() + i);
-      const iso = toLocalDateString(d);
-      return {
-        dayNum: d.getDate(),
-        iso,
-        dayOfWeek: DAYS[i],
-      };
+      return { dayNum: d.getDate(), iso: toLocalDateString(d), index: i };
     });
   }, [selectedDate]);
 
@@ -117,418 +156,194 @@ export function CalendarHeatMap({
   const isoDate = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const handlePrev = () => {
-    if (viewMode === 'week' && onPrevWeek) {
-      onPrevWeek();
-    } else {
-      onPrevMonth();
-    }
+  const isWeek = viewMode === 'week';
+  const handlePrev = () => (isWeek && onPrevWeek ? onPrevWeek() : onPrevMonth());
+  const handleNext = () => (isWeek && onNextWeek ? onNextWeek() : onNextMonth());
+
+  const describe = (info: DaySeverity | undefined, selected: boolean) => {
+    const sev = (info?.maxSeverity ?? -1) >= 7 ? ', severe symptoms' : (info?.maxSeverity ?? -1) >= 4 ? ', moderate symptoms' : '';
+    return `${info?.percentage ?? 0} percent logged${sev}${selected ? ', selected' : ''}`;
   };
 
-  const handleNext = () => {
-    if (viewMode === 'week' && onNextWeek) {
-      onNextWeek();
-    } else {
-      onNextMonth();
-    }
-  };
-
-  const renderDayCellContent = (
-    dayNum: number | string,
-    iso: string,
-    info: DaySeverity | undefined,
-    isToday: boolean,
-    isSelected: boolean
-  ) => {
-    const bg = info ? severityColor(info.maxSeverity, palette.primary) : 'transparent';
-    const progress = info?.progress ?? 0;
-    const isComplete = info?.isComplete ?? (progress >= 1);
-
-    // If selected and no severity background, use a sleek surface highlight
-    const effectiveBg = isSelected && bg === 'transparent'
-      ? (palette.surfaceAlt === '#F5F0EB' ? '#E5E7EB' : '#3A3330')
-      : bg;
-
-    return (
-      <View
-        style={[
-          styles.dayCell,
-          isSelected && styles.selectedGlow,
-        ]}
-      >
-        {/* Render background circle and rings in SVG for 100% vector precision without Android clipping/square bugs */}
-        <Svg width={36} height={36} style={styles.cellProgressRing} pointerEvents="none">
-          {/* 1. Geometric Circular Background (guarantees true circle on dates with logs like 19) */}
-          {effectiveBg !== 'transparent' && (
-            <Circle cx={18} cy={18} r={15.5} fill={effectiveBg} />
-          )}
-
-          {/* 2. Progress Ring when progress > 0 */}
-          {progress > 0 ? (
-            <>
-              {/* Background track */}
-              <Circle
-                cx={18}
-                cy={18}
-                r={15.5}
-                stroke={isComplete ? '#10B98126' : palette.primary + '25'}
-                strokeWidth={2.5}
-                fill="transparent"
-              />
-              {/* Active progress arc */}
-              <Circle
-                cx={18}
-                cy={18}
-                r={15.5}
-                stroke={isComplete ? '#10B981' : palette.primary}
-                strokeWidth={2.5}
-                strokeDasharray="97.39"
-                strokeDashoffset={97.39 * (1 - Math.min(1, progress))}
-                strokeLinecap="round"
-                fill="transparent"
-                transform="rotate(-90 18 18)"
-              />
-            </>
-          ) : (
-            // 3. When progress === 0: Render clean selection border or today border without overlap
-            <>
-              {isSelected ? (
-                <Circle
-                  cx={18}
-                  cy={18}
-                  r={15.5}
-                  stroke="#FFFFFF"
-                  strokeWidth={2}
-                  fill="transparent"
-                />
-              ) : isToday ? (
-                <Circle
-                  cx={18}
-                  cy={18}
-                  r={15.5}
-                  stroke={palette.primary}
-                  strokeWidth={1.5}
-                  fill="transparent"
-                />
-              ) : null}
-            </>
-          )}
-        </Svg>
-
-        <Text
-          style={[
-            styles.dayNum,
-            isSelected && styles.dayNumSelected,
-            isToday && !isSelected && styles.dayNumToday,
-          ]}
-        >
-          {dayNum}
-        </Text>
-        {info?.hasLogs && !isSelected && progress === 0 && <View style={styles.dot} />}
-      </View>
-    );
-  };
+  const monthSummary = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    const days = data.filter(d => d.date.startsWith(prefix));
+    const full = days.filter(d => d.isComplete).length;
+    const logged = days.filter(d => d.hasLogs).length;
+    return logged === 0 ? 'Nothing logged yet' : `${full} complete · ${logged} logged`;
+  }, [data, year, month]);
 
   return (
     <View style={styles.wrap}>
-      {/* Header with Title and Mode Switcher */}
-      <View style={styles.header}>
-        <View style={styles.navGroup}>
-          <PressableScale
-            onPress={handlePrev}
-            style={styles.navBtn}
-            haptic="light"
-            activeScale={0.92}
-            accessibilityRole="button"
-            accessibilityLabel={viewMode === 'week' ? 'Previous week' : 'Previous month'}
-          >
-            <ChevronLeft size={16} color={palette.text} strokeWidth={2.4} />
-          </PressableScale>
-          <Text style={styles.monthLabel}>
-            {MONTH_NAMES[month]} {year}
-          </Text>
-          <PressableScale
-            onPress={handleNext}
-            style={styles.navBtn}
-            haptic="light"
-            activeScale={0.92}
-            accessibilityRole="button"
-            accessibilityLabel={viewMode === 'week' ? 'Next week' : 'Next month'}
-          >
-            <ChevronRight size={16} color={palette.text} strokeWidth={2.4} />
-          </PressableScale>
+      {onToggleViewMode ? (
+        <View style={styles.segWrap}>
+          <IosSegmented options={MODES} value={viewMode} onChange={onToggleViewMode} />
+        </View>
+      ) : null}
+
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <View style={styles.titleCol}>
+            <Text style={styles.monthLabel} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
+              {MONTH_NAMES[month]} {year}
+            </Text>
+            {!isWeek ? <Text style={styles.monthSummary} maxFontSizeMultiplier={1.3}>{monthSummary}</Text> : null}
+          </View>
+          <View style={styles.navGroup}>
+            <PressableScale
+              onPress={handlePrev}
+              style={styles.navBtn}
+              haptic="light"
+              activeScale={0.92}
+              accessibilityRole="button"
+              accessibilityLabel={isWeek ? 'Previous week' : 'Previous month'}
+            >
+              <ChevronLeft size={18} color={palette.primaryText} strokeWidth={2.4} />
+            </PressableScale>
+            <PressableScale
+              onPress={handleNext}
+              style={styles.navBtn}
+              haptic="light"
+              activeScale={0.92}
+              accessibilityRole="button"
+              accessibilityLabel={isWeek ? 'Next week' : 'Next month'}
+            >
+              <ChevronRight size={18} color={palette.primaryText} strokeWidth={2.4} />
+            </PressableScale>
+          </View>
         </View>
 
-        {/* View Mode Toggle Pill (Week vs Month) */}
-        {onToggleViewMode && (
-          <View style={styles.modeToggle}>
-            <TouchableOpacity
-              style={[styles.modeBtn, viewMode === 'week' && styles.modeBtnActive]}
-              onPress={() => onToggleViewMode('week')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.modeText, viewMode === 'week' && styles.modeTextActive]}>
-                Week
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeBtn, viewMode === 'month' && styles.modeBtnActive]}
-              onPress={() => onToggleViewMode('month')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.modeText, viewMode === 'month' && styles.modeTextActive]}>
-                Month
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Week Strip Mode */}
-      {viewMode === 'week' && (
-        <View style={styles.weekContainer}>
-          <View style={styles.row}>
-            {weekDays.map((item) => {
+        {isWeek ? (
+          <View style={styles.weekRow}>
+            {weekDays.map(item => {
               const info = dataMap[item.iso];
-              const isToday = item.iso === todayStr;
               const isSelected = item.iso === selectedDate;
-
+              const pct = info?.percentage ?? 0;
+              const complete = info?.isComplete ?? false;
               return (
-                <PressableScale
+                <TouchableOpacity
                   key={item.iso}
                   style={styles.weekCol}
                   onPress={() => onSelectDate(item.iso)}
-                  haptic="selection"
-                  activeScale={0.92}
+                  activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.dayOfWeek} ${item.dayNum}, progress ${info?.percentage ?? 0} percent`}
+                  accessibilityLabel={`${WEEKDAY_NAMES[item.index]} ${item.dayNum}, ${describe(info, isSelected)}`}
                 >
+                  <Text style={styles.dow} maxFontSizeMultiplier={1.2}>{DAYS[item.index]}</Text>
+                  <DayRing num={item.dayNum} size={42} info={info} isToday={item.iso === todayStr} isSelected={isSelected} />
                   <Text
-                    style={[
-                      styles.dayHeader,
-                      isToday && styles.dayHeaderToday,
-                      isSelected && styles.dayHeaderSelected,
-                    ]}
+                    style={[styles.pct, { color: complete ? palette.successText : palette.warningText }]}
+                    maxFontSizeMultiplier={1.2}
                   >
-                    {item.dayOfWeek}
+                    {pct > 0 ? `${pct}%` : ' '}
                   </Text>
-                  {renderDayCellContent(item.dayNum, item.iso, info, isToday, isSelected)}
-                </PressableScale>
+                </TouchableOpacity>
               );
             })}
           </View>
-        </View>
-      )}
-
-      {/* Full Month Grid Mode */}
-      {viewMode === 'month' && (
-        <View style={styles.monthContainer}>
-          {/* Day-of-week header */}
-          <View style={styles.row}>
-            {DAYS.map((d, i) => (
-              <View key={i} style={styles.cell}>
-                <Text style={styles.dayHeader}>{d}</Text>
+        ) : (
+          <View style={styles.monthWrap}>
+            <View style={styles.gridRow}>
+              {DAYS.map((d, i) => (
+                <Text key={i} style={styles.gridDow} maxFontSizeMultiplier={1.2}>{d}</Text>
+              ))}
+            </View>
+            {Array.from({ length: monthCells.length / 7 }, (_, row) => (
+              <View key={row} style={styles.gridRow}>
+                {monthCells.slice(row * 7, row * 7 + 7).map((day, col) => {
+                  if (day === null) return <View key={col} style={styles.gridCell} />;
+                  const iso = isoDate(day);
+                  const info = dataMap[iso];
+                  const isSelected = iso === selectedDate;
+                  return (
+                    <TouchableOpacity
+                      key={col}
+                      style={styles.gridCell}
+                      onPress={() => onSelectDate(iso)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${day} ${MONTH_NAMES[month]}, ${describe(info, isSelected)}`}
+                    >
+                      <DayRing num={day} size={40} info={info} isToday={iso === todayStr} isSelected={isSelected} />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             ))}
-          </View>
-
-          {/* Month grid rows */}
-          {Array.from({ length: monthCells.length / 7 }, (_, row) => (
-            <View key={row} style={styles.row}>
-              {monthCells.slice(row * 7, row * 7 + 7).map((day, col) => {
-                if (day === null) return <View key={col} style={styles.cell} />;
-                const iso = isoDate(day);
-                const info = dataMap[iso];
-                const isToday = iso === todayStr;
-                const isSelected = iso === selectedDate;
-
-                return (
-                  <TouchableOpacity
-                    key={col}
-                    style={styles.cell}
-                    onPress={() => onSelectDate(iso)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${day} ${MONTH_NAMES[month]}, progress ${info?.percentage ?? 0} percent`}
-                  >
-                    {renderDayCellContent(day, iso, info, isToday, isSelected)}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))}
-
-          {/* Enhanced Legend for Month View */}
-          <View style={styles.legendContainer}>
-            <View style={styles.legend}>
-              <Text style={styles.legendLabel}>Severity: </Text>
-              {[0, 3, 5, 7, 10].map(s => (
-                <View
-                  key={s}
-                  style={[
-                    styles.legendDot,
-                    { backgroundColor: s === 0 ? palette.primary + '22' : severityColor(s, palette.primary) },
-                  ]}
-                />
-              ))}
-              <Text style={styles.legendLabel}> None → High</Text>
-            </View>
-
-            <View style={styles.legendDivider} />
 
             <View style={styles.legend}>
-              <Text style={styles.legendLabel}>Progress: </Text>
-              <View style={[styles.legendRingPreview, { borderColor: palette.primary }]} />
-              <Text style={styles.legendLabel}>In progress</Text>
-              <View style={[styles.legendRingPreview, { borderColor: '#10B981' }]} />
-              <Text style={styles.legendLabel}>100% Done</Text>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: palette.success }]} />
+                <Text style={styles.legendText}>All answered</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: palette.warning }]} />
+                <Text style={styles.legendText}>Partly</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { borderWidth: 1.5, borderColor: palette.border }]} />
+                <Text style={styles.legendText}>Nothing logged</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: palette.error }]} />
+                <Text style={styles.legendText}>Severe symptoms</Text>
+              </View>
             </View>
           </View>
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }
 
-const CELL_SIZE = 38;
-
 const useStyles = createThemedStyles(palette => ({
-  wrap: {
+  wrap: { gap: 12 },
+  segWrap: { marginHorizontal: -16 },
+  card: {
     backgroundColor: palette.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 26,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    gap: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    paddingHorizontal: 8,
   },
-  navGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  titleCol: { flexShrink: 1, gap: 1 },
+  monthLabel: { ...typography.headline, color: palette.text },
+  monthSummary: { ...typography.footnote, color: palette.textSecondary },
+  navGroup: { flexDirection: 'row', gap: 8 },
   navBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: palette.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  monthLabel: { ...typography.bodyBold, color: palette.text, fontSize: 15 },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: palette.surfaceAlt,
-    borderRadius: 10,
-    padding: 2.5,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  modeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 7.5,
-  },
-  modeBtnActive: {
-    backgroundColor: palette.primary,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  modeText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    color: palette.textSecondary,
-    fontWeight: '600',
-  },
-  modeTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  weekContainer: {
-    paddingVertical: 4,
-  },
-  weekCol: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 5,
-  },
-  monthContainer: {
-    gap: 3,
-  },
-  row: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  cell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center' },
-  dayHeader: { ...typography.caption, color: palette.textSecondary, fontWeight: '600', fontSize: 11.5 },
-  dayHeaderToday: { color: palette.primary, fontWeight: '700' },
-  dayHeaderSelected: { color: palette.primary, fontWeight: '800' },
-  dayCell: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
   },
-  cellProgressRing: {
+  weekRow: { flexDirection: 'row' },
+  weekCol: { flex: 1, alignItems: 'center', gap: 6 },
+  dow: { ...typography.footnote, color: palette.textSecondary, fontWeight: '500' },
+  pct: { fontSize: 11, lineHeight: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  dayNum: { ...typography.headline, color: palette.text, fontVariant: ['tabular-nums'] },
+  sevDot: {
     position: 'absolute',
     top: 0,
-    left: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
   },
-  selectedGlow: {
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  today: { borderWidth: 1.5, borderColor: palette.primary, backgroundColor: palette.primary + '10' },
-  selected: {
-    borderWidth: 2.2,
-    borderColor: '#FFFFFF',
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  dayNum: { ...typography.small, color: palette.text, fontWeight: '600', fontSize: 13.5 },
-  dayNumSelected: { color: '#FFFFFF', fontWeight: '800' },
-  dayNumToday: { color: palette.primary, fontWeight: '700' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.primary, position: 'absolute', bottom: 3 },
-  legendContainer: {
-    marginTop: 10,
-    gap: 5,
-  },
-  legend: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  legendDivider: {
-    height: 1,
-    backgroundColor: palette.border,
-    opacity: 0.5,
-    marginHorizontal: 20,
-    marginVertical: 2,
-  },
-  legendLabel: { ...typography.caption, color: palette.textDisabled, fontSize: 11 },
-  legendDot: { width: 10, height: 10, borderRadius: 3 },
-  legendRingPreview: {
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
-    borderWidth: 2,
-    backgroundColor: 'transparent',
-    marginLeft: 4,
-  },
+  monthWrap: { gap: 8 },
+  gridRow: { flexDirection: 'row' },
+  gridDow: { flex: 1, textAlign: 'center', ...typography.footnote, color: palette.textSecondary, fontWeight: '500' },
+  gridCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14, paddingTop: 2 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { ...typography.footnote, color: palette.textSecondary },
 }));

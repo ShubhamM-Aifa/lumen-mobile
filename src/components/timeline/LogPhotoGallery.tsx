@@ -327,14 +327,14 @@ export function LogPhotoGallery({
       {/* Header bar */}
       <View style={styles.headerRow}>
         <View style={styles.labelRow}>
-          <ImageIcon size={13} color={palette.primary} />
+          <ImageIcon size={13} color={palette.primaryText} />
           <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
             {fieldLabel} ({rawList.length})
           </Text>
           {isProtectedByPin && (
             <View style={[styles.pinProtectedBadge, { backgroundColor: isVaultUnlocked ? '#10B98118' : palette.primary + '18' }]}>
-              <Lock size={10} color={isVaultUnlocked ? '#10B981' : palette.primary} />
-              <Text style={[styles.pinProtectedText, { color: isVaultUnlocked ? '#10B981' : palette.primary }]}>
+              <Lock size={10} color={isVaultUnlocked ? palette.successText : palette.primaryText} />
+              <Text style={[styles.pinProtectedText, { color: isVaultUnlocked ? palette.successText : palette.primaryText }]}>
                 {isVaultUnlocked ? 'Unlocked' : 'PIN Locked'}
               </Text>
             </View>
@@ -364,8 +364,8 @@ export function LogPhotoGallery({
               </>
             ) : (
               <>
-                <Eye size={12} color={palette.primary} />
-                <Text style={[styles.revealText, { color: palette.primary }]}>
+                <Eye size={12} color={palette.primaryText} />
+                <Text style={[styles.revealText, { color: palette.primaryText }]}>
                   {isProtectedByPin && !isVaultUnlocked ? 'Unlock PIN' : 'Reveal'}
                 </Text>
               </>
@@ -393,7 +393,7 @@ export function LogPhotoGallery({
                     borderColor: isDark
                       ? 'rgba(255, 255, 255, 0.12)'
                       : 'rgba(0, 0, 0, 0.08)',
-                    backgroundColor: isDark ? '#1C1917' : '#F5F0EB',
+                    backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
                   },
                 ]}
                 onPress={() => {
@@ -444,7 +444,7 @@ export function LogPhotoGallery({
                     {/* Loading Indicator Spinner */}
                     {isLoadingThis && (
                       <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="small" color={palette.primary} />
+                        <ActivityIndicator size="small" color={palette.primaryText} />
                       </View>
                     )}
 

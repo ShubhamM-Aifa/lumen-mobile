@@ -13,8 +13,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Switch,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
@@ -390,7 +390,7 @@ export default function TemplatesScreen() {
           )}
         </View>
         {isApplying ? (
-          <ActivityIndicator size="small" color={palette.primary} />
+          <ActivityIndicator size="small" color={palette.primaryText} />
         ) : isApplied ? (
           <Text style={styles.checkmark}>✓</Text>
         ) : (
@@ -525,7 +525,7 @@ export default function TemplatesScreen() {
         <>
           {curatedLoading ? (
             <View style={styles.center}>
-              <ActivityIndicator color={palette.primary} />
+              <ActivityIndicator color={palette.primaryText} />
             </View>
           ) : (
             <FlatList
@@ -555,7 +555,7 @@ export default function TemplatesScreen() {
                               <Text style={styles.cardDesc}>{b.description}</Text>
                             </View>
                             {curatedApplying === b.key ? (
-                              <ActivityIndicator size="small" color={palette.primary} />
+                              <ActivityIndicator size="small" color={palette.primaryText} />
                             ) : curatedApplied.has(b.key) ? (
                               <Text style={styles.checkmark}>✓</Text>
                             ) : (
@@ -653,7 +653,7 @@ export default function TemplatesScreen() {
           {/* Community Template List */}
           {communityLoading ? (
             <View style={styles.center}>
-              <ActivityIndicator color={palette.primary} />
+              <ActivityIndicator color={palette.primaryText} />
             </View>
           ) : (
             <FlatList
@@ -841,7 +841,7 @@ export default function TemplatesScreen() {
                           </Text>
                           <Text style={styles.categoryPickerMeta}>{questionCount} questions ready to share</Text>
                         </View>
-                        {isSelected ? <Text style={{ color: palette.primary, fontWeight: '700' }}>✓</Text> : null}
+                        {isSelected ? <Text style={{ color: palette.primaryText, fontWeight: '700' }}>✓</Text> : null}
                       </TouchableOpacity>
                     );
                   })
@@ -891,10 +891,11 @@ export default function TemplatesScreen() {
                   {publishAnonymous ? 'Your account name will not be shown.' : 'Your profile name will appear as the creator.'}
                 </Text>
               </View>
-              <Switch
+              <AppleSwitch
                 value={publishAnonymous}
                 onValueChange={setPublishAnonymous}
-                trackColor={{ false: palette.border, true: palette.primary }}
+                activeColor={palette.primary || '#34C759'}
+                accessibilityLabel="Publish Anonymously"
               />
             </View>
 
@@ -954,9 +955,7 @@ const useStyles = createThemedStyles((palette) => ({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
   },
   tabButton: {
     flex: 1,
@@ -994,9 +993,7 @@ const useStyles = createThemedStyles((palette) => ({
     alignItems: 'center',
     gap: 12,
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 14,
     marginBottom: 8,
   },
@@ -1007,8 +1004,8 @@ const useStyles = createThemedStyles((palette) => ({
   cardName: { ...typography.bodyBold, color: palette.text, fontSize: 16, flexShrink: 1 },
   cardDesc: { ...typography.small, color: palette.textSecondary, marginTop: 3, lineHeight: 18 },
   cardMeta: { ...typography.caption, color: palette.textDisabled, marginTop: 4 },
-  addBtn: { ...typography.bodyBold, color: palette.primary, paddingHorizontal: 4 },
-  checkmark: { ...typography.h4, color: palette.success },
+  addBtn: { ...typography.bodyBold, color: palette.primaryText, paddingHorizontal: 4 },
+  checkmark: { ...typography.h4, color: palette.successText },
 
   // Community Hub Header & Search
   communityHeader: {
@@ -1025,8 +1022,6 @@ const useStyles = createThemedStyles((palette) => ({
     backgroundColor: palette.surface,
     borderRadius: 12,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
     height: 44,
   },
   searchIcon: { fontSize: 16, marginRight: 8 },
@@ -1046,8 +1041,6 @@ const useStyles = createThemedStyles((palette) => ({
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
   },
   filterPillActive: {
     backgroundColor: palette.primary + '20',
@@ -1059,7 +1052,7 @@ const useStyles = createThemedStyles((palette) => ({
     fontWeight: '500',
   },
   filterPillTextActive: {
-    color: palette.primary,
+    color: palette.primaryText,
     fontWeight: '700',
   },
 
@@ -1102,9 +1095,7 @@ const useStyles = createThemedStyles((palette) => ({
   communityList: { padding: 16, paddingBottom: 60, gap: 14 },
   communityCard: {
     backgroundColor: palette.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 16,
     gap: 10,
   },
@@ -1131,7 +1122,7 @@ const useStyles = createThemedStyles((palette) => ({
     borderWidth: 1,
     borderColor: palette.border,
   },
-  tagText: { ...typography.caption, color: palette.primary, fontSize: 11 },
+  tagText: { ...typography.caption, color: palette.primaryText, fontSize: 11 },
   statsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   statItem: { ...typography.caption, color: palette.textSecondary, fontSize: 12 },
   statDot: { color: palette.textDisabled },
@@ -1214,9 +1205,7 @@ const useStyles = createThemedStyles((palette) => ({
   previewSectionTitle: { ...typography.bodyBold, color: palette.text, marginTop: 6 },
   previewCategoryCard: {
     backgroundColor: palette.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 14,
     gap: 10,
   },
@@ -1251,14 +1240,12 @@ const useStyles = createThemedStyles((palette) => ({
     borderColor: palette.border,
   },
   previewOptionText: { ...typography.caption, color: palette.text },
-  fieldBadge: { ...typography.caption, color: palette.primary, fontSize: 10 },
+  fieldBadge: { ...typography.caption, color: palette.primaryText, fontSize: 10 },
   previewQARow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   previewQACard: {
     backgroundColor: palette.surface,
     padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     alignItems: 'center',
     minWidth: 90,
   },
@@ -1283,9 +1270,7 @@ const useStyles = createThemedStyles((palette) => ({
   fieldLabel: { ...typography.small, color: palette.text, fontWeight: '600', marginTop: 4 },
   textInput: {
     backgroundColor: palette.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 22,
     paddingHorizontal: 12,
     paddingVertical: 10,
     ...typography.body,
@@ -1298,8 +1283,6 @@ const useStyles = createThemedStyles((palette) => ({
     gap: 10,
     backgroundColor: palette.surface,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
     padding: 10,
   },
   categoryPickerItemActive: {
@@ -1307,7 +1290,7 @@ const useStyles = createThemedStyles((palette) => ({
     backgroundColor: palette.primary + '10',
   },
   categoryPickerName: { ...typography.bodyBold, color: palette.text },
-  categoryPickerNameActive: { color: palette.primary },
+  categoryPickerNameActive: { color: palette.primaryText },
   categoryPickerMeta: { ...typography.caption, color: palette.textSecondary },
   privacyRow: {
     flexDirection: 'row',

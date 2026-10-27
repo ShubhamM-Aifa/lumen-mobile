@@ -62,7 +62,7 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
               <View style={styles.content}>
                 <View style={styles.headerInfo}>
                   <Text style={[styles.displayName, { color: palette.text }]}>{user.displayName}</Text>
-                  <Text style={[styles.energyStatus, { color: palette.primary }]}>
+                  <Text style={[styles.energyStatus, { color: palette.primaryText }]}>
                     {user.energyStatus || 'Pacing & Resting 🥄'}
                   </Text>
                 </View>

@@ -215,7 +215,7 @@ const useStyles = createThemedStyles((palette) => ({
   actions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surfaceAlt },
   arrowBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRightWidth: 1, borderRightColor: palette.border },
   disabled: { opacity: 0.3 },
-  arrow: { ...typography.bodyBold, color: palette.primary },
+  arrow: { ...typography.bodyBold, color: palette.primaryText },
   moreBtn: { paddingVertical: 8, paddingHorizontal: 20, alignItems: 'center' },
   moreText: { ...typography.h4, color: palette.textSecondary },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 6 },
@@ -225,8 +225,7 @@ const useStyles = createThemedStyles((palette) => ({
   sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 4 },
   archivedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: palette.surface, borderRadius: 10,
-    borderWidth: 1, borderColor: palette.border,
+    backgroundColor: palette.surface, borderRadius: 22,
     paddingHorizontal: 12, paddingVertical: 10,
   },
   archivedRowMain: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
@@ -236,7 +235,7 @@ const useStyles = createThemedStyles((palette) => ({
     backgroundColor: palette.secondary + '18', borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: palette.secondary + '50',
   },
-  restoreBtnText: { ...typography.smallBold, color: palette.secondary },
+  restoreBtnText: { ...typography.smallBold, color: palette.secondaryText },
   deleteIconBtn: {
     backgroundColor: palette.error + '14', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: palette.error + '40',

@@ -5,14 +5,14 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Switch,
   RefreshControl,
   Alert,
 } from 'react-native';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
-import { Plus, Bell, Clock, RefreshCw, Trash2, Copy, ChevronLeft, RotateCcw, BellRing, Edit2, AlertTriangle, CloudSun, X, Footprints, ShieldAlert } from 'lucide-react-native';
+import { Plus, Bell, Clock, Trash2, Copy, ChevronLeft, RotateCcw, BellRing, Edit2, AlertTriangle, CloudSun, X, Footprints } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -29,6 +29,12 @@ import { IReminder, ReminderCategory } from '@lumen/shared';
 import { permissionService } from '../../src/services/permissionService';
 import { ContextualPermissionModal } from '../../src/components/permissions/ContextualPermissionModal';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { FilterChip } from '../../src/components/ios/FilterChip';
+import { InsetGroup, GroupedRow } from '../../src/components/ios/InsetGroup';
+
+const TAB_SPACE = 24;
 
 type ReminderTabValue = ReminderCategory | 'ALL' | 'ALERTS' | 'ARCHIVED';
 
@@ -214,11 +220,11 @@ export default function RemindersScreen() {
 
   const getCategoryColor = (cat: string) => {
     switch (cat) {
-      case 'MEDICATION': return '#8B5CF6';
-      case 'HYDRATION': return '#0284C7';
-      case 'MOVEMENT': return '#FF6B35';
-      case 'SLEEP': return '#6366F1';
-      default: return palette.primary;
+      case 'MEDICATION': return palette.catMeds;
+      case 'HYDRATION': return palette.tint;
+      case 'MOVEMENT': return palette.warning;
+      case 'SLEEP': return '#5856D6';
+      default: return palette.tint;
     }
   };
 
@@ -239,74 +245,54 @@ export default function RemindersScreen() {
     return `Every day at ${r.targetTime || r.schedule || '09:00'}`;
   };
 
+  const activeReminders = reminders.filter(r => !r.archivedAt);
+  const onCount = activeReminders.filter(r => r.enabled).length;
+  const summaryText =
+    activeReminders.length === 0
+      ? 'Nothing scheduled yet'
+      : `${onCount} on · ${activeReminders.length - onCount} off`;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => safeGoBack('/(tabs)/today')}
-          accessibilityRole="button"
-        >
-          <ChevronLeft size={24} color={palette.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isRemindersOnly ? 'Reminders' : 'Alerts & Reminders'}</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.testBtn}
-            onPress={handleTestAlarm}
-            disabled={isTestingAlarm}
-            accessibilityRole="button"
-            accessibilityLabel="Test Alarm"
-          >
-            <BellRing size={15} color={palette.primary} />
-            <Text style={styles.testBtnText}>{isTestingAlarm ? 'Testing...' : 'Test Alarm'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => router.push('/reminders/add')}
-            accessibilityRole="button"
-            accessibilityLabel="Add reminder"
-          >
-            <Plus size={22} color={palette.surface} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Category Filter Tabs */}
-      <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {availableTabs.map(tab => {
-            const isActive = selectedCategory === tab.value;
-            return (
-              <TouchableOpacity
-                key={tab.value}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => setSelectedCategory(tab.value)}
-              >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* List */}
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
+        <LargeTitleHeader
+          title={isRemindersOnly ? 'Reminders' : 'Alerts & Reminders'}
+          subtitle={summaryText}
+          leading={
+            <GlassCircleButton accessibilityLabel="Back" onPress={() => safeGoBack('/(tabs)/today')}>
+              <ChevronLeft size={22} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+          actions={
+            <GlassCircleButton accessibilityLabel="Add reminder" onPress={() => router.push('/reminders/add')}>
+              <Plus size={22} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+        />
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {availableTabs.map(tab => (
+            <FilterChip
+              key={tab.value}
+              label={tab.label}
+              selected={selectedCategory === tab.value}
+              onPress={() => setSelectedCategory(tab.value)}
+            />
+          ))}
+        </ScrollView>
+
         {/* Active Weather Flare Warning Notification */}
         {!isRemindersOnly && activeFlareAlert && !activeFlareAlert.dismissed && (selectedCategory === 'ALL' || selectedCategory === 'ALERTS') && (
           <View
             style={[
               styles.weatherAlertBanner,
               {
-                borderColor: activeFlareAlert.riskLevel === 'high' ? '#EF444450' : '#F59E0B50',
-                backgroundColor: activeFlareAlert.riskLevel === 'high' ? '#EF444410' : '#F59E0B10',
+                backgroundColor: (activeFlareAlert.riskLevel === 'high' ? palette.error : palette.warning) + '1F',
               },
             ]}
           >
@@ -314,12 +300,12 @@ export default function RemindersScreen() {
               <View style={styles.weatherAlertTitleRow}>
                 <AlertTriangle
                   size={18}
-                  color={activeFlareAlert.riskLevel === 'high' ? '#EF4444' : '#F59E0B'}
+                  color={activeFlareAlert.riskLevel === 'high' ? palette.errorText : palette.warningText}
                 />
                 <Text
                   style={[
                     styles.weatherAlertTitle,
-                    { color: activeFlareAlert.riskLevel === 'high' ? '#EF4444' : '#F59E0B' },
+                    { color: activeFlareAlert.riskLevel === 'high' ? palette.errorText : palette.warningText },
                   ]}
                 >
                   {activeFlareAlert.title}
@@ -351,7 +337,7 @@ export default function RemindersScreen() {
               accessibilityRole="button"
               accessibilityLabel="View full weather report"
             >
-              <CloudSun size={14} color={palette.primary} />
+              <CloudSun size={14} color={palette.primaryText} />
               <Text style={styles.weatherAlertDetailText}>
                 View Atmospheric Pressure & UV Report
               </Text>
@@ -365,15 +351,14 @@ export default function RemindersScreen() {
             style={[
               styles.weatherAlertBanner,
               {
-                borderColor: '#FF6B3550',
-                backgroundColor: '#FF6B3510',
+                backgroundColor: palette.warning + '1F',
               },
             ]}
           >
             <View style={styles.weatherAlertHeader}>
               <View style={styles.weatherAlertTitleRow}>
-                <Footprints size={18} color="#FF6B35" />
-                <Text style={[styles.weatherAlertTitle, { color: '#FF6B35' }]}>
+                <Footprints size={18} color={palette.warningText} />
+                <Text style={[styles.weatherAlertTitle, { color: palette.warningText }]}>
                   Spoon Theory Pacing Alert ({activePacingAlert.distanceKm} km)
                 </Text>
               </View>
@@ -403,8 +388,8 @@ export default function RemindersScreen() {
               accessibilityRole="button"
               accessibilityLabel="View walking activity"
             >
-              <Footprints size={14} color="#FF6B35" />
-              <Text style={[styles.weatherAlertDetailText, { color: '#FF6B35' }]}>
+              <Footprints size={14} color={palette.warningText} />
+              <Text style={[styles.weatherAlertDetailText, { color: palette.warningText }]}>
                 View Walking Summary
               </Text>
             </TouchableOpacity>
@@ -434,8 +419,9 @@ export default function RemindersScreen() {
                 </View>
 
                 <View style={styles.cardInfo}>
-                  <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(reminder.category) + '18' }]}>
-                    <Text style={[styles.categoryBadgeText, { color: getCategoryColor(reminder.category) }]}>
+                  <View style={styles.categoryBadge}>
+                    <View style={[styles.categoryDot, { backgroundColor: getCategoryColor(reminder.category) }]} />
+                    <Text style={styles.categoryBadgeText} maxFontSizeMultiplier={1.3}>
                       {reminder.category}
                     </Text>
                   </View>
@@ -452,11 +438,11 @@ export default function RemindersScreen() {
                   ) : null}
                 </View>
 
-                <Switch
+                <AppleSwitch
                   value={reminder.enabled}
                   onValueChange={() => handleToggle(reminder._id)}
-                  trackColor={{ false: palette.border, true: palette.secondary }}
-                  thumbColor={palette.surface}
+                  activeColor={palette.success || '#34C759'}
+                  accessibilityLabel={`${reminder.name} reminder on or off`}
                 />
               </TouchableOpacity>
 
@@ -470,8 +456,8 @@ export default function RemindersScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="Restore reminder"
                     >
-                      <RotateCcw size={14} color={palette.secondary} />
-                      <Text style={[styles.footerActionText, { color: palette.secondary }]}>Restore reminder</Text>
+                      <RotateCcw size={14} color={palette.secondaryText} />
+                      <Text style={[styles.footerActionText, { color: palette.secondaryText }]}>Restore reminder</Text>
                     </TouchableOpacity>
 
                     <View style={styles.footerRight}>
@@ -481,7 +467,7 @@ export default function RemindersScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="Delete forever"
                       >
-                        <Trash2 size={16} color={palette.error} />
+                        <Trash2 size={16} color={palette.errorText} />
                       </TouchableOpacity>
                     </View>
                   </>
@@ -499,6 +485,7 @@ export default function RemindersScreen() {
                       <TouchableOpacity
                         style={styles.footerIconBtn}
                         onPress={() => router.push(`/reminders/${reminder._id}`)}
+                        accessibilityRole="button"
                         accessibilityLabel="Edit reminder"
                       >
                         <Edit2 size={16} color={palette.textSecondary} />
@@ -515,7 +502,7 @@ export default function RemindersScreen() {
                         onPress={() => handleDelete(reminder)}
                         accessibilityLabel="Archive"
                       >
-                        <Trash2 size={16} color={palette.error} />
+                        <Trash2 size={16} color={palette.errorText} />
                       </TouchableOpacity>
                     </View>
                   </>
@@ -525,7 +512,20 @@ export default function RemindersScreen() {
           ))
         )}
 
-        <View style={{ height: 40 }} />
+        {selectedCategory !== 'ARCHIVED' ? (
+          <InsetGroup footer="Rings an alarm now so you can check sound, vibration and lock-screen delivery.">
+            <GroupedRow
+              icon={BellRing}
+              tile={palette.warning}
+              label={isTestingAlarm ? 'Testing…' : 'Test Alarm'}
+              accessibilityLabel="Test Alarm"
+              chevron
+              onPress={isTestingAlarm ? undefined : handleTestAlarm}
+            />
+          </InsetGroup>
+        ) : null}
+
+        <View style={{ height: TAB_SPACE }} />
       </ScrollView>
 
       <ContextualPermissionModal
@@ -560,115 +560,24 @@ const useStyles = createThemedStyles(palette => ({
     flex: 1,
     backgroundColor: palette.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    ...typography.h2,
-    color: palette.text,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  testBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 9999,
-    backgroundColor: palette.primary + '16',
-    borderWidth: 1,
-    borderColor: palette.primary + '40',
-  },
-  testBtnText: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: palette.primary,
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.divider,
-  },
-  filterScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 9999,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  filterChipActive: {
-    backgroundColor: palette.text,
-    borderColor: palette.text,
-  },
-  filterChipText: {
-    ...typography.caption,
-    fontWeight: '600',
-    color: palette.textSecondary,
-  },
-  filterChipTextActive: {
-    color: palette.surface,
-  },
+  filterScroll: { paddingHorizontal: 16, gap: 8 },
   list: {
     flex: 1,
   },
-  listContent: {
-    padding: 16,
-    gap: 12,
-  },
+  listContent: { paddingTop: 6, gap: 14, paddingBottom: 24 },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 80,
     paddingHorizontal: 32,
   },
-  emptyTitle: {
-    ...typography.h3,
-    color: palette.text,
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    ...typography.body,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginTop: 6,
-  },
+  emptyTitle: { ...typography.title2, color: palette.text, marginTop: 16 },
+  emptySubtitle: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center', marginTop: 6 },
   reminderCard: {
+    marginHorizontal: 16,
     backgroundColor: palette.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 26,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
   cardMain: {
     flexDirection: 'row',
@@ -678,7 +587,7 @@ const useStyles = createThemedStyles(palette => ({
   iconCircle: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
@@ -689,56 +598,23 @@ const useStyles = createThemedStyles(palette => ({
   cardInfo: {
     flex: 1,
   },
-  reminderTitle: {
-    ...typography.h3,
-    fontSize: 16,
-    color: palette.text,
-  },
-  reminderSubtitle: {
-    ...typography.caption,
-    color: palette.primary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  reminderMessage: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
+  reminderTitle: { ...typography.headline, color: palette.text },
+  reminderSubtitle: { ...typography.footnote, color: palette.primaryText, fontWeight: '600', marginTop: 2 },
+  reminderMessage: { ...typography.footnote, color: palette.textSecondary, fontStyle: 'italic', marginTop: 2 },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: palette.divider,
-    marginTop: 14,
-    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
+    marginTop: 12,
+    paddingTop: 4,
   },
-  footerAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  footerActionText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '600',
-  },
-  footerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  footerIconBtn: {
-    padding: 4,
-  },
-  weatherAlertBanner: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 14,
-  },
+  footerAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 },
+  footerActionText: { ...typography.footnote, color: palette.textSecondary, fontWeight: '600' },
+  footerRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  footerIconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  weatherAlertBanner: { marginHorizontal: 16, borderRadius: 26, padding: 16 },
   weatherAlertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -751,47 +627,20 @@ const useStyles = createThemedStyles(palette => ({
     gap: 7,
     flex: 1,
   },
-  weatherAlertTitle: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  weatherAlertMessage: {
-    ...typography.caption,
-    fontSize: 12.5,
-    color: palette.text,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
+  weatherAlertTitle: { ...typography.headline },
+  weatherAlertMessage: { ...typography.subhead, color: palette.text, marginBottom: 10 },
   weatherAlertDetailBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
     backgroundColor: palette.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
+    paddingHorizontal: 14,
+    minHeight: 36,
+    borderRadius: 18,
   },
-  weatherAlertDetailText: {
-    ...typography.caption,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: palette.primary,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginBottom: 4,
-  },
-  categoryBadgeText: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  weatherAlertDetailText: { ...typography.subheadBold, color: palette.primaryText },
+  categoryDot: { width: 7, height: 7, borderRadius: 4 },
+  categoryBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginBottom: 2 },
+  categoryBadgeText: { ...typography.footnote, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.3 },
 }));

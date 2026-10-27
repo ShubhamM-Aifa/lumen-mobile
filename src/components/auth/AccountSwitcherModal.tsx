@@ -218,7 +218,7 @@ export function AccountSwitcherModal({ visible, onClose, onSwitched }: Props) {
           <View style={styles.headerRow}>
             <View style={styles.headerTitleRow}>
               <View style={styles.headerIconBox}>
-                <Users size={18} color={palette.primary} />
+                <Users size={18} color={palette.primaryText} />
               </View>
               <Text style={styles.headerTitle}>Switch Account</Text>
             </View>
@@ -349,7 +349,7 @@ export function AccountSwitcherModal({ visible, onClose, onSwitched }: Props) {
                 accessibilityLabel="Add another account"
               >
                 <View style={styles.addIconCircle}>
-                  <Plus size={16} color={palette.primary} strokeWidth={2.4} />
+                  <Plus size={16} color={palette.primaryText} strokeWidth={2.4} />
                 </View>
                 <Text style={styles.addAccountBtnText}>Add another account</Text>
               </TouchableOpacity>
@@ -662,7 +662,7 @@ const useStyles = createThemedStyles(palette => ({
   addAccountBtnText: {
     ...typography.bodyBold,
     fontSize: 14,
-    color: palette.primary,
+    color: palette.primaryText,
   },
   addFormCard: {
     padding: 14,
