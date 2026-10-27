@@ -36,7 +36,7 @@ export function DisclaimerBanner() {
       {expanded && (
         <Text style={styles.body}>
           These patterns are based solely on your recorded data and are for{' '}
-          <Text style={styles.bold}>personal observation only</Text>. They show correlations, not causes.
+          <Text style={styles.bold}>personal observation only</Text>. They show what was logged together, not what causes what, and some can be chance.
           {'\n\n'}Never start, stop or change medication, diet or treatment based on this app.
           Always discuss patterns with a qualified healthcare professional before making any decisions.
         </Text>

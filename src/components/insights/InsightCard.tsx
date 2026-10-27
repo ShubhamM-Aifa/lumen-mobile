@@ -1,143 +1,99 @@
 /**
- * InsightCard — displays one computed pattern finding.
- * Uses only observation language; never says "caused".
- * Expandable to show lag window details.
+ * InsightCard: one pattern from the member's own logs.
+ *
+ * Plain sentence, the counts behind it ("9 of 14 days"), a verbal strength, and an always-visible
+ * line that this is not a cause. Words come from insightCopy.ts, which has one test for all of them.
  */
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
+import type { InsightFinding } from '../../hooks/useInsights';
+import { RateBars } from './RateBars';
+import {
+  headline, notSeenSince, rates, statLine, tierLabel, tierNote, TOGETHER_NOT_CAUSE,
+} from '../../services/insights/insightCopy';
 
-export interface InsightResult {
-  _id: string;
-  /** `opt_<optionId>`, `qa_<quickActionId>` or `cat_<categoryId>`; used to match what the patient just logged. */
-  triggerId?: string;
-  symptomId?: string;
-  trigger: { categoryName: string; optionLabel: string; categoryIcon?: string };
-  symptom: { categoryName: string; optionLabel: string; categoryIcon?: string };
-  lagWindow: string;     // e.g. '24-48h'
-  lift: number;          // e.g. 1.8 = 80 % more common after trigger
-  supportCount: number;
-  confidence: 'Low' | 'Medium' | 'High';
-  computedAt: string;
+interface Props {
+  finding: InsightFinding;
+  /** "Not useful": hide this pattern on this phone. */
+  onDismiss?: (finding: InsightFinding) => void;
 }
 
-const LAG_LABELS: Record<string, string> = {
-  '0-6h': 'within 6 h',
-  '6-24h': 'within 6–24 h',
-  '24-48h': 'within 24–48 h',
-  '48-72h': 'within 48–72 h',
-};
-
-function liftDescription(lift: number): string {
-  const pct = Math.round((lift - 1) * 100);
-  if (lift < 1) return `${Math.round((1 - lift) * 100)}% less common`;
-  if (pct < 20) return 'slightly more common';
-  if (pct < 60) return `${pct}% more common`;
-  return `${pct}% more common`;
-}
-
-export function InsightCard({ insight }: { insight: InsightResult }) {
+export function InsightCard({ finding, onDismiss }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
-  const [expanded, setExpanded] = useState(false);
-  const confColor =
-    insight.confidence === 'High'
-      ? palette.success
-      : insight.confidence === 'Medium'
-      ? palette.warning
-      : palette.textDisabled;
-  const lagLabel = LAG_LABELS[insight.lagWindow] ?? insight.lagWindow;
+  const { withRate, otherRate } = rates(finding);
+  const faded = finding.noLongerSeen;
+  const tone = finding.tier === 'consistent' ? palette.success : palette.warning;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => setExpanded(v => !v)}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={`Insight: ${insight.trigger.optionLabel} and ${insight.symptom.optionLabel}`}
+    <View
+      style={[styles.card, faded && styles.faded]}
+      accessible
+      accessibilityLabel={`${faded ? 'Earlier pattern. ' : ''}${headline(finding)} ${statLine(finding)}`}
     >
-      {/* Trigger → Symptom header */}
-      <View style={styles.header}>
-        <View style={styles.entityWrap}>
-          {insight.trigger.categoryIcon && <Text style={styles.entityIcon}>{insight.trigger.categoryIcon}</Text>}
-          <View>
-            <Text style={styles.entityCat}>{insight.trigger.categoryName}</Text>
-            <Text style={styles.entityLabel}>{insight.trigger.optionLabel}</Text>
-          </View>
+      <View style={styles.top}>
+        <View style={styles.entities}>
+          {finding.exposure.categoryIcon ? <Text style={styles.icon}>{finding.exposure.categoryIcon}</Text> : null}
+          <Text style={styles.entity} numberOfLines={1} maxFontSizeMultiplier={1.3}>{finding.exposure.optionLabel}</Text>
+          <Text style={styles.arrow}>→</Text>
+          {finding.outcome.categoryIcon ? <Text style={styles.icon}>{finding.outcome.categoryIcon}</Text> : null}
+          <Text style={styles.entity} numberOfLines={1} maxFontSizeMultiplier={1.3}>{finding.outcome.optionLabel}</Text>
         </View>
-
-        <View style={styles.arrow}>
-          <Text style={styles.arrowLine}>→</Text>
-          <Text style={styles.lagText}>{lagLabel}</Text>
-        </View>
-
-        <View style={[styles.entityWrap, styles.symptomWrap]}>
-          {insight.symptom.categoryIcon && <Text style={styles.entityIcon}>{insight.symptom.categoryIcon}</Text>}
-          <View>
-            <Text style={styles.entityCat}>{insight.symptom.categoryName}</Text>
-            <Text style={styles.entityLabel}>{insight.symptom.optionLabel}</Text>
-          </View>
+        <View style={[styles.badge, { borderColor: tone + '66', backgroundColor: tone + '16' }]}>
+          <View style={[styles.dot, { backgroundColor: tone }]} />
+          <Text style={[styles.badgeText, { color: tone }]} maxFontSizeMultiplier={1.2}>{tierLabel(finding.tier)}</Text>
         </View>
       </View>
 
-      {/* Summary line */}
-      <Text style={styles.summary}>
-        <Text style={styles.bold}>{liftDescription(insight.lift)}</Text>
-        {' '}after logging {insight.trigger.optionLabel} · {insight.supportCount} times observed
+      <Text style={styles.headline} maxFontSizeMultiplier={1.3}>{headline(finding)}</Text>
+      <Text style={styles.stat} maxFontSizeMultiplier={1.3}>{statLine(finding)}</Text>
+
+      <RateBars
+        withRate={withRate}
+        otherRate={otherRate}
+        withLabel={finding.lagDays <= 0 ? `With ${finding.exposure.optionLabel}` : `After ${finding.exposure.optionLabel}`}
+      />
+
+      <Text style={styles.note} maxFontSizeMultiplier={1.3}>
+        {faded ? `${notSeenSince(finding.lastShownDay)}. ` : `${tierNote(finding.tier)} `}
+        {finding.weakDays ? 'Some of these days had only a little logged, so treat it gently.' : ''}
       </Text>
+      <Text style={styles.together} maxFontSizeMultiplier={1.3}>{TOGETHER_NOT_CAUSE}</Text>
 
-      {/* Confidence badge */}
-      <View style={styles.footer}>
-        <View style={[styles.badge, { borderColor: confColor + '66', backgroundColor: confColor + '16' }]}>
-          <View style={[styles.badgeDot, { backgroundColor: confColor }]} />
-          <Text style={[styles.badgeText, { color: confColor }]}>{insight.confidence} confidence</Text>
+      {onDismiss ? (
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.action}
+            onPress={() => onDismiss(finding)}
+            accessibilityRole="button"
+            accessibilityLabel={`Not useful: hide this pattern about ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
+          >
+            <Text style={styles.actionText} maxFontSizeMultiplier={1.3}>Not useful</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.expand}>{expanded ? '▲ Less' : '▼ Details'}</Text>
-      </View>
-
-      {/* Expanded details */}
-      {expanded && (
-        <View style={styles.details}>
-          <Text style={styles.detailsText}>
-            Based on your recorded data, {insight.symptom.optionLabel.toLowerCase()} was logged{' '}
-            {liftDescription(insight.lift)} in the {lagLabel} after days you recorded{' '}
-            {insight.trigger.optionLabel.toLowerCase()} ({insight.supportCount} of your entries).
-            {'\n\n'}
-            This is an <Text style={styles.bold}>observed pattern</Text>, not a proven cause.
-            Many factors may be involved. Consider discussing this with your healthcare provider.
-          </Text>
-          <Text style={styles.computedAt}>
-            Analysed {new Date(insight.computedAt).toLocaleDateString()}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
 
 const useStyles = createThemedStyles(palette => ({
-  card: {
-    backgroundColor: palette.surface, borderRadius: 26,
-    padding: 16, gap: 10,
-  },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  entityWrap: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  symptomWrap: { justifyContent: 'flex-end' },
-  entityIcon: { fontSize: 18, marginTop: 2 },
-  entityCat: { ...typography.caption, color: palette.textDisabled, textTransform: 'uppercase', letterSpacing: 0.3 },
-  entityLabel: { ...typography.bodyBold, color: palette.text },
-  arrow: { alignItems: 'center', paddingTop: 4 },
-  arrowLine: { ...typography.h4, color: palette.primaryText },
-  lagText: { ...typography.caption, color: palette.textSecondary, textAlign: 'center', marginTop: 2 },
-  summary: { ...typography.small, color: palette.textSecondary, lineHeight: 18 },
-  bold: { fontWeight: '700', color: palette.text },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeDot: { width: 7, height: 7, borderRadius: 3.5 },
+  card: { backgroundColor: palette.surface, borderRadius: 26, padding: 16, gap: 10 },
+  faded: { opacity: 0.7 },
+  top: { gap: 8 },
+  entities: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  icon: { fontSize: 16 },
+  entity: { ...typography.bodyBold, color: palette.text, flexShrink: 1 },
+  arrow: { ...typography.body, color: palette.textSecondary },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
   badgeText: { ...typography.caption, fontWeight: '700' },
-  expand: { ...typography.small, color: palette.primaryText },
-  details: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12, gap: 8 },
-  detailsText: { ...typography.small, color: palette.textSecondary, lineHeight: 20 },
-  computedAt: { ...typography.caption, color: palette.textDisabled },
+  headline: { ...typography.headline, color: palette.text, lineHeight: 24 },
+  stat: { ...typography.body, color: palette.textSecondary, lineHeight: 22 },
+  note: { ...typography.footnote, color: palette.textSecondary, lineHeight: 19 },
+  together: { ...typography.footnote, fontWeight: '600', color: palette.text, lineHeight: 19 },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 2 },
+  action: { minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  actionText: { ...typography.body, color: palette.primaryText },
 }));

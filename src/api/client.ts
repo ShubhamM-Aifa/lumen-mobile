@@ -120,6 +120,21 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+/** A "contact your doctor" notice the server attaches to a log response. Fixed wording, never written by a model. */
+export interface SafetyFlag {
+  id: string;
+  level: 'today' | 'now';
+  title: string;
+  message: string;
+}
+
+let safetyListener: ((flags: SafetyFlag[]) => void) | null = null;
+
+/** The app registers one handler that shows these notices, wherever the log was saved from. */
+export function setSafetyListener(listener: ((flags: SafetyFlag[]) => void) | null): void {
+  safetyListener = listener;
+}
+
 export async function apiRequest<T = unknown>(
   path: string,
   options: RequestInit = {},
@@ -149,7 +164,7 @@ export async function apiRequest<T = unknown>(
     throw new ApiError(401, 'Session expired — please log in again');
   }
 
-  let json: { success?: boolean; data?: T; message?: string; errors?: unknown[] } = {};
+  let json: { success?: boolean; data?: T; message?: string; errors?: unknown[]; safety?: { flags?: SafetyFlag[] } } = {};
   try {
     const text = await resp.text();
     if (text) {
@@ -171,6 +186,10 @@ export async function apiRequest<T = unknown>(
     const fullMessage = (json.message ?? 'Request failed') + errorDetails;
     console.error(`[API Error ${resp.status}] ${path}:`, fullMessage, json.errors);
     throw new ApiError(resp.status, fullMessage, json.errors);
+  }
+
+  if (json.safety?.flags?.length) {
+    try { safetyListener?.(json.safety.flags); } catch { /* showing a notice must never break saving */ }
   }
 
   return (json.data !== undefined ? json.data : (json as unknown as T));

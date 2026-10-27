@@ -5,10 +5,8 @@
  * Pure: no I/O and no clock reads, so every rule is unit-testable. It never says what caused a symptom.
  */
 import { Candidate } from './budgetEngine';
-import type { InsightResult } from '../../components/insights/InsightCard';
+import type { InsightFinding } from '../../hooks/useInsights';
 
-/** A pattern has to be at least this much more common than usual before it is worth mentioning. */
-export const MIN_LIFT = 1.3;
 /** Only things logged in the last day are talked about. */
 export const WATCH_LOOKBACK_MS = 24 * 3600000;
 /** For a 0 to N hour pattern, check in this long after (an immediate buzz right after logging is noise). */
@@ -23,7 +21,8 @@ export interface WatchedEntry {
 }
 
 const HOUR = 3600000;
-const CONFIDENCE: Record<InsightResult['confidence'], number> = { Low: 0.4, Medium: 0.65, High: 0.85 };
+/** How sure the observation sounds to the notification budget; only shown tiers get this far. */
+const CONFIDENCE: Record<InsightFinding['tier'], number> = { possible: 0.65, consistent: 0.85 };
 
 /** The ids an entry can match against a stored pattern's trigger. */
 export function triggerKeysOf(entry: WatchedEntry): string[] {
@@ -34,10 +33,10 @@ export function triggerKeysOf(entry: WatchedEntry): string[] {
   return keys;
 }
 
-/** '6-24h' -> [6, 24]. */
-export function parseLagWindow(lag: string): [number, number] | null {
-  const m = /^(\d+)-(\d+)h$/.exec(lag);
-  return m ? [Number(m[1]), Number(m[2])] : null;
+/** A finding looks 0, 1 or 2 days ahead; as hours after the entry that is 0-24, 24-48 or 48-72. */
+export function lagWindowOf(lagDays: number): [number, number] {
+  const day = Math.max(0, Math.min(2, Math.round(lagDays)));
+  return [day * 24, (day + 1) * 24];
 }
 
 /** "6–24 h" or "within 6 h". */
@@ -70,11 +69,17 @@ function timeOfDay(at: Date): string {
   return at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
-/** A specific option or quick tap reads better than a whole category, so a vaguer match scores lower. */
-export function patternScore(i: InsightResult): number {
-  const triggerSpecific = !i.triggerId?.startsWith('cat_');
-  const symptomSpecific = !!i.symptomId?.startsWith('opt_');
-  return i.lift * i.supportCount * (triggerSpecific ? 1 : 0.8) * (symptomSpecific ? 1 : 0.8);
+/**
+ * How much a pattern is worth mentioning: how much more often the symptom was logged, times how
+ * many days that rests on. A specific option or quick tap reads better than a whole category, so a
+ * vaguer match scores lower, and a consistent pattern edges out a possible one.
+ */
+export function patternScore(f: InsightFinding): number {
+  const { exposedWith, exposedTotal, otherWith, otherTotal } = f.counts;
+  const gap = Math.max(0.01, (exposedTotal > 0 ? exposedWith / exposedTotal : 0) - (otherTotal > 0 ? otherWith / otherTotal : 0));
+  const exposureSpecific = !f.exposureKey.startsWith('cat_');
+  const outcomeSpecific = f.outcomeKey.startsWith('opt_');
+  return gap * exposedWith * (f.tier === 'consistent' ? 1.2 : 1) * (exposureSpecific ? 1 : 0.8) * (outcomeSpecific ? 1 : 0.8);
 }
 
 /** Local calendar day, so a pattern is mentioned at most once a day. */
@@ -84,15 +89,16 @@ function dayKey(ms: number): string {
 }
 
 export interface WatchInput {
-  insights: InsightResult[];
+  findings: InsightFinding[];
   entries: WatchedEntry[];
   now: number;
   /** Ids already spoken about, so each logged entry is mentioned once. */
   seen: ReadonlySet<string>;
 }
 
-export function buildTriggerWatchCandidates({ insights, entries, now, seen }: WatchInput): Candidate[] {
-  const usable = insights.filter(i => i.triggerId && i.lift >= MIN_LIFT && parseLagWindow(i.lagWindow));
+export function buildTriggerWatchCandidates({ findings, entries, now, seen }: WatchInput): Candidate[] {
+  // Only patterns the member can currently see: a possible or consistent tier that is still supported
+  const usable = findings.filter(f => f.exposureKey && !f.noLongerSeen && (f.tier === 'possible' || f.tier === 'consistent'));
   if (usable.length === 0) return [];
 
   const found: Array<{ candidate: Candidate; score: number; at: number }> = [];
@@ -102,42 +108,43 @@ export function buildTriggerWatchCandidates({ insights, entries, now, seen }: Wa
     if (!Number.isFinite(age) || age < 0 || age > WATCH_LOOKBACK_MS) continue;
 
     const keys = new Set(triggerKeysOf(entry));
-    let best: { insight: InsightResult; window: [number, number] } | null = null;
-    for (const insight of usable) {
-      if (!keys.has(insight.triggerId as string)) continue;
-      const window = parseLagWindow(insight.lagWindow) as [number, number];
+    let best: { finding: InsightFinding; window: [number, number] } | null = null;
+    for (const finding of usable) {
+      if (!keys.has(finding.exposureKey)) continue;
+      const window = lagWindowOf(finding.lagDays);
       if (at.getTime() + window[1] * HOUR <= now) continue; // the pattern's window has already passed
-      const stronger = !best || patternScore(insight) > patternScore(best.insight);
-      if (stronger) best = { insight, window };
+      const stronger = !best || patternScore(finding) > patternScore(best.finding);
+      if (stronger) best = { finding, window };
     }
     if (!best) continue;
 
-    const { insight, window } = best;
-    const id = `tw:${entry._id}:${insight.triggerId}`;
-    const patternKey = `twp:${insight.triggerId}>${insight.symptomId ?? insight.symptom.optionLabel}:${dayKey(now)}`;
+    const { finding, window } = best;
+    const id = `tw:${entry._id}:${finding.exposureKey}`;
+    const patternKey = `twp:${finding.exposureKey}>${finding.outcomeKey}:${dayKey(now)}`;
     if (seen.has(id) || seen.has(patternKey)) continue;
 
     const [lo, hi] = window;
-    const trigger = insight.trigger.optionLabel;
-    const symptom = insight.symptom.optionLabel;
+    const trigger = finding.exposure.optionLabel;
+    const symptom = finding.outcome.optionLabel;
     const checkInHours = lo === 0 ? IMMEDIATE_WINDOW_CHECK_IN_HOURS : lo;
+    const { exposedWith, exposedTotal } = finding.counts;
 
-    found.push({ score: patternScore(insight), at: at.getTime(), candidate: {
+    found.push({ score: patternScore(finding), at: at.getTime(), candidate: {
       id,
       type: 'TRIGGER_WATCH',
-      title: `You logged ${trigger} ${whenPhrase(at, insight.trigger.categoryName)}`,
+      title: `You logged ${trigger} ${whenPhrase(at, finding.exposure.categoryName)}`,
       body: `${symptom} ${verbFor(symptom)} been more common ${lagPhrase(window)} after it.`,
-      confidence: CONFIDENCE[insight.confidence],
+      confidence: CONFIDENCE[finding.tier],
       timeliness: 0.7,
       expiresAt: at.getTime() + hi * HOUR,
       notBefore: Math.max(now, at.getTime() + checkInHours * HOUR),
       inAppNow: true,
       provenance: [
         `You logged ${trigger} at ${timeOfDay(at)} today.`,
-        `In your own logs, ${symptom.toLowerCase()} showed up more often ${lagPhrase(window)} after ${trigger.toLowerCase()} (seen ${insight.supportCount} times).`,
+        `In your own logs, ${symptom.toLowerCase()} showed up more often ${lagPhrase(window)} after ${trigger.toLowerCase()} (on ${exposedWith} of ${exposedTotal} such days).`,
         'This is a pattern in what you recorded, not a cause. It can change as you log more.',
       ],
-      data: { insightId: insight._id, entryId: entry._id, patternKey, route: '/(tabs)/insights' },
+      data: { insightId: finding.id, entryId: entry._id, patternKey, route: '/(tabs)/insights' },
     } });
   }
 

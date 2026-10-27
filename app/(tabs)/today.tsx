@@ -47,6 +47,7 @@ import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { UndoToast } from '../../src/components/UndoToast';
 import { ForYouTodayCard } from '../../src/components/home/ForYouTodayCard';
 import { FeelingCard } from '../../src/components/home/FeelingCard';
+import { DayCheckInCard } from '../../src/components/home/DayCheckInCard';
 import { MyDaySection } from '../../src/components/home/MyDaySection';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
@@ -62,6 +63,7 @@ import { useIntelligenceStore } from '../../src/store/intelligenceStore';
 import { useNotificationInboxStore, countUnread } from '../../src/store/notificationInboxStore';
 import { refreshInbox } from '../../src/services/notificationInbox';
 import { useTriggerWatch } from '../../src/hooks/useTriggerWatch';
+import { useFlareRiskWatch } from '../../src/hooks/useFlareRiskWatch';
 import { FlareModeToday, pickEssentialActions } from '../../src/components/home/FlareModeToday';
 
 export default function TodayScreen() {
@@ -176,6 +178,7 @@ export default function TodayScreen() {
   }, []);
   const unreadNotifications = countUnread(inboxEntries);
   useTriggerWatch();
+  useFlareRiskWatch();
 
   const hasUrgentAlert =
     (activeFlareAlert && !activeFlareAlert.dismissed) || (activePacingAlert && !activePacingAlert.dismissed);
@@ -403,6 +406,8 @@ export default function TodayScreen() {
           )}
 
           <MyDaySection boundaryHour={boundaryHour} />
+
+          <DayCheckInCard boundaryHour={boundaryHour} />
           </>
         )}
       </ScrollView>

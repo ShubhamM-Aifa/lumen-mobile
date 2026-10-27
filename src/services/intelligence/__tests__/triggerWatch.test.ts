@@ -1,30 +1,30 @@
 import {
   buildTriggerWatchCandidates,
   lagPhrase,
-  parseLagWindow,
+  lagWindowOf,
   triggerKeysOf,
   verbFor,
   whenPhrase,
   WatchedEntry,
 } from '../triggerWatch';
-import type { InsightResult } from '../../../components/insights/InsightCard';
+import type { InsightFinding } from '../../../hooks/useInsights';
 
 const HOUR = 3600000;
 // 2026-10-27 14:00 local
 const NOW = new Date(2026, 9, 27, 14, 0, 0).getTime();
 const at = (hour: number, min = 0) => new Date(2026, 9, 27, hour, min, 0).toISOString();
 
-const insight = (over: Partial<InsightResult> = {}): InsightResult => ({
-  _id: 'i1',
-  triggerId: 'opt_dairy',
-  symptomId: 'opt_digestive',
-  trigger: { categoryName: 'Food & Drink', optionLabel: 'Dairy' },
-  symptom: { categoryName: 'Symptoms', optionLabel: 'Digestive issues' },
-  lagWindow: '6-24h',
-  lift: 1.8,
-  supportCount: 9,
-  confidence: 'Medium',
-  computedAt: '2026-10-27T03:00:00.000Z',
+const finding = (over: Partial<InsightFinding> = {}): InsightFinding => ({
+  id: 'f1',
+  exposureKey: 'opt_dairy',
+  outcomeKey: 'opt_digestive',
+  exposure: { categoryName: 'Food & Drink', optionLabel: 'Dairy' },
+  outcome: { categoryName: 'Symptoms', optionLabel: 'Digestive issues' },
+  lagDays: 1,
+  counts: { exposedWith: 9, exposedTotal: 14, otherWith: 6, otherTotal: 31 },
+  tier: 'possible',
+  noLongerSeen: false,
+  weakDays: false,
   ...over,
 });
 
@@ -33,7 +33,7 @@ const entry = (over: Partial<WatchedEntry> = {}): WatchedEntry => ({
 });
 
 const run = (over: Partial<Parameters<typeof buildTriggerWatchCandidates>[0]> = {}) =>
-  buildTriggerWatchCandidates({ insights: [insight()], entries: [entry()], now: NOW, seen: new Set(), ...over });
+  buildTriggerWatchCandidates({ findings: [finding()], entries: [entry()], now: NOW, seen: new Set(), ...over });
 
 describe('wording helpers', () => {
   it('describes the time the way a person would', () => {
@@ -54,11 +54,13 @@ describe('wording helpers', () => {
     expect(verbFor('Stress')).toBe('has');
   });
 
-  it('formats lag windows', () => {
-    expect(parseLagWindow('6-24h')).toEqual([6, 24]);
-    expect(parseLagWindow('nonsense')).toBeNull();
-    expect(lagPhrase([6, 24])).toBe('6–24 h');
-    expect(lagPhrase([0, 6])).toBe('within 6 h');
+  it('turns a day lag into an hours window and a phrase', () => {
+    expect(lagWindowOf(0)).toEqual([0, 24]);
+    expect(lagWindowOf(1)).toEqual([24, 48]);
+    expect(lagWindowOf(2)).toEqual([48, 72]);
+    expect(lagWindowOf(9)).toEqual([48, 72]);
+    expect(lagPhrase([24, 48])).toBe('24–48 h');
+    expect(lagPhrase([0, 24])).toBe('within 24 h');
   });
 
   it('lists every id an entry can match on', () => {
@@ -72,12 +74,12 @@ describe('buildTriggerWatchCandidates', () => {
     const [c] = run();
     expect(c.type).toBe('TRIGGER_WATCH');
     expect(c.title).toBe('You logged Dairy at lunch');
-    expect(c.body).toBe('Digestive issues have been more common 6–24 h after it.');
+    expect(c.body).toBe('Digestive issues have been more common 24–48 h after it.');
     expect(c.inAppNow).toBe(true);
-    // logged 12:30, pattern starts at 6 h, ends at 24 h
-    expect(c.notBefore).toBe(new Date(2026, 9, 27, 18, 30).getTime());
-    expect(c.expiresAt).toBe(new Date(2026, 9, 28, 12, 30).getTime());
-    expect(c.data).toMatchObject({ entryId: 'e1', insightId: 'i1', route: '/(tabs)/insights' });
+    // logged 12:30; the next-day pattern starts 24 h later and ends at 48 h
+    expect(c.notBefore).toBe(new Date(2026, 9, 28, 12, 30).getTime());
+    expect(c.expiresAt).toBe(new Date(2026, 9, 29, 12, 30).getTime());
+    expect(c.data).toMatchObject({ entryId: 'e1', insightId: 'f1', route: '/(tabs)/insights' });
   });
 
   it('never uses causal wording', () => {
@@ -89,22 +91,22 @@ describe('buildTriggerWatchCandidates', () => {
     expect(c.provenance?.[2]).toContain('not a cause');
   });
 
-  it('explains itself without percentages', () => {
+  it('explains itself with day counts, not percentages', () => {
     const [c] = run();
     expect(c.provenance?.[0]).toMatch(/You logged Dairy at .* today\./);
-    expect(c.provenance?.[1]).toContain('seen 9 times');
+    expect(c.provenance?.[1]).toContain('on 9 of 14 such days');
     expect((c.provenance ?? []).join(' ')).not.toMatch(/%/);
   });
 
   it('matches quick taps and whole categories as well as options', () => {
-    const byQuick = run({ insights: [insight({ triggerId: 'qa_coffee', trigger: { categoryName: 'Quick tap', optionLabel: 'Coffee' } })], entries: [entry({ answers: [], quickActionId: 'coffee' })] });
+    const byQuick = run({ findings: [finding({ exposureKey: 'qa_coffee', exposure: { categoryName: 'Quick tap', optionLabel: 'Coffee' } })], entries: [entry({ answers: [], quickActionId: 'coffee' })] });
     expect(byQuick[0].title).toBe('You logged Coffee this afternoon');
-    const byCat = run({ insights: [insight({ triggerId: 'cat_food' })], entries: [entry({ answers: [], categoryId: 'food' })] });
+    const byCat = run({ findings: [finding({ exposureKey: 'cat_food' })], entries: [entry({ answers: [], categoryId: 'food' })] });
     expect(byCat).toHaveLength(1);
   });
 
-  it('says nothing about weak patterns', () => {
-    expect(run({ insights: [insight({ lift: 1.25 })] })).toEqual([]);
+  it('says nothing about a pattern that is no longer supported', () => {
+    expect(run({ findings: [finding({ noLongerSeen: true })] })).toEqual([]);
   });
 
   it('ignores entries that match no pattern', () => {
@@ -116,15 +118,6 @@ describe('buildTriggerWatchCandidates', () => {
     expect(run({ entries: [entry({ occurredAt: new Date(NOW + HOUR).toISOString() })] })).toEqual([]);
   });
 
-  it("ignores a pattern whose window has already passed", () => {
-    // logged 8 h ago, the pattern only runs 0-6 h after
-    const out = run({
-      insights: [insight({ lagWindow: '0-6h' })],
-      entries: [entry({ occurredAt: new Date(NOW - 8 * HOUR).toISOString() })],
-    });
-    expect(out).toEqual([]);
-  });
-
   it('mentions each entry once', () => {
     const [first] = run();
     expect(run({ seen: new Set([first.id]) })).toEqual([]);
@@ -132,9 +125,9 @@ describe('buildTriggerWatchCandidates', () => {
 
   it('picks the strongest pattern for one entry', () => {
     const out = run({
-      insights: [
-        insight({ _id: 'weak', lift: 1.4, supportCount: 5, symptom: { categoryName: 'Symptoms', optionLabel: 'Headache' } }),
-        insight({ _id: 'strong', lift: 2.1, supportCount: 12 }),
+      findings: [
+        finding({ id: 'weak', counts: { exposedWith: 6, exposedTotal: 12, otherWith: 8, otherTotal: 30 }, outcome: { categoryName: 'Symptoms', optionLabel: 'Headache' } }),
+        finding({ id: 'strong', counts: { exposedWith: 12, exposedTotal: 14, otherWith: 5, otherTotal: 30 } }),
       ],
     });
     expect(out).toHaveLength(1);
@@ -142,25 +135,21 @@ describe('buildTriggerWatchCandidates', () => {
   });
 
   it('prefers a named option and symptom over a whole category when they are equally strong', () => {
-    const out = run({
-      insights: [
-        insight({ _id: 'cat', triggerId: 'cat_food', symptomId: 'cat_symptoms', trigger: { categoryName: 'Trigger', optionLabel: 'Food & Drink' }, symptom: { categoryName: 'Symptom', optionLabel: 'Symptoms' } }),
-        insight({ _id: 'named', symptomId: 'opt_digestive' }),
-      ],
-      entries: [entry({ categoryId: 'food' })].map(e => ({ ...e, answers: [{ optionId: 'dairy' }] })),
-    });
-    // the entry matches only the option pattern here, so craft one that matches both:
     const both = run({
-      insights: [
-        insight({ _id: 'cat', triggerId: 'cat_food', symptomId: 'cat_symptoms', trigger: { categoryName: 'Trigger', optionLabel: 'Food & Drink' }, symptom: { categoryName: 'Symptom', optionLabel: 'Symptoms' } }),
-        insight({ _id: 'named', symptomId: 'opt_digestive' }),
+      findings: [
+        finding({ id: 'cat', exposureKey: 'cat_food', outcomeKey: 'cat_symptoms', exposure: { categoryName: 'Trigger', optionLabel: 'Food & Drink' }, outcome: { categoryName: 'Symptom', optionLabel: 'Symptoms' } }),
+        finding({ id: 'named' }),
       ],
       entries: [entry({ categoryId: 'food' })],
     });
-    expect(out[0].data?.insightId).toBe('named');
     expect(both).toHaveLength(1);
     expect(both[0].data?.insightId).toBe('named');
     expect(both[0].title).toBe('You logged Dairy at lunch');
+  });
+
+  it('lets a consistent pattern edge out an equally strong possible one', () => {
+    const out = run({ findings: [finding({ id: 'possible' }), finding({ id: 'steady', tier: 'consistent', outcomeKey: 'opt_other', outcome: { categoryName: 'Symptoms', optionLabel: 'Fatigue' } })] });
+    expect(out[0].data?.insightId).toBe('steady');
   });
 
   it('speaks once per pattern: two entries of the same food give one observation, for the latest', () => {
@@ -170,13 +159,13 @@ describe('buildTriggerWatchCandidates', () => {
   });
 
   it('adds at most one observation per run, the strongest pattern first', () => {
-    const coffee = insight({ _id: 'coffee', triggerId: 'qa_coffee', trigger: { categoryName: 'Quick tap', optionLabel: 'Coffee' }, lift: 1.5, supportCount: 6 });
+    const coffee = finding({ id: 'coffee', exposureKey: 'qa_coffee', exposure: { categoryName: 'Quick tap', optionLabel: 'Coffee' }, counts: { exposedWith: 6, exposedTotal: 12, otherWith: 5, otherTotal: 30 } });
     const entries = [entry(), entry({ _id: 'e2', answers: [], quickActionId: 'coffee', occurredAt: at(13, 0) })];
-    const first = run({ insights: [insight(), coffee], entries });
+    const first = run({ findings: [finding(), coffee], entries });
     expect(first).toHaveLength(1);
-    expect(first[0].data?.insightId).toBe('i1');
+    expect(first[0].data?.insightId).toBe('f1');
     // once that one is announced, the next run moves on to the other pattern
-    const second = run({ insights: [insight(), coffee], entries, seen: new Set([first[0].id, first[0].data?.patternKey as string]) });
+    const second = run({ findings: [finding(), coffee], entries, seen: new Set([first[0].id, first[0].data?.patternKey as string]) });
     expect(second[0].data?.insightId).toBe('coffee');
   });
 
@@ -186,23 +175,22 @@ describe('buildTriggerWatchCandidates', () => {
     expect(out).toEqual([]);
   });
 
-  it('checks in after 3 hours for a 0-6 h pattern instead of straight away', () => {
+  it('checks in after 3 hours for a same-day pattern instead of straight away', () => {
     const [c] = run({
-      insights: [insight({ lagWindow: '0-6h' })],
+      findings: [finding({ lagDays: 0 })],
       entries: [entry({ occurredAt: new Date(NOW - 30 * 60000).toISOString() })],
     });
     expect(c.notBefore).toBe(NOW - 30 * 60000 + 3 * HOUR);
-    expect(c.body).toContain('within 6 h');
+    expect(c.body).toContain('within 24 h');
   });
 
-  it('scales confidence with how often the pattern was seen', () => {
-    const conf = (confidence: InsightResult['confidence']) => run({ insights: [insight({ confidence })] })[0].confidence;
-    expect(conf('Low')).toBeLessThan(conf('Medium'));
-    expect(conf('Medium')).toBeLessThan(conf('High'));
+  it('sounds surer for a consistent pattern than a possible one', () => {
+    const conf = (tier: InsightFinding['tier']) => run({ findings: [finding({ tier })] })[0].confidence;
+    expect(conf('possible')).toBeLessThan(conf('consistent'));
   });
 
   it('does nothing without patterns or entries', () => {
-    expect(run({ insights: [] })).toEqual([]);
+    expect(run({ findings: [] })).toEqual([]);
     expect(run({ entries: [] })).toEqual([]);
   });
 });

@@ -62,13 +62,13 @@ export function useTriggerWatch(): void {
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
   useEffect(() => {
-    const insights = insightData?.insights ?? [];
-    if (!policyLoaded || running || insights.length === 0 || !entries || entries.length === 0) return;
+    const findings = insightData?.findings ?? [];
+    if (!policyLoaded || running || findings.length === 0 || !entries || entries.length === 0) return;
     running = true;
     (async () => {
       try {
         const seen = await loadSeen();
-        const candidates = buildTriggerWatchCandidates({ insights, entries, now: Date.now(), seen });
+        const candidates = buildTriggerWatchCandidates({ findings, entries, now: Date.now(), seen });
         if (candidates.length === 0) return;
         await remember(candidates.flatMap(c => [c.id, c.data?.patternKey].filter((k): k is string => typeof k === 'string')));
         await useIntelligenceStore.getState().submit(candidates);

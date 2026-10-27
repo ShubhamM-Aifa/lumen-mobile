@@ -451,6 +451,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user)).catch(() => {});
         AsyncStorage.setItem(`lumen:auth:user_${user._id}`, JSON.stringify(user)).catch(() => {});
 
+        // The server splits days in the member's zone, and new accounts default to UTC
+        const phoneZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (phoneZone && user.preferences?.timezone !== phoneZone) {
+          api.patch<IUser>('/auth/me', { preferences: { timezone: phoneZone } })
+            .then(updated => { if (updated) set({ user: updated }); })
+            .catch(() => {});
+        }
+
         // Keep savedAccounts entry up to date with latest profile name/email
         const existing = await getStoredSavedAccounts();
         const updatedList = existing.map(a =>

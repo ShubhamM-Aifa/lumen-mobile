@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, TextInput,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import AppDateTimePicker from '../src/components/common/AppDateTimePicker';
@@ -35,6 +35,8 @@ export default function ReportsScreen() {
   const [format, setFormat] = useState<Format>('pdf');
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [includeSummary, setIncludeSummary] = useState(true);
+  const [notesForDoctor, setNotesForDoctor] = useState('');
 
   const categories = (config?.categories ?? []).filter(c => c.isActive);
 
@@ -68,6 +70,8 @@ export default function ReportsScreen() {
         to: toEnd.toISOString(),
         format,
         categoryIds: catIds,
+        includeSummary: format === 'pdf' ? includeSummary : false,
+        notesForDoctor: notesForDoctor.trim() || undefined,
       });
 
       const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv';
@@ -178,6 +182,43 @@ export default function ReportsScreen() {
           ))}
         </View>
 
+        {/* Doctor summary */}
+        {format === 'pdf' && (
+          <>
+            <Text style={styles.sectionLabel}>Doctor summary</Text>
+            <TouchableOpacity
+              style={styles.summaryToggleRow}
+              onPress={() => setIncludeSummary(v => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: includeSummary }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.summaryToggleLabel}>Add a one-page summary first</Text>
+                <Text style={styles.summaryToggleDesc}>Trend, flares, medicines and patterns on one page, ahead of the full log.</Text>
+              </View>
+              <View style={[styles.switchTrack, includeSummary && styles.switchTrackOn]}>
+                <View style={[styles.switchThumb, includeSummary && styles.switchThumbOn]} />
+              </View>
+            </TouchableOpacity>
+
+            {includeSummary && (
+              <View style={styles.notesBox}>
+                <Text style={styles.notesLabel}>Questions for your doctor (optional)</Text>
+                <TextInput
+                  style={styles.notesInput}
+                  value={notesForDoctor}
+                  onChangeText={setNotesForDoctor}
+                  placeholder="e.g. Is the joint pain pattern worth changing my medicine?"
+                  placeholderTextColor={palette.placeholder}
+                  multiline
+                  maxLength={1000}
+                  accessibilityLabel="Questions for your doctor"
+                />
+              </View>
+            )}
+          </>
+        )}
+
         {/* Category filter */}
         <Text style={styles.sectionLabel}>Categories (optional — leave blank for all)</Text>
         <View style={styles.catGrid}>
@@ -239,6 +280,16 @@ const useStyles = createThemedStyles(palette => ({
   dateBtnValue: { ...typography.bodyBold, color: palette.text },
   dateSep: { ...typography.h4, color: palette.textDisabled },
   dateMeta: { ...typography.small, color: palette.textDisabled },
+  summaryToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderRadius: 22, padding: 14, minHeight: 52 },
+  summaryToggleLabel: { ...typography.bodyBold, color: palette.text },
+  summaryToggleDesc: { ...typography.caption, color: palette.textDisabled, marginTop: 2 },
+  switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: palette.border, padding: 2, justifyContent: 'center' },
+  switchTrackOn: { backgroundColor: palette.primary },
+  switchThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF' },
+  switchThumbOn: { alignSelf: 'flex-end' },
+  notesBox: { backgroundColor: palette.surface, borderRadius: 22, padding: 14, gap: 6 },
+  notesLabel: { ...typography.caption, color: palette.textDisabled },
+  notesInput: { ...typography.body, color: palette.text, minHeight: 60, textAlignVertical: 'top' },
   formatRow: { flexDirection: 'row', gap: 12 },
   formatCard: { flex: 1, backgroundColor: palette.surface, borderRadius: 26, borderWidth: 1.5, borderColor: palette.border, padding: 14, gap: 4, alignItems: 'center' },
   formatCardActive: { borderColor: palette.primary, backgroundColor: palette.primary + '0C' },

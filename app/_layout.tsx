@@ -21,6 +21,7 @@ import { InitialPermissionsModal } from '../src/components/permissions/InitialPe
 import { permissionService } from '../src/services/permissionService';
 import { useAppLock } from '../src/hooks/useAppLock';
 import { AppLockOverlay } from '../src/components/security/AppLockOverlay';
+import { SafetyAlertHost } from '../src/components/safety/SafetyAlertHost';
 
 // Install custom alert interceptor globally for all Alert.alert() calls
 try {
@@ -81,6 +82,7 @@ function AppBootstrap() {
         <Stack.Screen name="log" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
       <CustomAlertModal />
+      <SafetyAlertHost />
       <AppLockOverlay />
       <InitialPermissionsModal
         visible={showInitialPrimer}
