@@ -106,6 +106,20 @@ export function createThemedStyles<T extends StyleSheet.NamedStyles<T> | StyleSh
 ): () => T {
   return function useStyles(): T {
     const { palette } = useTheme();
-    return useMemo(() => StyleSheet.create(factory(palette)), [palette]);
+    return useMemo(() => {
+      const raw = factory(palette);
+      const styleRules: any = {};
+      const primitives: any = {};
+      for (const key of Object.keys(raw)) {
+        const val = (raw as any)[key];
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          styleRules[key] = val;
+        } else {
+          primitives[key] = val;
+        }
+      }
+      const created = StyleSheet.create(styleRules);
+      return Object.assign(created, primitives) as T;
+    }, [palette]);
   };
 }

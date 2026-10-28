@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Check, Target } from 'lucide-react-native';
-import { createThemedStyles } from '../theme/ThemeContext';
+import { createThemedStyles, useTheme } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { useQuickLogStore } from '../store/quickLogStore';
 import { useAuthStore } from '../store/authStore';
@@ -33,6 +33,7 @@ interface Props {
 
 export function QuickActionButton({ action, onLongPress, onPressOverride, width }: Props): React.ReactElement {
   const styles = useStyles();
+  const { palette } = useTheme();
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
   const { todayTaps, tap } = useQuickLogStore();
@@ -123,17 +124,17 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
               size={26}
               strokeWidth={2.8}
               progress={clampedProgress}
-              color={isGoalMet ? styles.paletteSuccess : action.color}
-              trackColor={action.color ? `${action.color}22` : styles.paletteSurfaceAlt}
+              color={isGoalMet ? palette.success : action.color}
+              trackColor={action.color ? `${action.color}22` : palette.surfaceAlt}
             >
               {isGoalMet ? (
-                <Check size={12} color={styles.paletteSuccess} strokeWidth={3} />
+                <Check size={12} color={palette.success} strokeWidth={3} />
               ) : count > 0 ? (
                 <Text style={[styles.ringCountText, { color: action.color }]}>
                   {count > 99 ? '99+' : count}
                 </Text>
               ) : (
-                <Target size={11} color={styles.paletteTextTertiary} strokeWidth={2} opacity={0.6} />
+                <Target size={11} color={palette.textSecondary} strokeWidth={2} opacity={0.6} />
               )}
             </ProgressRing>
           ) : null}
@@ -154,7 +155,7 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
                   styles.progressBarFill,
                   {
                     width: `${percent}%`,
-                    backgroundColor: isGoalMet ? styles.paletteSuccess : action.color,
+                    backgroundColor: isGoalMet ? palette.success : action.color,
                   },
                 ]}
               />
@@ -219,8 +220,4 @@ const useStyles = createThemedStyles(palette => ({
     height: '100%',
     borderRadius: 2,
   },
-  // Palette color bridges for components/SVGs
-  paletteSuccess: palette.success,
-  paletteSurfaceAlt: palette.surfaceAlt,
-  paletteTextTertiary: palette.textSecondary,
 }));
