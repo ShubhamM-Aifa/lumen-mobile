@@ -572,7 +572,7 @@ export default function SettingsScreen() {
         title={sectionTitle ?? 'Settings'}
         backLabel="Go back"
         sheet
-        onBack={() => (sectionTitle ? router.back() : safeGoBack('/(tabs)/today'))}
+        onBack={() => safeGoBack(sectionTitle ? '/settings' : '/(tabs)/today')}
       />
 
       <ScrollView

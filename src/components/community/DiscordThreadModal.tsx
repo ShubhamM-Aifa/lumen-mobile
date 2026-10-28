@@ -14,6 +14,8 @@ import { X, MessageSquare, Send, CornerDownRight } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityMessage } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { useAuthStore } from '../../store/authStore';
+import { ModularAvatar } from '../avatar/ModularAvatar';
 
 interface Props {
   visible: boolean;
@@ -33,6 +35,7 @@ export const DiscordThreadModal: React.FC<Props> = ({
   onPressProfile,
 }) => {
   const { palette } = useTheme();
+  const { user } = useAuthStore();
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -77,9 +80,15 @@ export const DiscordThreadModal: React.FC<Props> = ({
             {/* Parent Message Card */}
             <View style={[styles.parentCard, { backgroundColor: palette.background, borderLeftColor: palette.primary }]}>
               <View style={styles.authorRow}>
-                <Text style={{ fontSize: 16, marginRight: 6 }}>
-                  {parent.senderAvatarEmoji || '🥄'}
-                </Text>
+                {!parent.isAnonymous && (parent.senderId === user?._id || parent.senderId === 'me' || (user?.name && parent.senderDisplayName === user.name)) ? (
+                  <View style={{ width: 24, height: 24, borderRadius: 12, overflow: 'hidden', marginRight: 6 }}>
+                    <ModularAvatar size={24} animated={false} />
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>
+                    {parent.senderAvatarEmoji || '🥄'}
+                  </Text>
+                )}
                 <TouchableOpacity onPress={() => onPressProfile && onPressProfile(parent.senderId)}>
                   <Text style={[styles.authorName, { color: parent.senderRoleColor || palette.text }]}>
                     {parent.senderDisplayName}
@@ -110,9 +119,15 @@ export const DiscordThreadModal: React.FC<Props> = ({
                 <CornerDownRight size={13} color={palette.textDisabled} style={styles.threadCurve} />
                 <View style={[styles.replyBubble, { backgroundColor: palette.background }]}>
                   <View style={styles.authorRow}>
-                    <Text style={{ fontSize: 14, marginRight: 4 }}>
-                      {reply.senderAvatarEmoji || '🥄'}
-                    </Text>
+                    {!reply.isAnonymous && (reply.senderId === user?._id || reply.senderId === 'me' || (user?.name && reply.senderDisplayName === user.name)) ? (
+                      <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 5 }}>
+                        <ModularAvatar size={20} animated={false} />
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 14, marginRight: 4 }}>
+                        {reply.senderAvatarEmoji || '🥄'}
+                      </Text>
+                    )}
                     <TouchableOpacity onPress={() => onPressProfile && onPressProfile(reply.senderId)}>
                       <Text style={[styles.authorName, { color: reply.senderRoleColor || palette.text }]}>
                         {reply.senderDisplayName}

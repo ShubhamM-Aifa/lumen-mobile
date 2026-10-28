@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import InsightsScreen, { HIDDEN_FINDINGS_KEY } from '../../../app/(tabs)/insights';
@@ -14,9 +15,16 @@ jest.mock('../../hooks/useInsights', () => ({
   useRecomputeInsights: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
-// Progress, early warning and "did it help?" have their own test files; here they just need to not crash the screen
+// Progress, early warning, experiments and "did it help?" have their own test files; here they
+// just need to not crash the screen
 jest.mock('../../hooks/useProgress', () => ({ useProgress: () => ({ data: undefined }) }));
 jest.mock('../../hooks/useWarning', () => ({ useWarning: () => ({ data: undefined }), useWarningFeedback: () => ({ mutate: jest.fn(), isPending: false }) }));
+const mockStartExperiment = jest.fn();
+jest.mock('../../hooks/useExperiments', () => ({
+  useExperiments: () => ({ data: undefined }),
+  useStartExperiment: () => ({ mutate: mockStartExperiment, isPending: false }),
+  useEndExperiment: () => ({ mutate: jest.fn(), isPending: false }),
+}));
 jest.mock('../../components/insights/CompareSection', () => ({ CompareSection: () => null }));
 
 const flat = (c: unknown): string | null => {
@@ -61,7 +69,7 @@ async function render(): Promise<ReactTestRenderer> {
 }
 
 describe('Insights screen', () => {
-  beforeEach(async () => { await AsyncStorage.clear(); });
+  beforeEach(async () => { await AsyncStorage.clear(); mockStartExperiment.mockClear(); });
 
   it('shows stats and the pattern with its counts and a "not a cause" line', async () => {
     mockUseInsights.mockReturnValue(ready());
@@ -126,6 +134,21 @@ describe('Insights screen', () => {
 
     const again = await render();
     expect(texts(again)).not.toContain('The day after Food dairy, fatigue was logged more often.');
+  });
+
+  it('starts a 6-week experiment on "Test it" after the member confirms', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation((title, message, buttons) => {
+      buttons?.find(b => b.text === 'Start')?.onPress?.();
+    });
+    mockUseInsights.mockReturnValue(ready({ findings: [finding('dairy')] }));
+    const tree = await render();
+    const btn = tree.root.findAll(n => typeof n.props.onPress === 'function' && typeof n.props.accessibilityLabel === 'string' && (n.props.accessibilityLabel as string).startsWith('Test it'))[0];
+    await act(async () => { (btn.props.onPress as () => void)(); });
+    expect(mockStartExperiment).toHaveBeenCalledWith(
+      { exposureKey: 'opt_dairy', exposureLabel: 'Food dairy', outcomeKey: 'opt_pain', outcomeLabel: 'Fatigue' },
+      expect.anything(),
+    );
+    jest.restoreAllMocks();
   });
 
   it('keeps patterns that stopped showing out of the main list, behind "Not seen lately"', async () => {

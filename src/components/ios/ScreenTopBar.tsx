@@ -5,26 +5,31 @@ import { ChevronLeft, X } from 'lucide-react-native';
 import { createThemedStyles, useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { GlassCircleButton } from './GlassCircleButton';
+import { safeGoBack } from '../../utils/navigation';
+import { Href } from 'expo-router';
 
 interface Props {
   title?: string;
-  onBack: () => void;
+  onBack?: () => void;
   backLabel?: string;
   /** 'close' shows an X (sheets), 'back' shows a chevron. */
   backIcon?: 'back' | 'close';
   right?: React.ReactNode;
   /** Sheets drawn below the status bar do not need the safe-area top inset. */
   sheet?: boolean;
+  /** Fallback route if onBack is not provided or navigation history is empty. */
+  fallbackRoute?: Href;
 }
 
 /** Top row of a pushed or modal form: round glass button, centred title, optional right control. */
-export function ScreenTopBar({ title, onBack, backLabel = 'Back', backIcon = 'back', right, sheet }: Props) {
+export function ScreenTopBar({ title, onBack, backLabel = 'Back', backIcon = 'back', right, sheet, fallbackRoute = '/(tabs)/today' }: Props) {
   const styles = useStyles();
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
+  const handleBack = onBack ?? (() => safeGoBack(fallbackRoute));
   return (
     <View style={[styles.bar, { paddingTop: (sheet ? 0 : insets.top) + 8 }]}>
-      <GlassCircleButton accessibilityLabel={backLabel} onPress={onBack}>
+      <GlassCircleButton accessibilityLabel={backLabel} onPress={handleBack}>
         {backIcon === 'close'
           ? <X size={20} color={palette.text} strokeWidth={2.4} />
           : <ChevronLeft size={22} color={palette.text} strokeWidth={2.4} />}

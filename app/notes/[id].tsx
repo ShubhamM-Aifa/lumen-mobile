@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { safeGoBack } from '../../src/utils/navigation';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
@@ -99,7 +100,7 @@ export default function NoteEditorScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <TouchableOpacity onPress={() => safeGoBack('/notes')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <ArrowLeft size={22} color={palette.text} />
           </TouchableOpacity>
         </View>
@@ -137,7 +138,7 @@ export default function NoteEditorScreen() {
         onPress: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           deleteNote(note._id);
-          router.back();
+          safeGoBack('/notes');
         },
       },
     ]);
@@ -170,7 +171,7 @@ export default function NoteEditorScreen() {
         <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack('/notes')}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >

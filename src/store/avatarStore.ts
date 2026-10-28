@@ -269,3 +269,7 @@ export const useAvatarStore = create<AvatarState>((set, get) => ({
     } catch {}
   },
 }));
+
+// Early rehydration to ensure the customized profile avatar is immediately loaded everywhere
+useAvatarStore.getState().loadAvatar().catch(() => {});
+

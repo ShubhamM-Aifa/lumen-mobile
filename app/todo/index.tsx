@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { safeGoBack } from '../../src/utils/navigation';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
@@ -263,7 +264,7 @@ export default function TodoHubScreen() {
             titleColor={palette.primaryText}
             subtitle={`${uncompletedTasks.length} active · ${filterMeta.sub}`}
             leading={
-              <GlassCircleButton accessibilityLabel="Go back" onPress={() => router.back()}>
+              <GlassCircleButton accessibilityLabel="Go back" onPress={() => safeGoBack('/(tabs)/today')}>
                 <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
               </GlassCircleButton>
             }

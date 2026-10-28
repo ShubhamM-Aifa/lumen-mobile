@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { safeGoBack } from '../src/utils/navigation';
 import { ArrowLeft, Minus, Plus, Clock, MessageCircleQuestion, Flame, BatteryMedium } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../src/theme/ThemeContext';
 import { typography } from '../src/theme/typography';
@@ -116,7 +117,7 @@ export default function NotificationSettingsScreen() {
         <LargeTitleHeader
           title="Notifications & Intelligence"
           leading={
-            <GlassCircleButton accessibilityLabel="Go back" onPress={() => router.back()}>
+            <GlassCircleButton accessibilityLabel="Go back" onPress={() => safeGoBack('/notifications')}>
               <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
             </GlassCircleButton>
           }

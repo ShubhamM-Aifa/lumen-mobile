@@ -21,8 +21,12 @@ import {
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityChannel, ICommunityServer } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { useAuthStore } from '../../store/authStore';
 import { InviteCommunityModal } from './InviteCommunityModal';
 import { AppleSwitch } from '../common/AppleSwitch';
+import { ModularAvatar } from '../avatar/ModularAvatar';
+import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 interface Props {
   channels: ICommunityChannel[];
@@ -42,6 +46,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
   onPressAddChannel,
 }) => {
   const { palette } = useTheme();
+  const { user } = useAuthStore();
   const { collapsedCategories, toggleCategoryCollapsed, isAnonymous, toggleAnonymous } =
     useCommunityStore();
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -180,18 +185,41 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
       {/* Bottom User Bar */}
       <View style={[styles.userBar, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
         <View style={styles.userInfoRow}>
-          <View style={[styles.userAvatar, { backgroundColor: isAnonymous ? '#475569' : '#0284C7' }]}>
-            <Text style={{ fontSize: 18 }}>{isAnonymous ? '🥄' : '🌟'}</Text>
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.userName, { color: palette.text }]} numberOfLines={1}>
-              {isAnonymous ? 'Anonymous Spoonie' : 'You'}
-            </Text>
-            <Text style={[styles.userTag, { color: palette.textSecondary }]}>
-              {isAnonymous ? 'Incognito Mode' : 'Online • Resting 🥄'}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 3 }}>
+          <TouchableOpacity
+            style={styles.userProfileBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/settings');
+            }}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile settings"
+          >
+            <View
+              style={[
+                styles.userAvatar,
+                {
+                  backgroundColor: isAnonymous ? '#475569' : `${palette.primary}18`,
+                  borderColor: isAnonymous ? '#64748B' : `${palette.primary}40`,
+                },
+              ]}
+            >
+              {isAnonymous ? (
+                <Text style={{ fontSize: 18 }}>🥄</Text>
+              ) : (
+                <ModularAvatar size={36} animated={false} />
+              )}
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[styles.userName, { color: palette.text }]} numberOfLines={1}>
+                {isAnonymous ? 'Anonymous Spoonie' : (user?.name || 'You')}
+              </Text>
+              <Text style={[styles.userTag, { color: palette.textSecondary }]}>
+                {isAnonymous ? 'Incognito Mode' : 'Online • Resting 🥄'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <View style={{ alignItems: 'flex-end', gap: 3, marginLeft: 8 }}>
             <AppleSwitch
               size="small"
               value={isAnonymous}
@@ -318,12 +346,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  userProfileBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   userAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   userName: {
     fontSize: 13,

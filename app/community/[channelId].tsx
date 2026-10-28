@@ -41,6 +41,8 @@ import { DiscordForumView } from '../../src/components/community/DiscordForumVie
 import { formatTimeRelative } from '../../src/utils/dayBoundary';
 import { CommunityEmbedType, ICommunityMessage, IForumPost } from '../../src/shared/types';
 import { useKeyboard } from '../../src/hooks/useKeyboard';
+import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
+import { safeGoBack } from '../../src/utils/navigation';
 
 export default function ChannelChatScreen() {
   const insets = useSafeAreaInsets();
@@ -146,7 +148,7 @@ export default function ChannelChatScreen() {
         <View style={[styles.header, { borderBottomColor: palette.border }]}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.back()}
+            onPress={() => safeGoBack('/community')}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
@@ -280,9 +282,13 @@ export default function ChannelChatScreen() {
                           },
                         ]}
                       >
-                        <Text style={styles.avatarEmoji}>
-                          {msg.senderAvatarEmoji || (msg.isAnonymous ? '🥄' : '🌟')}
-                        </Text>
+                        {!msg.isAnonymous && (msg.senderId === user?._id || msg.senderId === 'me' || (user?.name && msg.senderDisplayName === user.name)) ? (
+                          <ModularAvatar size={38} animated={false} />
+                        ) : (
+                          <Text style={styles.avatarEmoji}>
+                            {msg.senderAvatarEmoji || (msg.isAnonymous ? '🥄' : '🌟')}
+                          </Text>
+                        )}
                       </TouchableOpacity>
 
                       {/* Message Body */}
@@ -653,6 +659,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
+    overflow: 'hidden',
   },
   avatarEmoji: {
     fontSize: 18,

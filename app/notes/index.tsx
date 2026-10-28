@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { safeGoBack } from '../../src/utils/navigation';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
@@ -134,7 +135,7 @@ export default function NotesHubScreen() {
           title="Notes & Docs"
           subtitle={notes.length === 0 ? 'Nothing written yet' : `${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
           leading={
-            <GlassCircleButton accessibilityLabel="Go back" onPress={() => router.back()}>
+            <GlassCircleButton accessibilityLabel="Go back" onPress={() => safeGoBack('/(tabs)/today')}>
               <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
             </GlassCircleButton>
           }

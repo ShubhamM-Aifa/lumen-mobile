@@ -18,9 +18,13 @@ interface Props {
   finding: InsightFinding;
   /** "Not useful": hide this pattern on this phone. */
   onDismiss?: (finding: InsightFinding) => void;
+  /** "Test it": start a 6-week guided experiment on this exposure and outcome. */
+  onTestIt?: (finding: InsightFinding) => void;
+  /** Disables "Test it" while another experiment is already running. */
+  testItDisabled?: boolean;
 }
 
-export function InsightCard({ finding, onDismiss }: Props) {
+export function InsightCard({ finding, onDismiss, onTestIt, testItDisabled }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
   const { withRate, otherRate } = rates(finding);
@@ -62,16 +66,29 @@ export function InsightCard({ finding, onDismiss }: Props) {
       </Text>
       <Text style={styles.together} maxFontSizeMultiplier={1.3}>{TOGETHER_NOT_CAUSE}</Text>
 
-      {onDismiss ? (
+      {(onDismiss || onTestIt) ? (
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.action}
-            onPress={() => onDismiss(finding)}
-            accessibilityRole="button"
-            accessibilityLabel={`Not useful: hide this pattern about ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
-          >
-            <Text style={styles.actionText} maxFontSizeMultiplier={1.3}>Not useful</Text>
-          </TouchableOpacity>
+          {onTestIt && !faded ? (
+            <TouchableOpacity
+              style={styles.action}
+              onPress={() => onTestIt(finding)}
+              disabled={testItDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Test it: start a 6-week experiment on ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
+            >
+              <Text style={[styles.actionText, testItDisabled && styles.actionTextDisabled]} maxFontSizeMultiplier={1.3}>Test it</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onDismiss ? (
+            <TouchableOpacity
+              style={styles.action}
+              onPress={() => onDismiss(finding)}
+              accessibilityRole="button"
+              accessibilityLabel={`Not useful: hide this pattern about ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
+            >
+              <Text style={styles.actionText} maxFontSizeMultiplier={1.3}>Not useful</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -93,7 +110,8 @@ const useStyles = createThemedStyles(palette => ({
   stat: { ...typography.body, color: palette.textSecondary, lineHeight: 22 },
   note: { ...typography.footnote, color: palette.textSecondary, lineHeight: 19 },
   together: { ...typography.footnote, fontWeight: '600', color: palette.text, lineHeight: 19 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 2 },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: 2 },
   action: { minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: 8 },
   actionText: { ...typography.body, color: palette.primaryText },
+  actionTextDisabled: { color: palette.textDisabled },
 }));

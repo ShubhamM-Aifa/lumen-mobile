@@ -24,6 +24,8 @@ import {
 import { useTheme } from '../../theme/ThemeContext';
 import { IForumPost, ICommunityChannel } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
+import { useAuthStore } from '../../store/authStore';
+import { ModularAvatar } from '../avatar/ModularAvatar';
 
 interface Props {
   channel: ICommunityChannel;
@@ -40,6 +42,7 @@ export const DiscordForumView: React.FC<Props> = ({
   onSelectPost,
 }) => {
   const { palette } = useTheme();
+  const { user } = useAuthStore();
   const { createForumPost, isAnonymous, toggleAnonymous } = useCommunityStore();
   const [selectedTag, setSelectedTag] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,9 +159,15 @@ export const DiscordForumView: React.FC<Props> = ({
               {/* Author & Footer */}
               <View style={[styles.postFooter, { borderTopColor: palette.border }]}>
                 <View style={styles.authorRow}>
-                  <Text style={{ fontSize: 14, marginRight: 6 }}>
-                    {post.author.senderAvatarEmoji || '🥄'}
-                  </Text>
+                  {!post.author.isAnonymous && (post.author.senderId === user?._id || post.author.senderId === 'me' || (user?.name && post.author.senderDisplayName === user.name)) ? (
+                    <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 6 }}>
+                      <ModularAvatar size={20} animated={false} />
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 14, marginRight: 6 }}>
+                      {post.author.senderAvatarEmoji || '🥄'}
+                    </Text>
+                  )}
                   <Text style={[styles.authorName, { color: post.author.senderRoleColor || palette.text }]}>
                     {post.author.senderDisplayName}
                   </Text>

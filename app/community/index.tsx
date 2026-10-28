@@ -13,6 +13,7 @@ import { Search, X } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
+import { safeGoBack } from '../../src/utils/navigation';
 import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { ICommunityChannel, ICommunityServer } from '../../src/shared/types';
@@ -75,7 +76,7 @@ export default function CommunityDirectoryScreen() {
         sheet
         title={activeServer?.name || 'Lumen Community Hub'}
         backLabel="Go back to dashboard"
-        onBack={() => router.back()}
+        onBack={() => safeGoBack('/(tabs)/today')}
         right={
           <GlassCircleButton
             accessibilityLabel="Search channels"
