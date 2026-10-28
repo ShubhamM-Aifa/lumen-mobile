@@ -464,6 +464,13 @@ export default function SettingsScreen() {
     } catch {}
   };
 
+  const handleToggleAiExplanations = async (value: boolean) => {
+    Haptics.selectionAsync();
+    try {
+      await updateProfile({ preferences: { aiExplanations: value } });
+    } catch {}
+  };
+
   // App Lock Switch Handler
   const handleToggleAppLock = async (value: boolean) => {
     Haptics.selectionAsync();
@@ -1168,6 +1175,17 @@ export default function SettingsScreen() {
         <InsetGroup>
           <GroupedRow icon={Bell} tile={TILE.red} label="Notifications & Intelligence" chevron onPress={() => router.push('/notification-settings')} />
           <GroupedRow icon={SunMoon} tile={TILE.blue} label="Appearance" value={THEME_OPTIONS.find(o => o.key === preference)?.label} chevron onPress={() => openSection('appearance')} />
+        </InsetGroup>
+
+        <InsetGroup title="AI & Insights" footer="Off by default. When on, Lumen sends only pattern counts and item labels to Gemini to write a plain-language version — never your notes, timestamps or raw logs.">
+          <GroupedRow
+            icon={Sparkles}
+            tile={TILE.indigo}
+            label="AI Explanations (Gemini)"
+            toggle
+            toggled={!!user?.preferences?.aiExplanations}
+            onToggle={handleToggleAiExplanations}
+          />
         </InsetGroup>
 
         <InsetGroup title="Security & Credentials">

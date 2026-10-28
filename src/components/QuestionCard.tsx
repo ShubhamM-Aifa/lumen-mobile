@@ -294,30 +294,41 @@ export function QuestionCard({
                     {/* Compact non-photo fields preview when collapsed */}
                     {!isLatestEntryExpanded && hasLatestNonPhotoFields && (
                       <View style={[styles.inlineValuesRow, { marginTop: 6 }]}>
-                        {latestAllFields.filter(f => !f.isImage).map((f, fIdx) => (
-                          <TouchableOpacity
-                            key={`latest-chip-${f.key || fIdx}`}
-                            style={styles.inlineValueChip}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
-                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                              }
-                              setExpandedLogIds(prev => ({
-                                ...prev,
-                                [latestHistory.logId]: true,
-                              }));
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`View ${f.label} details`}
-                          >
-                            <Text style={styles.inlineValueChipText} numberOfLines={2} ellipsizeMode="tail">
-                              <Text style={styles.inlineValueChipLabel}>{`${f.label}: `}</Text>
-                              <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                        {latestAllFields
+                          .filter(f => f && !f.isImage)
+                          .map((f, fIdx) => {
+                            const displayStr =
+                              typeof f.displayValue === 'object' && f.displayValue !== null
+                                ? JSON.stringify(f.displayValue)
+                                : String(f.displayValue ?? '');
+                            const labelStr = String(f.label || 'Value');
+                            return (
+                              <TouchableOpacity
+                                key={`latest-chip-${f.key || 'f'}-${fIdx}`}
+                                style={styles.inlineValueChip}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
+                                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                  }
+                                  if (latestHistory?.logId) {
+                                    setExpandedLogIds(prev => ({
+                                      ...prev,
+                                      [latestHistory.logId]: true,
+                                    }));
+                                  }
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`View ${labelStr} details`}
+                              >
+                                <Text style={styles.inlineValueChipText} numberOfLines={2} ellipsizeMode="tail">
+                                  <Text style={styles.inlineValueChipLabel}>{`${labelStr}: `}</Text>
+                                  <Text style={styles.inlineValueChipValue}>{displayStr}</Text>
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
                       </View>
                     )}
 
@@ -354,7 +365,9 @@ export function QuestionCard({
                                       <Text style={styles.detailFieldLabel}>{field.label}</Text>
                                       <View style={styles.detailFieldValueBadge}>
                                         <Text style={styles.detailFieldValueText}>
-                                          {field.displayValue}
+                                          {typeof field.displayValue === 'object' && field.displayValue !== null
+                                            ? JSON.stringify(field.displayValue)
+                                            : String(field.displayValue ?? '')}
                                         </Text>
                                       </View>
                                     </View>
@@ -527,32 +540,43 @@ export function QuestionCard({
                           {/* Compact inline option values preview (when collapsed) */}
                           {!isEntryExpanded && allFields.length > 0 && (
                             <View style={styles.inlineValuesRow}>
-                              {allFields.map((f, fIdx) => (
-                                <TouchableOpacity
-                                  key={`${f.key || fIdx}`}
-                                  style={styles.inlineValueChip}
-                                  activeOpacity={0.7}
-                                  onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                    if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
-                                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                    }
-                                    setExpandedLogIds(prev => ({
-                                      ...prev,
-                                      [item.logId]: true,
-                                    }));
-                                  }}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={`View ${f.label} details`}
-                                >
-                                  <Text style={styles.inlineValueChipText} numberOfLines={4} ellipsizeMode="tail">
-                                    <Text style={styles.inlineValueChipLabel}>
-                                      {f.isImage ? '📷 Photo: ' : `${f.label}: `}
-                                    </Text>
-                                    <Text style={styles.inlineValueChipValue}>{f.displayValue}</Text>
-                                  </Text>
-                                </TouchableOpacity>
-                              ))}
+                              {allFields
+                                .filter(f => f && !f.isImage)
+                                .map((f, fIdx) => {
+                                  const displayStr =
+                                    typeof f.displayValue === 'object' && f.displayValue !== null
+                                      ? JSON.stringify(f.displayValue)
+                                      : String(f.displayValue ?? '');
+                                  const labelStr = String(f.label || 'Value');
+                                  return (
+                                    <TouchableOpacity
+                                      key={`${f.key || 'f'}-${fIdx}`}
+                                      style={styles.inlineValueChip}
+                                      activeOpacity={0.7}
+                                      onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        if (LayoutAnimation?.configureNext && LayoutAnimation?.Presets?.easeInEaseOut) {
+                                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                        }
+                                        if (item?.logId) {
+                                          setExpandedLogIds(prev => ({
+                                            ...prev,
+                                            [item.logId]: true,
+                                          }));
+                                        }
+                                      }}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`View ${labelStr} details`}
+                                    >
+                                      <Text style={styles.inlineValueChipText} numberOfLines={4} ellipsizeMode="tail">
+                                        <Text style={styles.inlineValueChipLabel}>
+                                          {`${labelStr}: `}
+                                        </Text>
+                                        <Text style={styles.inlineValueChipValue}>{displayStr}</Text>
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
                               {hasComment && (
                                 <View style={styles.inlineCommentPill}>
                                   <MessageSquare size={10} color={palette.textSecondary} />
@@ -597,7 +621,9 @@ export function QuestionCard({
                                               <Text style={styles.detailFieldLabel}>{field.label}</Text>
                                               <View style={styles.detailFieldValueBadge}>
                                                 <Text style={styles.detailFieldValueText}>
-                                                  {field.displayValue}
+                                                  {typeof field.displayValue === 'object' && field.displayValue !== null
+                                                    ? JSON.stringify(field.displayValue)
+                                                    : String(field.displayValue ?? '')}
                                                 </Text>
                                               </View>
                                             </View>

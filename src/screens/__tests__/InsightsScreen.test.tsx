@@ -26,6 +26,10 @@ jest.mock('../../hooks/useExperiments', () => ({
   useEndExperiment: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 jest.mock('../../components/insights/CompareSection', () => ({ CompareSection: () => null }));
+jest.mock('../../hooks/useExplain', () => ({
+  useExplain: () => ({ mutate: jest.fn(), isPending: false }),
+  useAskLumen: () => ({ mutate: jest.fn(), isPending: false }),
+}));
 
 const flat = (c: unknown): string | null => {
   if (typeof c === 'string' || typeof c === 'number') return String(c);

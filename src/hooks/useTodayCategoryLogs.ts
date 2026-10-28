@@ -86,6 +86,24 @@ function formatSingleFieldValue(val: unknown, key?: string, dataType?: string): 
   if (isPhotoFieldOrValue(key, dataType, val)) {
     return '📷 Attached';
   }
+  if (typeof val === 'boolean' || dataType === 'boolean') {
+    return val ? 'Yes' : 'No';
+  }
+  if (typeof val === 'object' && val !== null) {
+    if (Array.isArray(val)) {
+      return val.map(v => formatSingleFieldValue(v, key, dataType)).filter(Boolean).join(', ');
+    }
+    const obj = val as Record<string, unknown>;
+    if (obj.formattedAddress) return String(obj.formattedAddress);
+    if (obj.name || obj.city) return [obj.name, obj.city].filter(Boolean).join(', ');
+    if (typeof obj.latitude === 'number' && typeof obj.longitude === 'number') {
+      return `${(obj.latitude as number).toFixed(4)}, ${(obj.longitude as number).toFixed(4)}`;
+    }
+    if (obj.label) return String(obj.label);
+    if (obj.value !== undefined) return String(obj.value);
+    if (obj.name) return String(obj.name);
+    return JSON.stringify(val);
+  }
   const str = String(val);
   // Humanize zone and joint IDs if formatted like chest_right_parasternal
   if (str.includes('_')) {
@@ -139,6 +157,22 @@ export function formatValueWithUnit(val: unknown, unit?: string, fieldKey?: stri
   if (isBristol) {
     const valStr = String(val);
     return valStr.toLowerCase().startsWith('type') ? valStr : `Type ${valStr}`;
+  }
+
+  // Time format (e.g. "14:30" -> "2:30 PM", or "09:05" -> "9:05 AM")
+  const isTime =
+    dataType === 'time' ||
+    fieldKey === 'time' ||
+    (typeof val === 'string' && /^\d{1,2}:\d{2}$/.test(val.trim()));
+  if (isTime) {
+    const timeMatch = String(val).trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      const h = parseInt(timeMatch[1], 10);
+      const m = timeMatch[2];
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      return `${h12}:${m} ${ampm}`;
+    }
   }
 
   const formattedVal = formatSingleFieldValue(val, fieldKey, dataType);
@@ -326,11 +360,13 @@ export function useTodayCategoryLogs(customDateStr?: string) {
               }
             }
           } else if ((ans as any).value !== undefined && (ans as any).value !== null && (ans as any).value !== '') {
+            const isPhoto = isPhotoFieldOrValue(undefined, undefined, (ans as any).value);
             const formattedVal = formatSingleFieldValue((ans as any).value);
             fields.push({
               label: 'Value',
               value: (ans as any).value,
-              displayValue: formattedVal,
+              displayValue: isPhoto ? '📷 Attached' : formattedVal,
+              isImage: isPhoto,
             });
           }
 

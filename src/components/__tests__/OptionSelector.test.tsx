@@ -67,4 +67,32 @@ describe('OptionSelector', () => {
       { optionId: '__other__', optionLabelSnapshot: 'Other', values: [], otherText: 'Tingling' },
     ]);
   });
+
+  it('renders time picker for options with captureTime user_picks when selected', async () => {
+    const optionsWithTime = [
+      { _id: 'time_opt', label: 'Exercise', captureTime: 'user_picks', fields: [], allowComment: false, isActive: true, order: 0 },
+    ] as never[];
+    const answers: Answer[] = [{ optionId: 'time_opt', optionLabelSnapshot: 'Exercise', values: [{ fieldKey: 'time', dataType: 'time', value: '14:30' }] }];
+    const { tree } = await render({ options: optionsWithTime, answers });
+    const timeElements = tree.root.findAll(n =>
+      (typeof n.props.children === 'string' && n.props.children.includes('Time')) ||
+      (typeof n.props.accessibilityLabel === 'string' && n.props.accessibilityLabel.includes('Time'))
+    );
+    expect(timeElements.length).toBeGreaterThan(0);
+  });
+
+  it('displays auto-recorded badge for options with captureTime auto_now when selected', async () => {
+    const optionsWithAutoTime = [
+      { _id: 'auto_time_opt', label: 'Fatigue', captureTime: 'auto_now', fields: [], allowComment: false, isActive: true, order: 0 },
+    ] as never[];
+    const answers: Answer[] = [{ optionId: 'auto_time_opt', optionLabelSnapshot: 'Fatigue', values: [{ fieldKey: 'time', dataType: 'time', value: '10:15' }] }];
+    const { tree } = await render({ options: optionsWithAutoTime, answers });
+    const badgeText = tree.root.findAll(n => {
+      const c = n.props.children;
+      if (typeof c === 'string') return c.includes('Recorded at');
+      if (Array.isArray(c)) return c.some(part => typeof part === 'string' && part.includes('Recorded at'));
+      return false;
+    });
+    expect(badgeText.length).toBeGreaterThan(0);
+  });
 });

@@ -16,6 +16,7 @@ import { useInsights, useRecomputeInsights, InsightFinding } from '../../src/hoo
 import { useProgress } from '../../src/hooks/useProgress';
 import { useWarning } from '../../src/hooks/useWarning';
 import { useExperiments, useStartExperiment } from '../../src/hooks/useExperiments';
+import { useAuthStore } from '../../src/store/authStore';
 import { DisclaimerBanner } from '../../src/components/insights/DisclaimerBanner';
 import { InsightCard } from '../../src/components/insights/InsightCard';
 import { StatCard } from '../../src/components/insights/StatCard';
@@ -23,6 +24,7 @@ import { ProgressCard } from '../../src/components/insights/ProgressCard';
 import { WarningCard } from '../../src/components/insights/WarningCard';
 import { ExperimentCard } from '../../src/components/insights/ExperimentCard';
 import { CompareSection } from '../../src/components/insights/CompareSection';
+import { AskLumenBox } from '../../src/components/insights/AskLumenBox';
 import { progressText } from '../../src/services/insights/insightCopy';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -46,6 +48,7 @@ export default function InsightsScreen() {
   const { data: warningData } = useWarning();
   const { data: experiments } = useExperiments();
   const startExperiment = useStartExperiment();
+  const aiExplanationsEnabled = !!useAuthStore(s => s.user?.preferences?.aiExplanations);
   const recompute = useRecomputeInsights();
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [showAll, setShowAll] = useState(false);
@@ -204,7 +207,16 @@ export default function InsightsScreen() {
                 <Text style={styles.noInsightsText}>No {tierFilter.toLowerCase()} patterns right now.</Text>
               </View>
             ) : (
-              shown.map(f => <InsightCard key={f.id} finding={f} onDismiss={dismiss} onTestIt={testIt} testItDisabled={!!activeExperiment} />)
+              shown.map(f => (
+                <InsightCard
+                  key={f.id}
+                  finding={f}
+                  onDismiss={dismiss}
+                  onTestIt={testIt}
+                  testItDisabled={!!activeExperiment}
+                  aiExplanationsEnabled={aiExplanationsEnabled}
+                />
+              ))
             )}
 
             {hiddenCount > 0 && (
@@ -231,11 +243,15 @@ export default function InsightsScreen() {
               <Text style={styles.sectionLabel}>Not seen lately</Text>
               <Text style={styles.sectionSub}>{earlier.length} · {showEarlier ? 'Hide' : 'Show'}</Text>
             </TouchableOpacity>
-            {showEarlier && earlier.map(f => <InsightCard key={f.id} finding={f} onDismiss={dismiss} />)}
+            {showEarlier && earlier.map(f => (
+              <InsightCard key={f.id} finding={f} onDismiss={dismiss} aiExplanationsEnabled={aiExplanationsEnabled} />
+            ))}
           </>
         )}
 
         {!isLoading && !buildingUp && <CompareSection />}
+
+        {aiExplanationsEnabled && <AskLumenBox />}
 
         {!isLoading && (
           <View style={styles.recomputeSection}>

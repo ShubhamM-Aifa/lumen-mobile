@@ -4,6 +4,7 @@
  * - 0ms blocking: Uses in-memory cache (<5 min TTL) and last-known GPS hardware position.
  * - Graceful fallback: If GPS or permissions are unavailable, fails silently without breaking log creation.
  */
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ILogLocation } from '@lumen/shared';
@@ -57,6 +58,9 @@ class LogLocationService {
     country?: string;
     formattedAddress?: string;
   }> {
+    if (Platform.OS === 'web') {
+      return {};
+    }
     try {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (results && results.length > 0) {

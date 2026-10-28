@@ -84,12 +84,14 @@ export function AppDateTimePicker({
     }
   };
 
+  const isTimeMode = mode === 'time';
+
   const handleConfirm = () => {
     let finalDate = tempDate;
-    if (maximumDate && finalDate.getTime() > maximumDate.getTime()) {
+    if (!isTimeMode && maximumDate && finalDate.getTime() > maximumDate.getTime()) {
       finalDate = maximumDate;
     }
-    if (minimumDate && finalDate.getTime() < minimumDate.getTime()) {
+    if (!isTimeMode && minimumDate && finalDate.getTime() < minimumDate.getTime()) {
       finalDate = minimumDate;
     }
     onChange(finalDate);
@@ -116,7 +118,7 @@ export function AppDateTimePicker({
     if (newH > 23) newH = 0;
     next.setHours(newH);
 
-    if (maximumDate && next.getTime() > maximumDate.getTime()) {
+    if (!isTimeMode && maximumDate && next.getTime() > maximumDate.getTime()) {
       setTempDate(maximumDate);
     } else {
       setTempDate(next);
@@ -135,7 +137,7 @@ export function AppDateTimePicker({
     }
     next.setMinutes(mins);
 
-    if (maximumDate && next.getTime() > maximumDate.getTime()) {
+    if (!isTimeMode && maximumDate && next.getTime() > maximumDate.getTime()) {
       setTempDate(maximumDate);
     } else {
       setTempDate(next);
@@ -150,7 +152,7 @@ export function AppDateTimePicker({
     } else {
       next.setHours(curH + 12);
     }
-    if (maximumDate && next.getTime() > maximumDate.getTime()) {
+    if (!isTimeMode && maximumDate && next.getTime() > maximumDate.getTime()) {
       setTempDate(maximumDate);
     } else {
       setTempDate(next);
@@ -165,7 +167,7 @@ export function AppDateTimePicker({
   const setHourTime = (hour24: number, minute: number = 0) => {
     const next = new Date(tempDate);
     next.setHours(hour24, minute, 0, 0);
-    if (maximumDate && next.getTime() > maximumDate.getTime()) {
+    if (!isTimeMode && maximumDate && next.getTime() > maximumDate.getTime()) {
       setTempDate(maximumDate);
     } else {
       setTempDate(next);
@@ -228,8 +230,8 @@ export function AppDateTimePicker({
         value={value}
         mode={mode}
         display="default"
-        maximumDate={maximumDate}
-        minimumDate={minimumDate}
+        maximumDate={isTimeMode ? undefined : maximumDate}
+        minimumDate={isTimeMode ? undefined : minimumDate}
         onChange={handleNativeChange}
       />
     );
@@ -251,8 +253,8 @@ export function AppDateTimePicker({
               value={tempDate}
               mode={mode}
               display="spinner"
-              maximumDate={maximumDate}
-              minimumDate={minimumDate}
+              maximumDate={isTimeMode ? undefined : maximumDate}
+              minimumDate={isTimeMode ? undefined : minimumDate}
               onChange={handleNativeChange}
               textColor={palette.text}
             />

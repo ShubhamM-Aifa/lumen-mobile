@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { View, Text } from 'react-native';
-import { FieldDefinition } from '@lumen/shared';
+import { FieldDefinition, CaptureTime } from '@lumen/shared';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
@@ -20,12 +20,20 @@ interface Props {
   icon?: string;
   color?: string;
   fields: FieldDefinition[];
+  captureTime?: CaptureTime;
+  allowComment?: boolean;
 }
 
-export function LivePreview({ label, icon, color, fields }: Props) {
+export function LivePreview({ label, icon, color, fields, captureTime, allowComment }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
   const accentColor = color ?? palette.primary;
+  const hasExpandedContent =
+    fields.length > 0 ||
+    captureTime === 'user_picks' ||
+    captureTime === 'auto_now' ||
+    allowComment;
+
   return (
     <View style={[styles.card, { borderColor: accentColor + '44' }]}>
       <View style={styles.header}>
@@ -42,15 +50,33 @@ export function LivePreview({ label, icon, color, fields }: Props) {
         </View>
       </View>
 
-      {/* Field previews */}
-      {fields.length > 0 && (
+      {/* Field / Time / Comment previews */}
+      {hasExpandedContent && (
         <View style={[styles.fieldsArea, { borderColor: accentColor + '33' }]}>
+          {captureTime === 'user_picks' && (
+            <View style={styles.fieldPreviewRow}>
+              <Text style={styles.fieldPreviewLabel}>Time it happened</Text>
+              <Text style={styles.fieldPreviewWidget}>🕒 12:00 PM</Text>
+            </View>
+          )}
+          {captureTime === 'auto_now' && (
+            <View style={styles.fieldPreviewRow}>
+              <Text style={styles.fieldPreviewLabel}>Auto-timestamp</Text>
+              <Text style={styles.fieldPreviewWidget}>⚡ Recorded at log time</Text>
+            </View>
+          )}
           {fields.map((f, i) => (
             <View key={f.key + i} style={styles.fieldPreviewRow}>
               <Text style={styles.fieldPreviewLabel}>{f.label}{f.required ? ' *' : ''}</Text>
               <Text style={styles.fieldPreviewWidget}>{DATA_TYPE_LABELS[f.dataType] ?? f.dataType}</Text>
             </View>
           ))}
+          {allowComment && (
+            <View style={styles.fieldPreviewRow}>
+              <Text style={styles.fieldPreviewLabel}>Comment</Text>
+              <Text style={styles.fieldPreviewWidget}>Optional note…</Text>
+            </View>
+          )}
         </View>
       )}
     </View>

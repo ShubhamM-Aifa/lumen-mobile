@@ -212,4 +212,55 @@ describe('QuestionCard', () => {
     expect(screen.getByText('Hide values')).toBeTruthy();
     expect(screen.getByText('"Felt great"')).toBeTruthy();
   });
+
+  it('renders once_per_day completed card with inline field chips and handles toggle', () => {
+    const todayHistory = [
+      {
+        logId: 'log-once',
+        occurredAt: '2026-10-12T14:00:00Z',
+        timeFormatted: '1h ago',
+        timeClockStr: '2:00 PM',
+        answers: [{ optionId: 'o1', values: [{ fieldKey: 'severity', value: 8, unit: '/10' }] }],
+        summaryText: 'Moderate (Duration: 30 min)',
+        details: [
+          {
+            optionId: 'o1',
+            optionLabel: 'Moderate',
+            fields: [
+              {
+                key: 'duration',
+                label: 'Duration',
+                value: 1800,
+                displayValue: '30 min',
+              },
+              {
+                key: 'location',
+                label: 'Location',
+                value: { name: 'Park' },
+                displayValue: { name: 'Park' } as any,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    render(
+      <QuestionCard
+        question={{ ...makeQuestion(), frequency: 'once_per_day' }}
+        options={options}
+        answers={[]}
+        sessionAnswers={[]}
+        onChange={jest.fn()}
+        todayHistory={todayHistory}
+      />
+    );
+
+    expect(screen.getByText('Completed for today')).toBeTruthy();
+    expect(screen.getByText('Duration: ')).toBeTruthy();
+    expect(screen.getByText('30 min')).toBeTruthy();
+    expect(screen.getByText('Location: ')).toBeTruthy();
+    expect(screen.getByText('{"name":"Park"}')).toBeTruthy();
+  });
 });
+

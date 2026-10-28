@@ -13,6 +13,21 @@ import { useTheme, createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
 import { DynamicField } from './fields/DynamicField';
 
+function getNowHHmm(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function fmt12(v: string): string {
+  if (!v) return '';
+  const [hStr, mStr] = v.split(':');
+  const h = parseInt(hStr ?? '0', 10);
+  const m = mStr ?? '00';
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m} ${period}`;
+}
+
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -69,19 +84,35 @@ export function OptionSelector({
     if (alreadySelected) {
       onChange(removeAnswer(answers, option._id));
     } else {
+      const nowTimeStr = getNowHHmm();
+      const defaultValues: FieldValue[] = [];
+      const hasExplicitTimeField = option.fields?.some(f => f.dataType === 'time' || f.key === 'time');
+      if (!hasExplicitTimeField && (option.captureTime === 'auto_now' || option.captureTime === 'user_picks')) {
+        defaultValues.push({
+          fieldKey: 'time',
+          dataType: 'time',
+          value: nowTimeStr,
+        });
+      }
+
       if (selectionType === 'single') {
         // Deselect all others (including __other__), select this one
         const existing = findAnswer(answers, option._id);
-        onChange([existing ?? {
+        const values = existing?.values && existing.values.length > 0 ? existing.values : defaultValues;
+        onChange([{
           optionId: option._id,
           optionLabelSnapshot: option.label,
-          values: [],
+          values,
+          ...(existing?.comment ? { comment: existing.comment } : {}),
         }]);
       } else {
+        const existing = findAnswer(answers, option._id);
+        const values = existing?.values && existing.values.length > 0 ? existing.values : defaultValues;
         onChange(upsertAnswer(answers, {
           optionId: option._id,
           optionLabelSnapshot: option.label,
-          values: [],
+          values,
+          ...(existing?.comment ? { comment: existing.comment } : {}),
         }));
       }
     }
@@ -138,6 +169,10 @@ export function OptionSelector({
         const accentColor = option.color ?? palette.tint;
         const isLastRow = index === options.length - 1 && !allowOther;
         const hasFields = option.fields && option.fields.length > 0;
+        const hasExplicitTimeField = hasFields && option.fields.some(f => f.dataType === 'time' || f.key === 'time');
+        const showUserPickTime = option.captureTime === 'user_picks' && !hasExplicitTimeField;
+        const showAutoNowTime = option.captureTime === 'auto_now' && !hasExplicitTimeField;
+        const shouldExpand = selected && (hasFields || option.allowComment || showUserPickTime || showAutoNowTime);
 
         return (
           <View key={option._id} style={!isLastRow ? styles.separated : undefined}>
@@ -165,7 +200,7 @@ export function OptionSelector({
             </TouchableOpacity>
 
             {/* Expanded fields when selected */}
-            {selected && (hasFields || option.allowComment) && (
+            {shouldExpand && (
               <View style={styles.expandedArea}>
                 {/* Field definitions */}
                 {hasFields && option.fields.map((field) => {
@@ -182,6 +217,36 @@ export function OptionSelector({
                     />
                   );
                 })}
+
+                {/* User Picks Time Field (when option captureTime is 'user_picks') */}
+                {showUserPickTime && (
+                  <DynamicField
+                    field={{
+                      key: 'time',
+                      label: 'Time it happened',
+                      dataType: 'time',
+                      required: false,
+                      helpText: 'Select when this occurred',
+                    }}
+                    fieldValue={answer?.values.find(v => v.fieldKey === 'time')}
+                    onChange={(partial) =>
+                      updateFieldValue(option._id, option.label, 'time', partial, 'time')
+                    }
+                  />
+                )}
+
+                {/* Auto Now Time badge (when option captureTime is 'auto_now') */}
+                {showAutoNowTime && (
+                  <View style={styles.autoTimeBadge}>
+                    <Text style={styles.autoTimeIcon}>🕐</Text>
+                    <Text style={styles.autoTimeText}>
+                      Recorded at {fmt12((() => {
+                        const fv = answer?.values.find(v => v.fieldKey === 'time');
+                        return typeof fv?.value === 'string' && fv.value ? fv.value : getNowHHmm();
+                      })())}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Comment input */}
                 {option.allowComment && (
@@ -249,6 +314,24 @@ const useStyles = createThemedStyles(palette => ({
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
     ...typography.body, color: palette.text,
     minHeight: 60, textAlignVertical: 'top',
+  },
+  autoTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: palette.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+  },
+  autoTimeIcon: {
+    fontSize: 16,
+  },
+  autoTimeText: {
+    ...typography.small,
+    color: palette.textSecondary,
+    fontWeight: '600',
   },
   otherWrapper: {
     marginTop: 8,

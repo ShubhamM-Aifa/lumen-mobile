@@ -182,6 +182,8 @@ export default function OptionEditor() {
           icon={icon}
           color={color}
           fields={fields}
+          captureTime={captureTime}
+          allowComment={allowComment}
         />
 
         <SectionHeader title="Appearance" />

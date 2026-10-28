@@ -72,6 +72,7 @@ export function TimeField({ field, value, onChange }: Props) {
         onClose={() => setOpen(false)}
         value={date}
         mode="time"
+        maximumDate={undefined}
         title={field.label}
         onChange={(selected) => onChange(toHHmm(selected))}
       />
