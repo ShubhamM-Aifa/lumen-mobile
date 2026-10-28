@@ -246,7 +246,11 @@ export default function TodayScreen() {
       .filter((r): r is RowProps => r !== null),
     ...customGoalActions.map<RowProps>(action => {
       const count = todayTaps[action._id]?.count ?? 0;
-      const target = action.dailyGoal ? Math.round(action.dailyGoal / (action.defaultValue ?? 1)) : 1;
+      const target = action.dailyGoal
+        ? (action.defaultValue && action.defaultValue > 1 && action.dailyGoal >= action.defaultValue
+            ? Math.max(1, Math.round(action.dailyGoal / action.defaultValue))
+            : Math.max(1, Math.round(action.dailyGoal)))
+        : 1;
       return {
         icon: Target, tile: action.color || palette.primary, label: action.label,
         sub: `${Math.min(100, Math.round((count / target) * 100))}% of goal`, value: `${count} of ${target}`,
