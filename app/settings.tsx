@@ -26,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
 import { ScreenTopBar } from '../src/components/ios/ScreenTopBar';
+import { GlassCircleButton } from '../src/components/ios/GlassCircleButton';
 import { InsetGroup, GroupedRow } from '../src/components/ios/InsetGroup';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -68,6 +69,7 @@ import {
   Archive,
   Target,
   Minus,
+  Search,
 } from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeContext';
@@ -573,6 +575,319 @@ export default function SettingsScreen() {
   const activeBoundary = user?.preferences?.dayBoundaryHour ?? 4;
   const userConditions = user?.conditions || [];
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = React.useRef<TextInput>(null);
+
+  const settingsSearchItems = useMemo(() => [
+    // Accounts & Profile
+    {
+      id: 'edit_name',
+      title: 'Your Name',
+      sub: user?.name ? `Currently: ${user.name}` : 'Edit profile display name',
+      section: 'Profile & Account',
+      icon: UserIcon,
+      tile: TILE.blue,
+      keywords: ['name', 'display name', 'rename', 'user name', 'profile'],
+      onPress: () => setEditNameVisible(true),
+    },
+    {
+      id: 'edit_avatar',
+      title: 'Animated Avatar',
+      sub: 'Customize your health avatar, expression & style',
+      section: 'Profile & Account',
+      icon: Sparkles,
+      tile: TILE.indigo,
+      keywords: ['avatar', 'character', 'face', 'hair', 'glasses', 'appearance', 'profile picture'],
+      onPress: () => setAvatarStudioVisible(true),
+    },
+    {
+      id: 'switch_account',
+      title: 'Switch Account',
+      sub: savedAccounts && savedAccounts.length > 1 ? `${savedAccounts.length} accounts saved` : 'Switch to another account',
+      section: 'Profile & Account',
+      icon: Users,
+      tile: TILE.blue,
+      keywords: ['switch account', 'change user', 'multiple accounts', 'profile'],
+      onPress: () => setAccountSwitcherVisible(true),
+    },
+    {
+      id: 'add_account',
+      title: 'Add Another Account',
+      sub: 'Log in with another family member or profile',
+      section: 'Profile & Account',
+      icon: UserPlus,
+      tile: TILE.blue,
+      keywords: ['add account', 'new account', 'secondary user', 'login'],
+      onPress: () => setAccountSwitcherVisible(true),
+    },
+
+    // Sleep & Recovery
+    {
+      id: 'sleep_session',
+      title: 'Sleep & Day Session',
+      sub: 'Wake time, bedtime, sleep quality & day boundary reset',
+      section: 'Sleep & Recovery',
+      icon: Moon,
+      tile: TILE.indigo,
+      keywords: ['sleep', 'wake', 'bedtime', 'rest', 'session', 'day boundary', 'recovery', 'insomnia'],
+      onPress: () => openSection('sleep'),
+    },
+    {
+      id: 'sleep_goal',
+      title: 'Sleep Goal',
+      sub: `Target: ${formatGoalHours(sleepGoalMinutes)} hours`,
+      section: 'Sleep & Recovery',
+      icon: Target,
+      tile: TILE.indigo,
+      keywords: ['sleep goal', 'target', 'goal', 'hours', 'target sleep', 'rest target'],
+      onPress: () => openSection('sleepgoal'),
+    },
+
+    // Activity & Walking
+    {
+      id: 'auto_walk',
+      title: 'Auto-Walk Detection',
+      sub: 'Automatic pedometer background sync & walk route tracking',
+      section: 'Activity & Movement',
+      icon: MapPin,
+      tile: TILE.green,
+      keywords: ['auto walk', 'walking', 'steps', 'pedometer', 'activity', 'routes', 'gps'],
+      onPress: () => openSection('sleep'),
+    },
+
+    // Personal Vitals
+    {
+      id: 'vitals_age',
+      title: 'Age',
+      sub: user?.age != null ? `${user.age} years old` : 'Set your age',
+      section: 'Personal Vitals',
+      icon: Cake,
+      tile: TILE.pink,
+      keywords: ['age', 'years', 'birthday', 'dob', 'demographics'],
+      onPress: () => openSection('vitals'),
+    },
+    {
+      id: 'vitals_weight',
+      title: 'Weight',
+      sub: user?.weight != null ? `${user.weight} ${activeUnits === 'imperial' ? 'lb' : 'kg'}` : 'Set your weight',
+      section: 'Personal Vitals',
+      icon: Scale,
+      tile: TILE.orange,
+      keywords: ['weight', 'scale', 'kg', 'lb', 'body mass', 'weigh in'],
+      onPress: () => openSection('vitals'),
+    },
+    {
+      id: 'vitals_sex',
+      title: 'Sex / Gender',
+      sub: GENDER_OPTIONS.find(o => o.key === user?.gender)?.label || 'Not set',
+      section: 'Personal Vitals',
+      icon: UserIcon,
+      tile: TILE.gray,
+      keywords: ['sex', 'gender', 'male', 'female', 'non-binary', 'biology'],
+      onPress: () => openSection('vitals'),
+    },
+
+    // Conditions
+    {
+      id: 'conditions',
+      title: 'Conditions & Health Focus',
+      sub: userConditions.length ? `${userConditions.length} active conditions: ${userConditions.slice(0, 3).join(', ')}${userConditions.length > 3 ? '...' : ''}` : 'Select symptoms and diagnoses',
+      section: 'Conditions & Health Focus',
+      icon: Heart,
+      tile: TILE.pink,
+      keywords: ['conditions', 'diagnoses', 'lupus', 'arthritis', 'crohn', 'colitis', 'fibromyalgia', 'chronic fatigue', 'pots', 'migraine', 'asthma', 'endometriosis', 'eczema', 'ibs', ...userConditions],
+      onPress: () => openSection('conditions'),
+    },
+
+    // Units & Measurements
+    {
+      id: 'units_system',
+      title: 'Measurement Units',
+      sub: `${activeUnits === 'imperial' ? 'Imperial (mi, lb, oz)' : 'Metric (km, kg, ml)'}`,
+      section: 'Units & Measurements',
+      icon: Ruler,
+      tile: TILE.gray,
+      keywords: ['units', 'metric', 'imperial', 'measurement', 'distance', 'km', 'miles', 'lbs', 'kg'],
+      onPress: () => openSection('units'),
+    },
+    {
+      id: 'temp_scale',
+      title: 'Temperature Scale',
+      sub: `°${activeTempUnit} (${activeTempUnit === 'C' ? 'Celsius' : 'Fahrenheit'})`,
+      section: 'Units & Measurements',
+      icon: Thermometer,
+      tile: TILE.orange,
+      keywords: ['temperature', 'celsius', 'fahrenheit', 'fever', 'degrees', 'temp'],
+      onPress: () => openSection('units'),
+    },
+    {
+      id: 'custom_units',
+      title: 'Custom Units Builder',
+      sub: 'Create customized measurement dimensions and conversion factors',
+      section: 'Units & Measurements',
+      icon: FlaskConical,
+      tile: TILE.gray,
+      keywords: ['custom units', 'dimension', 'conversion', 'unit creator'],
+      onPress: () => router.push('/customize/units'),
+    },
+
+    // Appearance
+    {
+      id: 'appearance',
+      title: 'Appearance & Theme',
+      sub: `Currently: ${THEME_OPTIONS.find(o => o.key === preference)?.label || 'System'}`,
+      section: 'Appearance',
+      icon: SunMoon,
+      tile: TILE.blue,
+      keywords: ['theme', 'appearance', 'dark mode', 'light mode', 'system theme', 'display', 'colors'],
+      onPress: () => openSection('appearance'),
+    },
+
+    // Notifications
+    {
+      id: 'notifications',
+      title: 'Notifications & Intelligence',
+      sub: 'Configure smart nudges, medication alerts and daily reminders',
+      section: 'Notifications',
+      icon: Bell,
+      tile: TILE.red,
+      keywords: ['notifications', 'alerts', 'nudges', 'intelligence', 'push notifications', 'reminders'],
+      onPress: () => router.push('/notification-settings'),
+    },
+
+    // AI & Insights
+    {
+      id: 'ai_explanations',
+      title: 'AI Explanations (Gemini)',
+      sub: user?.preferences?.aiExplanations ? 'Enabled · Plain-language pattern summaries' : 'Disabled',
+      section: 'AI & Insights',
+      icon: Sparkles,
+      tile: TILE.indigo,
+      keywords: ['ai', 'gemini', 'explanations', 'insights', 'artificial intelligence', 'patterns', 'correlation'],
+      onPress: () => handleToggleAiExplanations(!user?.preferences?.aiExplanations),
+    },
+
+    // Security
+    {
+      id: 'app_lock',
+      title: 'Biometric App Lock',
+      sub: isAppLockEnabled ? 'Enabled · Face ID / Fingerprint required' : 'Disabled',
+      section: 'Security & Credentials',
+      icon: ScanFace,
+      tile: TILE.green,
+      keywords: ['biometric', 'app lock', 'face id', 'touch id', 'fingerprint', 'security', 'privacy'],
+      onPress: () => openSection('security'),
+    },
+    {
+      id: 'photo_pin',
+      title: 'Sensitive Photo PIN',
+      sub: user?.hasPhotoPin ? 'PIN Protection Active' : 'No PIN configured',
+      section: 'Security & Credentials',
+      icon: Lock,
+      tile: TILE.gray,
+      keywords: ['photo pin', 'sensitive photos', 'blur', 'pin', 'vault', 'privacy'],
+      onPress: () => openSection('security'),
+    },
+    {
+      id: 'location_tagging',
+      title: 'Auto-Tag Location on Logs',
+      sub: isLocationTaggingEnabled ? 'Enabled' : 'Disabled',
+      section: 'Security & Credentials',
+      icon: MapPin,
+      tile: TILE.blue,
+      keywords: ['location', 'gps', 'geo', 'tagging', 'map', 'places', 'privacy'],
+      onPress: () => openSection('security'),
+    },
+    {
+      id: 'account_password',
+      title: 'Account Password',
+      sub: user?.hasPassword ? 'Password is set' : 'Add password for email login',
+      section: 'Security & Credentials',
+      icon: KeyRound,
+      tile: TILE.gray,
+      keywords: ['password', 'credentials', 'login password', 'security'],
+      onPress: () => openSection('security'),
+    },
+
+    // Health Data & Backups
+    {
+      id: 'export_summary',
+      title: 'Export Health Summary',
+      sub: 'PDF or CSV medical reports for doctors and appointments',
+      section: 'Health Data & Backups',
+      icon: FileText,
+      tile: TILE.orange,
+      keywords: ['export', 'report', 'doctor', 'pdf', 'csv', 'clinical report', 'records', 'summary'],
+      onPress: () => router.push('/reports'),
+    },
+    {
+      id: 'config_backup',
+      title: 'Configuration Backup',
+      sub: 'Back up, transfer or share your tracking questionnaire setup',
+      section: 'Health Data & Backups',
+      icon: Archive,
+      tile: TILE.gray,
+      keywords: ['backup', 'export setup', 'import setup', 'transfer', 'share setup', 'sync'],
+      onPress: () => router.push('/customize/export'),
+    },
+
+    // Session & Danger
+    {
+      id: 'log_out',
+      title: 'Log Out',
+      sub: 'Safely close session and clear local cache',
+      section: 'Account Session',
+      icon: LogOut,
+      tile: TILE.red,
+      keywords: ['logout', 'log out', 'sign out', 'exit'],
+      onPress: handleLogout,
+    },
+    {
+      id: 'delete_account',
+      title: 'Delete Account & All Data',
+      sub: 'Permanently delete account, tracking logs and clinical records',
+      section: 'Danger Zone',
+      icon: Trash2,
+      tile: TILE.red,
+      keywords: ['delete', 'danger', 'wipe', 'erase', 'remove account', 'reset data', 'destroy'],
+      onPress: handleDeleteAccount,
+    },
+  ], [
+    user,
+    savedAccounts,
+    sleepGoalMinutes,
+    activeUnits,
+    activeTempUnit,
+    userConditions,
+    preference,
+    isAppLockEnabled,
+    isLocationTaggingEnabled,
+  ]);
+
+  const query = searchQuery.trim().toLowerCase();
+  const isSearchActive = query.length > 0;
+
+  const groupedSearchResults = useMemo(() => {
+    if (!query) return null;
+    const matches = settingsSearchItems.filter(item =>
+      item.title.toLowerCase().includes(query) ||
+      item.sub.toLowerCase().includes(query) ||
+      item.section.toLowerCase().includes(query) ||
+      item.keywords.some(k => k.toLowerCase().includes(query))
+    );
+
+    const map: Record<string, typeof matches> = {};
+    matches.forEach(item => {
+      if (!map[item.section]) map[item.section] = [];
+      map[item.section].push(item);
+    });
+    return {
+      groups: Object.entries(map),
+      totalCount: matches.length,
+    };
+  }, [query, settingsSearchItems]);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScreenTopBar
@@ -580,6 +895,29 @@ export default function SettingsScreen() {
         backLabel="Go back"
         sheet
         onBack={() => safeGoBack(sectionTitle ? '/settings' : '/(tabs)/today')}
+        right={
+          !sectionTitle ? (
+            <GlassCircleButton
+              accessibilityLabel="Search settings"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (isSearching) {
+                  setSearchQuery('');
+                  setIsSearching(false);
+                } else {
+                  setIsSearching(true);
+                  setTimeout(() => searchInputRef.current?.focus(), 100);
+                }
+              }}
+            >
+              <Search
+                size={20}
+                color={isSearching || isSearchActive ? palette.tint : palette.text}
+                strokeWidth={2.2}
+              />
+            </GlassCircleButton>
+          ) : undefined
+        }
       />
 
       <ScrollView
@@ -1097,6 +1435,71 @@ export default function SettingsScreen() {
           </>
         ) : (
           <>
+        {/* Apple-style Search Bar */}
+        <View style={styles.searchBar}>
+          <Search size={16} color={palette.textSecondary} />
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="Search settings..."
+            placeholderTextColor={palette.placeholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            accessibilityLabel="Search settings"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={16} color={palette.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isSearchActive && groupedSearchResults ? (
+          groupedSearchResults.totalCount === 0 ? (
+            <View style={styles.emptySearchWrap}>
+              <View style={styles.emptyIconCircle}>
+                <Search size={28} color={palette.textSecondary} />
+              </View>
+              <Text style={styles.emptyTitle}>No Settings Found</Text>
+              <Text style={styles.emptyDesc}>
+                No settings matching &quot;{searchQuery}&quot;. Check your spelling or try another term.
+              </Text>
+              <TouchableOpacity
+                style={styles.clearSearchBtn}
+                onPress={() => setSearchQuery('')}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            groupedSearchResults.groups.map(([sectionName, items]) => (
+              <InsetGroup key={sectionName} title={sectionName}>
+                {items.map(item => (
+                  <GroupedRow
+                    key={item.id}
+                    icon={item.icon}
+                    tile={item.tile}
+                    label={item.title}
+                    sub={item.sub}
+                    chevron
+                    onPress={item.onPress}
+                  />
+                ))}
+              </InsetGroup>
+            ))
+          )
+        ) : (
+          <>
         {/* Hub: profile + grouped rows */}
         <View style={styles.hubHero}>
           <TouchableOpacity
@@ -1238,6 +1641,8 @@ export default function SettingsScreen() {
             Version 0.1.0 • Built with care for Autoimmune Health
           </Text>
         </View>
+          </>
+        )}
           </>
         )}
 
@@ -2177,6 +2582,63 @@ function makeStyles(palette: ThemeTokens) {
       fontSize: 12,
       fontWeight: '500',
       textAlign: 'center',
+    },
+    searchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      paddingHorizontal: 14,
+      minHeight: 44,
+      borderRadius: 22,
+      gap: 8,
+      backgroundColor: palette.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+    },
+    searchInput: {
+      flex: 1,
+      ...typography.bodyLarge,
+      color: palette.text,
+      paddingVertical: 8,
+    },
+    emptySearchWrap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 48,
+      paddingHorizontal: 24,
+      gap: 12,
+    },
+    emptyIconCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: palette.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    emptyTitle: {
+      ...typography.headline,
+      color: palette.text,
+      textAlign: 'center',
+    },
+    emptyDesc: {
+      ...typography.subhead,
+      color: palette.textSecondary,
+      textAlign: 'center',
+    },
+    clearSearchBtn: {
+      marginTop: 8,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    clearSearchBtnText: {
+      ...typography.bodyBold,
+      color: palette.tint,
     },
   });
 }
