@@ -86,6 +86,35 @@ module.exports = ({ config }) => ({
         faceIDPermission: 'Lumen uses Face ID to protect your health data.',
       },
     ],
+    [
+      'react-native-android-widget',
+      {
+        widgets: [
+          {
+            name: 'TodayGlanceWidget',
+            label: 'Lumen Today at a Glance',
+            description: 'Live progress for Water, Walking, and Active time',
+            minWidth: '250dp',
+            minHeight: '110dp',
+            targetCellWidth: 4,
+            targetCellHeight: 2,
+            widgetCategory: 'home_screen|keyguard',
+            updatePeriodMillis: 1800000,
+          },
+          {
+            name: 'QuickTapWidget',
+            label: 'Lumen Quick Log',
+            description: 'One-tap water logging and quick walk tracking',
+            minWidth: '140dp',
+            minHeight: '110dp',
+            targetCellWidth: 2,
+            targetCellHeight: 2,
+            widgetCategory: 'home_screen|keyguard',
+            updatePeriodMillis: 1800000,
+          },
+        ],
+      },
+    ],
   ],
   scheme: 'lumen',
   extra: {

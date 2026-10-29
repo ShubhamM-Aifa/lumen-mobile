@@ -53,7 +53,7 @@ export function DraggableQuestionsList({
   reordering,
   onDragStateChange,
 }: Props) {
-  const isArchiveMode = archiveMode ?? reorderMode ?? false;
+  const isArchiveMode = Boolean(archiveMode);
   const { palette } = useTheme();
   const styles = useStyles();
 
@@ -67,6 +67,7 @@ export function DraggableQuestionsList({
 
   const targetIndexRef = useRef<number | null>(null);
   const isHoldingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowHeightRef = useRef(62);
 
@@ -76,7 +77,7 @@ export function DraggableQuestionsList({
   const itemOffsets = useRef<{ [key: string]: Animated.Value }>({}).current;
 
   // Initialize animated values for questions
-  questions.forEach((q) => {
+  items.forEach((q) => {
     if (!scaleAnims[q._id]) {
       scaleAnims[q._id] = new Animated.Value(1);
     }
@@ -125,7 +126,7 @@ export function DraggableQuestionsList({
           toValue: targetOffset,
           friction: 8,
           tension: 250,
-          useNativeDriver: Platform.OS !== 'web',
+          useNativeDriver: false,
         }).start();
       }
     });
@@ -138,12 +139,14 @@ export function DraggableQuestionsList({
         if (draggingIndexRef.current === index) return true;
         return isHoldingRef.current && Math.abs(gestureState.dy) > 3;
       },
+      onPanResponderTerminationRequest: () => !isHoldingRef.current,
       onPanResponderGrant: () => {
         isHoldingRef.current = false;
+        hasMovedRef.current = false;
         targetIndexRef.current = index;
 
-        // Long press threshold: 200ms in normal mode, 60ms in reorder mode
-        const holdDelay = reorderMode ? 60 : 200;
+        // Long press threshold: 180ms in normal mode, 60ms in reorder mode
+        const holdDelay = reorderMode ? 60 : 180;
         holdTimer.current = setTimeout(() => {
           isHoldingRef.current = true;
           draggingIndexRef.current = index;
@@ -157,7 +160,7 @@ export function DraggableQuestionsList({
               toValue: 1.03,
               friction: 6,
               tension: 220,
-              useNativeDriver: Platform.OS !== 'web',
+              useNativeDriver: false,
             }).start();
           }
         }, holdDelay);
@@ -165,7 +168,8 @@ export function DraggableQuestionsList({
       onPanResponderMove: (_, gestureState) => {
         if (!isHoldingRef.current) {
           // If finger moved significantly before hold delay completed, cancel hold (user was scrolling)
-          if (Math.abs(gestureState.dy) > 8 || Math.abs(gestureState.dx) > 8) {
+          if (Math.abs(gestureState.dy) > 10 || Math.abs(gestureState.dx) > 10) {
+            hasMovedRef.current = true;
             if (holdTimer.current) {
               clearTimeout(holdTimer.current);
               holdTimer.current = null;
@@ -194,8 +198,10 @@ export function DraggableQuestionsList({
         }
 
         if (!isHoldingRef.current) {
-          // Quick tap: Navigate to edit question
-          router.push(`/customize/question/${question._id}?categoryId=${categoryId}`);
+          if (!hasMovedRef.current && !isArchiveMode) {
+            // Quick tap: Navigate to edit question
+            router.push(`/customize/question/${question._id}?categoryId=${categoryId}`);
+          }
           return;
         }
 
@@ -212,7 +218,7 @@ export function DraggableQuestionsList({
             toValue: finalDropOffset,
             friction: 7,
             tension: 220,
-            useNativeDriver: Platform.OS !== 'web',
+            useNativeDriver: false,
           }),
           ...(scaleAnims[question._id]
             ? [
@@ -220,7 +226,7 @@ export function DraggableQuestionsList({
                   toValue: 1,
                   friction: 6,
                   tension: 220,
-                  useNativeDriver: Platform.OS !== 'web',
+                  useNativeDriver: false,
                 }),
               ]
             : []),
@@ -291,7 +297,7 @@ export function DraggableQuestionsList({
             ]}
           >
             {/* Draggable Main Area */}
-            <Pressable
+            <View
               style={[
                 styles.dragArea,
                 Platform.OS === 'web'
@@ -302,11 +308,13 @@ export function DraggableQuestionsList({
                   : null,
               ]}
               {...panResponder.panHandlers}
-              onPress={() => {
-                if (!isHoldingRef.current && !isArchiveMode) {
-                  router.push(`/customize/question/${q._id}?categoryId=${categoryId}`);
-                }
-              }}
+              {...({
+                onPress: () => {
+                  if (!isHoldingRef.current && !hasMovedRef.current && !isArchiveMode) {
+                    router.push(`/customize/question/${q._id}?categoryId=${categoryId}`);
+                  }
+                },
+              } as any)}
             >
               <View style={styles.dragGrip}>
                 <GripVertical size={16} color={palette.textSecondary} />
@@ -319,7 +327,7 @@ export function DraggableQuestionsList({
                   {subText}
                 </Text>
               </View>
-            </Pressable>
+            </View>
 
             {/* Trailing Controls */}
             {isArchiveMode ? (

@@ -73,6 +73,28 @@ export async function cancelNativeAlarm(reminderId: string): Promise<void> {
   }
 }
 
+export async function cancelAllNativeAlarms(): Promise<void> {
+  if (Platform.OS !== 'android' || !AlarmScheduler) return;
+  try {
+    if (typeof AlarmScheduler.cancelAllAlarms === 'function') {
+      await AlarmScheduler.cancelAllAlarms();
+    }
+  } catch (e) {
+    console.warn('[AlarmScheduler] cancelAllAlarms failed:', e);
+  }
+}
+
+export async function cancelOrphanNativeAlarms(activeReminderIds: string[]): Promise<void> {
+  if (Platform.OS !== 'android' || !AlarmScheduler) return;
+  try {
+    if (typeof AlarmScheduler.cancelOrphanAlarms === 'function') {
+      await AlarmScheduler.cancelOrphanAlarms(activeReminderIds);
+    }
+  } catch (e) {
+    console.warn('[AlarmScheduler] cancelOrphanAlarms failed:', e);
+  }
+}
+
 export async function getPendingAlarm(): Promise<string | null> {
   if (Platform.OS !== 'android' || !AlarmScheduler?.getPendingAlarm) {
     return null;

@@ -44,6 +44,7 @@ export function DraggableValueFieldsList({
 
   const targetIndexRef = useRef<number | null>(null);
   const isHoldingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowHeightRef = useRef(56);
 
@@ -51,7 +52,7 @@ export function DraggableValueFieldsList({
   const scaleAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
   const itemOffsets = useRef<{ [key: string]: Animated.Value }>({}).current;
 
-  fields.forEach((f, idx) => {
+  items.forEach((f, idx) => {
     const k = f.key || String(idx);
     if (!scaleAnims[k]) {
       scaleAnims[k] = new Animated.Value(1);
@@ -104,20 +105,25 @@ export function DraggableValueFieldsList({
 
   const createPanResponder = (index: number, field: FieldDefinition) => {
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         if (itemsRef.current.length <= 1) return false;
-        if (isHoldingRef.current) return true;
-        return Math.abs(gestureState.dy) > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        if (draggingIndexRef.current === index) return true;
+        return isHoldingRef.current && Math.abs(gestureState.dy) > 3;
       },
+      onPanResponderTerminationRequest: () => !isHoldingRef.current,
       onPanResponderGrant: () => {
+        isHoldingRef.current = false;
+        hasMovedRef.current = false;
+        targetIndexRef.current = index;
+
         holdTimer.current = setTimeout(() => {
           isHoldingRef.current = true;
+          draggingIndexRef.current = index;
           setDraggingIndex(index);
-          targetIndexRef.current = index;
           onDragStateChange?.(true);
 
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
           const animKey = field.key || String(index);
           if (scaleAnims[animKey]) {
@@ -128,11 +134,12 @@ export function DraggableValueFieldsList({
               tension: 100,
             }).start();
           }
-        }, 200);
+        }, 180);
       },
       onPanResponderMove: (_, gestureState) => {
         if (!isHoldingRef.current) {
-          if (Math.abs(gestureState.dy) > 6 || Math.abs(gestureState.dx) > 6) {
+          if (Math.abs(gestureState.dy) > 10 || Math.abs(gestureState.dx) > 10) {
+            hasMovedRef.current = true;
             if (holdTimer.current) {
               clearTimeout(holdTimer.current);
               holdTimer.current = null;
@@ -150,7 +157,7 @@ export function DraggableValueFieldsList({
 
         if (clampedTarget !== targetIndexRef.current) {
           targetIndexRef.current = clampedTarget;
-          Haptics.selectionAsync();
+          Haptics.selectionAsync().catch(() => {});
           updateOtherItemPositions(index, clampedTarget, rowHeight);
         }
       },
@@ -160,39 +167,65 @@ export function DraggableValueFieldsList({
           holdTimer.current = null;
         }
 
-        if (isHoldingRef.current) {
-          isHoldingRef.current = false;
-          const fromIdx = index;
-          const toIdx = targetIndexRef.current ?? index;
+        if (!isHoldingRef.current) {
+          if (!hasMovedRef.current) {
+            onEditField(index);
+          }
+          return;
+        }
 
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        isHoldingRef.current = false;
+        onDragStateChange?.(false);
 
+        const fromIdx = index;
+        const toIdx = targetIndexRef.current ?? index;
+        const rowH = rowHeightRef.current || 56;
+        const finalDropOffset = (toIdx - fromIdx) * rowH;
+
+        const animKey = field.key || String(index);
+        Animated.parallel([
+          Animated.spring(panY, {
+            toValue: finalDropOffset,
+            friction: 7,
+            tension: 220,
+            useNativeDriver: false,
+          }),
+          ...(scaleAnims[animKey]
+            ? [
+                Animated.spring(scaleAnims[animKey], {
+                  toValue: 1,
+                  friction: 6,
+                  tension: 220,
+                  useNativeDriver: false,
+                }),
+              ]
+            : []),
+        ]).start(() => {
           if (fromIdx !== toIdx) {
             const reordered = [...itemsRef.current];
             const [moved] = reordered.splice(fromIdx, 1);
             reordered.splice(toIdx, 0, moved);
+            itemsRef.current = reordered;
             setItems(reordered);
+            resetAllPositions();
+            setDraggingIndex(null);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             onReorder(reordered);
+          } else {
+            resetAllPositions();
+            setDraggingIndex(null);
           }
-
-          resetAllPositions();
-          setDraggingIndex(null);
-          targetIndexRef.current = null;
-          onDragStateChange?.(false);
-        }
+        });
       },
       onPanResponderTerminate: () => {
         if (holdTimer.current) {
           clearTimeout(holdTimer.current);
           holdTimer.current = null;
         }
-        if (isHoldingRef.current) {
-          isHoldingRef.current = false;
-          resetAllPositions();
-          setDraggingIndex(null);
-          targetIndexRef.current = null;
-          onDragStateChange?.(false);
-        }
+        isHoldingRef.current = false;
+        onDragStateChange?.(false);
+        resetAllPositions();
+        setDraggingIndex(null);
       },
     });
   };
@@ -232,7 +265,7 @@ export function DraggableValueFieldsList({
             ]}
           >
             {/* Draggable Main Area */}
-            <Pressable
+            <View
               style={[
                 styles.dragArea,
                 Platform.OS === 'web'
@@ -243,11 +276,13 @@ export function DraggableValueFieldsList({
                   : null,
               ]}
               {...panResponder.panHandlers}
-              onPress={() => {
-                if (!isHoldingRef.current) {
-                  onEditField(index);
-                }
-              }}
+              {...({
+                onPress: () => {
+                  if (!isHoldingRef.current && !hasMovedRef.current) {
+                    onEditField(index);
+                  }
+                },
+              } as any)}
             >
               <View style={styles.dragGrip}>
                 <GripVertical size={16} color={palette.textSecondary} />
@@ -260,7 +295,7 @@ export function DraggableValueFieldsList({
                   {subText}
                 </Text>
               </View>
-            </Pressable>
+            </View>
 
             {/* Trailing Controls */}
             <View style={styles.trailingActions}>

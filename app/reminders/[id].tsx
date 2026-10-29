@@ -157,7 +157,7 @@ export default function EditReminderScreen() {
         targetTime: time,
         windowStartTime: windowStart,
         windowEndTime: windowEnd,
-        intervalMinutes: parseInt(intervalMinutes, 10) || 60,
+        intervalMinutes: Math.max(15, parseInt(intervalMinutes, 10) || 60),
         inactivityThresholdMinutes: parseInt(inactivityMinutes, 10) || 45,
         daysOfWeek: selectedDays,
         notificationMessage: message.trim() || `Time for ${name.trim()}`,
@@ -309,7 +309,7 @@ export default function EditReminderScreen() {
                 />
               </View>
               <View style={styles.inputCol}>
-                <Text style={styles.subLabel}>Every (mins)</Text>
+                <Text style={styles.subLabel}>Every (mins, min 15)</Text>
                 <TextInput
                   style={styles.smallInput}
                   value={intervalMinutes}

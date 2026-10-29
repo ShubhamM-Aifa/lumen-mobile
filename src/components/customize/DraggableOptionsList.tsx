@@ -43,7 +43,7 @@ export function DraggableOptionsList({
   reordering,
   onDragStateChange,
 }: Props) {
-  const isArchiveMode = archiveMode ?? reorderMode ?? false;
+  const isArchiveMode = Boolean(archiveMode);
   const { palette } = useTheme();
   const styles = useStyles();
 
@@ -57,6 +57,7 @@ export function DraggableOptionsList({
 
   const targetIndexRef = useRef<number | null>(null);
   const isHoldingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowHeightRef = useRef(62);
 
@@ -64,7 +65,7 @@ export function DraggableOptionsList({
   const scaleAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
   const itemOffsets = useRef<{ [key: string]: Animated.Value }>({}).current;
 
-  options.forEach((opt) => {
+  items.forEach((opt) => {
     if (!scaleAnims[opt._id]) {
       scaleAnims[opt._id] = new Animated.Value(1);
     }
@@ -106,7 +107,7 @@ export function DraggableOptionsList({
           toValue: targetOffset,
           friction: 8,
           tension: 250,
-          useNativeDriver: Platform.OS !== 'web',
+          useNativeDriver: false,
         }).start();
       }
     });
@@ -119,11 +120,13 @@ export function DraggableOptionsList({
         if (draggingIndexRef.current === index) return true;
         return isHoldingRef.current && Math.abs(gestureState.dy) > 3;
       },
+      onPanResponderTerminationRequest: () => !isHoldingRef.current,
       onPanResponderGrant: () => {
         isHoldingRef.current = false;
+        hasMovedRef.current = false;
         targetIndexRef.current = index;
 
-        const holdDelay = reorderMode ? 60 : 200;
+        const holdDelay = reorderMode ? 60 : 180;
         holdTimer.current = setTimeout(() => {
           isHoldingRef.current = true;
           draggingIndexRef.current = index;
@@ -137,14 +140,15 @@ export function DraggableOptionsList({
               toValue: 1.03,
               friction: 6,
               tension: 220,
-              useNativeDriver: Platform.OS !== 'web',
+              useNativeDriver: false,
             }).start();
           }
         }, holdDelay);
       },
       onPanResponderMove: (_, gestureState) => {
         if (!isHoldingRef.current) {
-          if (Math.abs(gestureState.dy) > 8 || Math.abs(gestureState.dx) > 8) {
+          if (Math.abs(gestureState.dy) > 10 || Math.abs(gestureState.dx) > 10) {
+            hasMovedRef.current = true;
             if (holdTimer.current) {
               clearTimeout(holdTimer.current);
               holdTimer.current = null;
@@ -172,7 +176,9 @@ export function DraggableOptionsList({
         }
 
         if (!isHoldingRef.current) {
-          router.push(`/customize/option/${opt._id}?questionId=${questionId}`);
+          if (!hasMovedRef.current && !isArchiveMode) {
+            router.push(`/customize/option/${opt._id}?questionId=${questionId}`);
+          }
           return;
         }
 
@@ -189,7 +195,7 @@ export function DraggableOptionsList({
             toValue: finalDropOffset,
             friction: 7,
             tension: 220,
-            useNativeDriver: Platform.OS !== 'web',
+            useNativeDriver: false,
           }),
           ...(scaleAnims[opt._id]
             ? [
@@ -197,7 +203,7 @@ export function DraggableOptionsList({
                   toValue: 1,
                   friction: 6,
                   tension: 220,
-                  useNativeDriver: Platform.OS !== 'web',
+                  useNativeDriver: false,
                 }),
               ]
             : []),
@@ -263,7 +269,7 @@ export function DraggableOptionsList({
             ]}
           >
             {/* Draggable Main Area */}
-            <Pressable
+            <View
               style={[
                 styles.dragArea,
                 Platform.OS === 'web'
@@ -274,11 +280,13 @@ export function DraggableOptionsList({
                   : null,
               ]}
               {...panResponder.panHandlers}
-              onPress={() => {
-                if (!isHoldingRef.current && !isArchiveMode) {
-                  router.push(`/customize/option/${opt._id}?questionId=${questionId}`);
-                }
-              }}
+              {...({
+                onPress: () => {
+                  if (!isHoldingRef.current && !hasMovedRef.current && !isArchiveMode) {
+                    router.push(`/customize/option/${opt._id}?questionId=${questionId}`);
+                  }
+                },
+              } as any)}
             >
               <View style={styles.dragGrip}>
                 <GripVertical size={16} color={palette.textSecondary} />
@@ -294,7 +302,7 @@ export function DraggableOptionsList({
                   </Text>
                 ) : null}
               </View>
-            </Pressable>
+            </View>
 
             {/* Trailing Controls */}
             {isArchiveMode ? (

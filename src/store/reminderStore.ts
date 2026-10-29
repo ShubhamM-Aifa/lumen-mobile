@@ -7,7 +7,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uuidv4 } from '../utils/uuid';
 import { IReminder, ReminderCategory, ReminderScheduleType, WeekDay } from '@lumen/shared';
 import { api } from '../api/client';
-import { scheduleReminder, cancelReminder, snoozeReminder } from '../services/notifications';
+import {
+  scheduleReminder,
+  cancelReminder,
+  snoozeReminder,
+  syncReminders,
+  purgeAllGhostAlarms,
+} from '../services/notifications';
 
 const REMINDERS_CACHE_KEY = 'lumen:reminders:cache_v1';
 
@@ -47,12 +53,18 @@ interface ReminderState {
   toggleReminder: (id: string) => Promise<void>;
   snooze: (id: string, minutes?: number) => Promise<void>;
   duplicateReminder: (id: string) => Promise<void>;
+  purgeGhostReminders: () => Promise<void>;
 }
 
 export const useReminderStore = create<ReminderState>((set, get) => ({
   reminders: [],
   isLoading: false,
   error: null,
+
+  purgeGhostReminders: async () => {
+    const { reminders } = get();
+    await purgeAllGhostAlarms(reminders).catch(() => {});
+  },
 
   fetchReminders: async () => {
     set({ isLoading: true, error: null });
@@ -72,12 +84,8 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
         set({ reminders: res, isLoading: false });
         await AsyncStorage.setItem(REMINDERS_CACHE_KEY, JSON.stringify(res));
 
-        // Resync schedules
-        for (const rem of res) {
-          if (rem.enabled) {
-            scheduleReminder(rem).catch(() => {});
-          }
-        }
+        // Bulletproof resync: cancels any ghost/orphan notifications and native alarms
+        syncReminders(res).catch(() => {});
       }
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Failed to load reminders' });

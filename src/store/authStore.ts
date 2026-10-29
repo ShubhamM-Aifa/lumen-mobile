@@ -513,6 +513,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await api.post('/auth/logout', {}).catch(() => {});
     } catch {}
 
+    // Clean medical & notification isolation: cancel outgoing alarms & notifications
+    await cancelAllNotifications().catch(() => {});
+
     if (user && user._id) {
       await clearAccountTokens(user._id);
       await AsyncStorage.removeItem(`lumen:auth:user_${user._id}`).catch(() => {});

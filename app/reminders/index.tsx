@@ -12,7 +12,7 @@ import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../../src/utils/navigation';
-import { Plus, Bell, Clock, Trash2, Copy, ChevronLeft, RotateCcw, BellRing, Edit2, AlertTriangle, CloudSun, X, Footprints } from 'lucide-react-native';
+import { Plus, Bell, Clock, Trash2, Copy, ChevronLeft, RotateCcw, BellRing, Edit2, AlertTriangle, CloudSun, X, Footprints, RefreshCw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -61,6 +61,7 @@ export default function RemindersScreen() {
     permanentDeleteReminder,
     duplicateReminder,
     snooze,
+    purgeGhostReminders,
   } = useReminderStore();
   const { activeFlareAlert, dismissFlareAlert } = useWeatherStore();
   const { activePacingAlert, dismissPacingAlert } = useActivityStore();
@@ -96,8 +97,26 @@ export default function RemindersScreen() {
   };
 
   const [isTestingAlarm, setIsTestingAlarm] = useState(false);
+  const [isPurgingAlarms, setIsPurgingAlarms] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
+
+  const handlePurgeStaleAlarms = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsPurgingAlarms(true);
+    try {
+      await purgeGhostReminders();
+      await fetchReminders();
+      Alert.alert(
+        'Alarms Cleaned & Resynced',
+        'All rogue, ghost notifications and background alarms have been purged. Only your active reminders are now scheduled.'
+      );
+    } catch {
+      Alert.alert('Notice', 'Alarms resynced with active reminders.');
+    } finally {
+      setIsPurgingAlarms(false);
+    }
+  };
 
   const runTestAlarm = async () => {
     const capabilities = await getAlarmDeliveryCapabilities();
@@ -513,7 +532,7 @@ export default function RemindersScreen() {
         )}
 
         {selectedCategory !== 'ARCHIVED' ? (
-          <InsetGroup footer="Rings an alarm now so you can check sound, vibration and lock-screen delivery.">
+          <InsetGroup footer="Rings an alarm now so you can check sound, vibration and lock-screen delivery. Use Clean & Resync if any old notifications or ghost alarms persist.">
             <GroupedRow
               icon={BellRing}
               tile={palette.warning}
@@ -521,6 +540,14 @@ export default function RemindersScreen() {
               accessibilityLabel="Test Alarm"
               chevron
               onPress={isTestingAlarm ? undefined : handleTestAlarm}
+            />
+            <GroupedRow
+              icon={RefreshCw}
+              tile={palette.tint}
+              label={isPurgingAlarms ? 'Cleaning…' : 'Clean & Resync Alarms'}
+              accessibilityLabel="Clean & Resync Alarms"
+              chevron
+              onPress={isPurgingAlarms ? undefined : handlePurgeStaleAlarms}
             />
           </InsetGroup>
         ) : null}

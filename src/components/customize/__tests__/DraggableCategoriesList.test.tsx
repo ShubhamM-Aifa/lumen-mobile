@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, act } from '@testing-library/react-native';
 import { DraggableCategoriesList } from '../DraggableCategoriesList';
 import { ICategory } from '@lumen/shared';
 
@@ -124,5 +124,104 @@ describe('DraggableCategoriesList', () => {
 
     fireEvent.press(getByText('Physical Symptoms'));
     expect(router.push).toHaveBeenCalledWith('/customize/questions/cat1');
+  });
+
+  it('activates hold to drag, disables scroll, and reorders on release', async () => {
+    jest.useFakeTimers();
+    const onDragStateChange = jest.fn();
+    const { getByText } = render(
+      <DraggableCategoriesList
+        categories={mockCategories}
+        archiveMode={false}
+        getQuestionCount={getQuestionCount}
+        onReorder={onReorder}
+        onArchive={onArchive}
+        onDragStateChange={onDragStateChange}
+      />
+    );
+
+    // Find the draggable area for first item
+    const itemText = getByText('Physical Symptoms');
+    let dragArea: any = itemText;
+    while (dragArea && !dragArea.props.onResponderGrant) {
+      dragArea = dragArea.parent;
+    }
+    expect(dragArea).toBeTruthy();
+
+    const startEvent: any = {
+      nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] },
+      touchHistory: {
+        touchBank: [
+          {
+            touchActive: true,
+            currentPageX: 0,
+            currentPageY: 0,
+            previousPageX: 0,
+            previousPageY: 0,
+            currentTimeStamp: 1,
+            startPageX: 0,
+            startPageY: 0,
+            startTimeStamp: 1,
+          },
+        ],
+        numberActiveTouches: 1,
+        indexOfSingleActiveTouch: 0,
+        mostRecentTimeStamp: 1,
+      },
+    };
+
+    // Touch down (start pan responder)
+    act(() => {
+      dragArea.props.onResponderGrant(startEvent);
+    });
+
+    // Advance past hold threshold (180ms)
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    expect(onDragStateChange).toHaveBeenCalledWith(true);
+
+    const moveEvent: any = {
+      nativeEvent: { touches: [{ pageX: 0, pageY: 70 }] },
+      touchHistory: {
+        touchBank: [
+          {
+            touchActive: true,
+            currentPageX: 0,
+            currentPageY: 70,
+            previousPageX: 0,
+            previousPageY: 0,
+            currentTimeStamp: 2,
+            startPageX: 0,
+            startPageY: 0,
+            startTimeStamp: 1,
+          },
+        ],
+        numberActiveTouches: 1,
+        indexOfSingleActiveTouch: 0,
+        mostRecentTimeStamp: 2,
+      },
+    };
+
+    // Move downwards by 70px (row height is ~62px, so target is index 1)
+    act(() => {
+      dragArea.props.onResponderMove(moveEvent);
+    });
+
+    // Release finger
+    act(() => {
+      dragArea.props.onResponderRelease(moveEvent);
+    });
+
+    // Run animations
+    act(() => {
+      jest.runAllTimers();
+    });
+
+    expect(onDragStateChange).toHaveBeenCalledWith(false);
+    expect(onReorder).toHaveBeenCalledWith([mockCategories[1], mockCategories[0]]);
+
+    jest.useRealTimers();
   });
 });

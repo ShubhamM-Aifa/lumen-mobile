@@ -65,6 +65,7 @@ import { refreshInbox } from '../../src/services/notificationInbox';
 import { useTriggerWatch } from '../../src/hooks/useTriggerWatch';
 import { useFlareRiskWatch } from '../../src/hooks/useFlareRiskWatch';
 import { FlareModeToday, pickEssentialActions } from '../../src/components/home/FlareModeToday';
+import { saveWidgetSnapshot } from '../../src/widgets/widgetSync';
 
 export default function TodayScreen() {
   const { palette } = useTheme();
@@ -187,9 +188,20 @@ export default function TodayScreen() {
     a => a.isVisible && a.dailyGoal && !isWaterAction(a),
   );
 
+  useEffect(() => {
+    saveWidgetSnapshot({
+      waterCount,
+      waterGoal,
+      distanceKm: todayDistanceKm.toFixed(1),
+      stepsToday: phoneStepsToday ?? 0,
+      activeMinutes: totalActiveMinutes,
+      activeGoal: activeGoalMinutes,
+    });
+  }, [waterCount, waterGoal, todayDistanceKm, phoneStepsToday, totalActiveMinutes, activeGoalMinutes]);
+
   const inboxEntries = useNotificationInboxStore(st => st.entries);
   useEffect(() => {
-    refreshInbox().catch(() => {});
+    refreshInbox().catch(() => { });
   }, []);
   const unreadNotifications = countUnread(inboxEntries);
   useTriggerWatch();
@@ -271,8 +283,8 @@ export default function TodayScreen() {
       const count = todayTaps[action._id]?.count ?? 0;
       const target = action.dailyGoal
         ? (action.defaultValue && action.defaultValue > 1 && action.dailyGoal >= action.defaultValue
-            ? Math.max(1, Math.round(action.dailyGoal / action.defaultValue))
-            : Math.max(1, Math.round(action.dailyGoal)))
+          ? Math.max(1, Math.round(action.dailyGoal / action.defaultValue))
+          : Math.max(1, Math.round(action.dailyGoal)))
         : 1;
       return {
         icon: Target, tile: action.color || palette.primary, label: action.label,
@@ -282,9 +294,9 @@ export default function TodayScreen() {
     }),
     ...(weather
       ? [{
-          icon: Cloud, tile: palette.catHabits, label: 'Weather', sub: weather.cityName,
-          value: `${weather.temperatureC}°C`, chevron: true, onPress: () => setWeatherModalVisible(true),
-        } as RowProps]
+        icon: Cloud, tile: palette.catHabits, label: 'Weather', sub: weather.cityName,
+        value: `${weather.temperatureC}°C`, chevron: true, onPress: () => setWeatherModalVisible(true),
+      } as RowProps]
       : []),
   ];
 
@@ -357,84 +369,84 @@ export default function TodayScreen() {
           />
         ) : (
           <>
-          <FeelingCard firstName={greetingName} boundaryHour={boundaryHour} />
+            <FeelingCard firstName={greetingName} boundaryHour={boundaryHour} />
 
-          <ForYouTodayCard />
+            <ForYouTodayCard />
 
-          {!isDaytimeMode && (
-            <View style={styles.inset}>
-              <DayClockCard />
-            </View>
-          )}
+            {!isDaytimeMode && (
+              <View style={styles.inset}>
+                <DayClockCard />
+              </View>
+            )}
 
-          <View style={styles.block}>
-            <SectionTitle title="Quick Taps" actionLabel="Customize" onAction={() => router.push('/customize/quick-actions')} />
-            <View style={styles.grid}>
-              {visibleActions.map(action => (
-                <QuickActionButton
-                  key={action._id}
-                  action={action}
-                  width={tileWidth}
-                  onPressOverride={
-                    isWaterAction(action)
-                      ? () => { setSelectedWaterActionId(action._id); setWaterModalVisible(true); }
-                      : (action.linkedOptionId && action.linkedQuestionId)
-                        ? () => setSelectedLinkedAction(action)
-                        : undefined
-                  }
-                />
-              ))}
-              <TouchableOpacity
-                style={[styles.addTile, { width: tileWidth }]}
-                onPress={() => router.push('/customize/quick-actions')}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Add quick action"
-              >
-                <View style={styles.addIcon}>
-                  <Plus size={19} color={palette.textSecondary} strokeWidth={2.4} />
-                </View>
-                <Text style={styles.addLabel} maxFontSizeMultiplier={1.3}>Add Action</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <InsetGroup>
-            <GroupedRow
-              icon={Zap}
-              tile={palette.warning}
-              label="Quick Log"
-              sub="Fast entry for your key questions"
-              chevron
-              onPress={() => router.push('/quick-log')}
-            />
-            <GroupedRow
-              icon={Flame}
-              tile={palette.error}
-              label="Flare mode"
-              sub="Show only the essentials on bad days"
-              toggle
-              toggled={flareActive}
-              onToggle={v => { setFlareMode(v); }}
-            />
-          </InsetGroup>
-
-          {summaryRows.length > 0 ? (
             <View style={styles.block}>
-              <SectionTitle title="Summary" actionLabel="Timeline" onAction={() => router.push('/(tabs)/timeline')} />
-              <InsetGroup>
-                {summaryRows.map(r => <GroupedRow key={r.label} {...r} />)}
-              </InsetGroup>
+              <SectionTitle title="Quick Taps" actionLabel="Customize" onAction={() => router.push('/customize/quick-actions')} />
+              <View style={styles.grid}>
+                {visibleActions.map(action => (
+                  <QuickActionButton
+                    key={action._id}
+                    action={action}
+                    width={tileWidth}
+                    onPressOverride={
+                      isWaterAction(action)
+                        ? () => { setSelectedWaterActionId(action._id); setWaterModalVisible(true); }
+                        : (action.linkedOptionId && action.linkedQuestionId)
+                          ? () => setSelectedLinkedAction(action)
+                          : undefined
+                    }
+                  />
+                ))}
+                <TouchableOpacity
+                  style={[styles.addTile, { width: tileWidth }]}
+                  onPress={() => router.push('/customize/quick-actions')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add quick action"
+                >
+                  <View style={styles.addIcon}>
+                    <Plus size={19} color={palette.textSecondary} strokeWidth={2.4} />
+                  </View>
+                  <Text style={styles.addLabel} maxFontSizeMultiplier={1.3}>Add Action</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          ) : (
+
             <InsetGroup>
-              <GroupedRow label="All summary cards are hidden" sub="Choose what appears here" chevron onPress={() => router.push('/customize/at-a-glance')} />
+              <GroupedRow
+                icon={Zap}
+                tile={palette.warning}
+                label="Quick Log"
+                sub="Fast entry for your key questions"
+                chevron
+                onPress={() => router.push('/quick-log')}
+              />
+              <GroupedRow
+                icon={Flame}
+                tile={palette.error}
+                label="Flare mode"
+                sub="Show only the essentials on bad days"
+                toggle
+                toggled={flareActive}
+                onToggle={v => { setFlareMode(v); }}
+              />
             </InsetGroup>
-          )}
 
-          <MyDaySection boundaryHour={boundaryHour} />
+            {summaryRows.length > 0 ? (
+              <View style={styles.block}>
+                <SectionTitle title="Summary" actionLabel="Timeline" onAction={() => router.push('/(tabs)/timeline')} />
+                <InsetGroup>
+                  {summaryRows.map(r => <GroupedRow key={r.label} {...r} />)}
+                </InsetGroup>
+              </View>
+            ) : (
+              <InsetGroup>
+                <GroupedRow label="All summary cards are hidden" sub="Choose what appears here" chevron onPress={() => router.push('/customize/at-a-glance')} />
+              </InsetGroup>
+            )}
 
-          <DayCheckInCard boundaryHour={boundaryHour} />
+            <MyDaySection boundaryHour={boundaryHour} />
+
+            <DayCheckInCard boundaryHour={boundaryHour} />
           </>
         )}
       </ScrollView>

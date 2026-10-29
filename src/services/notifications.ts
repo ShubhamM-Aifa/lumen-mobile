@@ -15,6 +15,8 @@ import { useQuickLogStore } from '../store/quickLogStore';
 import {
   scheduleNativeAlarm,
   cancelNativeAlarm,
+  cancelAllNativeAlarms,
+  cancelOrphanNativeAlarms,
   getAlarmCapabilities,
   type AlarmCapabilities,
 } from './alarmScheduler';
@@ -415,6 +417,17 @@ export async function scheduleReminder(reminder: IReminder): Promise<void> {
     }
     delete map[reminder._id];
   }
+  // Also clean up any orphan scheduled notification matching this reminderId
+  if (N && typeof N.getAllScheduledNotificationsAsync === 'function') {
+    try {
+      const all = await N.getAllScheduledNotificationsAsync();
+      for (const item of all) {
+        if (item.content?.data?.reminderId === reminder._id) {
+          await N.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
+        }
+      }
+    } catch {}
+  }
   // Also cancel any native exact alarm
   await cancelNativeAlarm(reminder._id);
 
@@ -803,6 +816,17 @@ export async function cancelReminder(reminderId: string): Promise<void> {
     delete map[reminderId];
     await saveMapping(map);
   }
+  // Also scan active scheduled notifications to cancel any orphan matching this reminderId
+  if (N && typeof N.getAllScheduledNotificationsAsync === 'function') {
+    try {
+      const all = await N.getAllScheduledNotificationsAsync();
+      for (const item of all) {
+        if (item.content?.data?.reminderId === reminderId) {
+          await N.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
+        }
+      }
+    } catch {}
+  }
   await cancelNativeAlarm(reminderId);
 }
 
@@ -815,6 +839,7 @@ export async function cancelAllNotifications(): Promise<void> {
     if (N && typeof N.cancelAllScheduledNotificationsAsync === 'function') {
       await N.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
+    await cancelAllNativeAlarms().catch(() => {});
     await AsyncStorage.removeItem(MAPPING_KEY).catch(() => {});
   } catch (err) {
     console.warn('[Notifications] Failed to cancel all notifications:', err);
@@ -990,8 +1015,56 @@ export async function sendPacingAlertNotification(
 }
 
 export async function syncReminders(reminders: IReminder[]): Promise<void> {
+  const activeReminders = reminders.filter(
+    r => r.enabled && !r.archivedAt && (r as any).isActive !== false
+  );
+  const activeIds = new Set(activeReminders.map(r => r._id));
+
+  // 1. Cancel orphan native alarms (alarms belonging to deleted/disabled reminders or previous user sessions)
+  await cancelOrphanNativeAlarms(Array.from(activeIds));
+
+  // 2. Scan and cancel any orphaned notifications in expo-notifications
+  if (N && typeof N.getAllScheduledNotificationsAsync === 'function') {
+    try {
+      const allScheduled = await N.getAllScheduledNotificationsAsync();
+      for (const item of allScheduled) {
+        const notifReminderId = item.content?.data?.reminderId;
+        // If it has a reminderId that is no longer active, cancel it
+        if (notifReminderId && !activeIds.has(notifReminderId)) {
+          await N.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
+        }
+        // Also cancel known ghost alarm title 'Watee'
+        if (item.content?.title === 'Watee') {
+          await N.cancelScheduledNotificationAsync(item.identifier).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('[Notifications] Failed to clean orphan notifications:', err);
+    }
+  }
+
+  // 3. For any reminders explicitly marked disabled/archived, cancel their triggers
   for (const r of reminders) {
+    if (!r.enabled || !!r.archivedAt || (r as any).isActive === false) {
+      await cancelReminder(r._id);
+    }
+  }
+
+  // 4. Schedule/refresh all active reminders
+  for (const r of activeReminders) {
     await scheduleReminder(r);
+  }
+}
+
+/**
+ * Completely purges all local notification triggers and native alarms on device,
+ * then reschedules only the active reminders provided.
+ * Useful for debugging, account switching, or clearing ghost notifications.
+ */
+export async function purgeAllGhostAlarms(activeReminders: IReminder[] = []): Promise<void> {
+  await cancelAllNotifications();
+  if (activeReminders.length > 0) {
+    await syncReminders(activeReminders);
   }
 }
 

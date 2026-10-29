@@ -50,7 +50,7 @@ export function DraggableCategoriesList({
   reordering,
   onDragStateChange,
 }: Props) {
-  const isArchiveMode = archiveMode ?? reorderMode ?? false;
+  const isArchiveMode = Boolean(archiveMode);
   const { palette } = useTheme();
   const styles = useStyles();
 
@@ -64,6 +64,7 @@ export function DraggableCategoriesList({
 
   const targetIndexRef = useRef<number | null>(null);
   const isHoldingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowHeightRef = useRef(62);
 
@@ -71,7 +72,7 @@ export function DraggableCategoriesList({
   const scaleAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
   const itemOffsets = useRef<{ [key: string]: Animated.Value }>({}).current;
 
-  categories.forEach((cat) => {
+  items.forEach((cat) => {
     if (!scaleAnims[cat._id]) {
       scaleAnims[cat._id] = new Animated.Value(1);
     }
@@ -113,7 +114,7 @@ export function DraggableCategoriesList({
           toValue: targetOffset,
           friction: 8,
           tension: 250,
-          useNativeDriver: Platform.OS !== 'web',
+          useNativeDriver: false,
         }).start();
       }
     });
@@ -126,11 +127,13 @@ export function DraggableCategoriesList({
         if (draggingIndexRef.current === index) return true;
         return isHoldingRef.current && Math.abs(gestureState.dy) > 3;
       },
+      onPanResponderTerminationRequest: () => !isHoldingRef.current,
       onPanResponderGrant: () => {
         isHoldingRef.current = false;
+        hasMovedRef.current = false;
         targetIndexRef.current = index;
 
-        const holdDelay = reorderMode ? 60 : 200;
+        const holdDelay = reorderMode ? 60 : 180;
         holdTimer.current = setTimeout(() => {
           isHoldingRef.current = true;
           draggingIndexRef.current = index;
@@ -144,14 +147,15 @@ export function DraggableCategoriesList({
               toValue: 1.03,
               friction: 6,
               tension: 220,
-              useNativeDriver: Platform.OS !== 'web',
+              useNativeDriver: false,
             }).start();
           }
         }, holdDelay);
       },
       onPanResponderMove: (_, gestureState) => {
         if (!isHoldingRef.current) {
-          if (Math.abs(gestureState.dy) > 8 || Math.abs(gestureState.dx) > 8) {
+          if (Math.abs(gestureState.dy) > 10 || Math.abs(gestureState.dx) > 10) {
+            hasMovedRef.current = true;
             if (holdTimer.current) {
               clearTimeout(holdTimer.current);
               holdTimer.current = null;
@@ -179,7 +183,9 @@ export function DraggableCategoriesList({
         }
 
         if (!isHoldingRef.current) {
-          router.push(`/customize/questions/${cat._id}`);
+          if (!hasMovedRef.current && !isArchiveMode) {
+            router.push(`/customize/questions/${cat._id}`);
+          }
           return;
         }
 
@@ -196,7 +202,7 @@ export function DraggableCategoriesList({
             toValue: finalDropOffset,
             friction: 7,
             tension: 220,
-            useNativeDriver: Platform.OS !== 'web',
+            useNativeDriver: false,
           }),
           ...(scaleAnims[cat._id]
             ? [
@@ -204,7 +210,7 @@ export function DraggableCategoriesList({
                   toValue: 1,
                   friction: 6,
                   tension: 220,
-                  useNativeDriver: Platform.OS !== 'web',
+                  useNativeDriver: false,
                 }),
               ]
             : []),
@@ -271,7 +277,7 @@ export function DraggableCategoriesList({
             ]}
           >
             {/* Draggable Main Area */}
-            <Pressable
+            <View
               style={[
                 styles.dragArea,
                 Platform.OS === 'web'
@@ -282,11 +288,13 @@ export function DraggableCategoriesList({
                   : null,
               ]}
               {...panResponder.panHandlers}
-              onPress={() => {
-                if (!isHoldingRef.current && !isArchiveMode) {
-                  router.push(`/customize/questions/${cat._id}`);
-                }
-              }}
+              {...({
+                onPress: () => {
+                  if (!isHoldingRef.current && !hasMovedRef.current && !isArchiveMode) {
+                    router.push(`/customize/questions/${cat._id}`);
+                  }
+                },
+              } as any)}
             >
               <View style={styles.dragGrip}>
                 <GripVertical size={16} color={palette.textSecondary} />
@@ -300,7 +308,7 @@ export function DraggableCategoriesList({
                   {subText}
                 </Text>
               </View>
-            </Pressable>
+            </View>
 
             {/* Trailing Controls */}
             {isArchiveMode ? (
