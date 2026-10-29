@@ -18,12 +18,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
@@ -37,14 +39,31 @@ jobs:
       - name: Expo Prebuild Android
         run: npx expo prebuild --platform android --clean
 
+      - name: Configure Gradle Memory & Build Settings
+        run: |
+          # Boost Gradle JVM memory to 4096m (4GB) to avoid OOM heap space failures
+          if grep -q "org.gradle.jvmargs=" android/gradle.properties; then
+            sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC/g' android/gradle.properties
+          else
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC" >> android/gradle.properties
+          fi
+
+          # Target ARM (arm64-v8a for modern devices like Samsung M35, armeabi-v7a for older) and x86_64
+          if grep -q "reactNativeArchitectures=" android/gradle.properties; then
+            sed -i 's/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64/g' android/gradle.properties
+          fi
+
       - name: Build Standalone Release APK
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=\"-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC\" -Dfile.encoding=UTF-8"
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease -x :app:mergeReleaseNativeDebugMetadata --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: lumen-android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 3
