@@ -41,6 +41,7 @@ import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceCon
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
 import { useWeatherStore } from '../../src/store/weatherStore';
 import { useTaskStore } from '../../src/store/taskStore';
+import { syncLiveWidgetsFromStores } from '../../src/widgets/widgetSync';
 
 import { DayClockCard } from '../../src/components/DayClockCard';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
@@ -118,6 +119,7 @@ export default function TodayScreen() {
       useTaskStore.getState().fetchTasks(boundaryHour),
       useTaskStore.getState().fetchLists(),
     ]);
+    syncLiveWidgetsFromStores();
   }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, fetchGlanceConfig, loadSleepState, initWeather]);
 
   useEffect(() => {

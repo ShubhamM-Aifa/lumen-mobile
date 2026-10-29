@@ -35,8 +35,7 @@ const press = (t: ReactTestRenderer, label: RegExp | string) =>
     (typeof label === 'string' ? n.props.accessibilityLabel === label : label.test(n.props.accessibilityLabel ?? ''))
   ).pop()!;
 
-const today = new Date();
-today.setHours(9, 0, 0, 0);
+const today = new Date(Date.now() - 300000);
 const entry = (id: string, over: Partial<InboxEntry> = {}): InboxEntry => ({
   id, kind: 'Reminders', icon: 'droplet', tone: 'blue', title: id, body: `${id} body`, at: today.getTime(), read: false, route: '/reminders', ...over,
 });

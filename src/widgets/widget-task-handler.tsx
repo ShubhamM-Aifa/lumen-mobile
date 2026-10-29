@@ -1,6 +1,8 @@
 import React from 'react';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import { TodayGlanceWidget } from './TodayGlanceWidget';
+import { NextReminderWidget } from './NextReminderWidget';
+import { WaterGoalWidget } from './WaterGoalWidget';
 import { QuickTapWidget } from './QuickTapWidget';
 import { getWidgetSnapshot, saveWidgetSnapshot } from './widgetSync';
 
@@ -20,6 +22,12 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
     case 'TodayGlanceWidget':
       props.renderWidget(<TodayGlanceWidget data={snapshot} />);
       break;
+    case 'NextReminderWidget':
+      props.renderWidget(<NextReminderWidget data={snapshot} />);
+      break;
+    case 'WaterGoalWidget':
+      props.renderWidget(<WaterGoalWidget data={snapshot} />);
+      break;
     case 'QuickTapWidget':
       props.renderWidget(<QuickTapWidget data={snapshot} />);
       break;
@@ -27,4 +35,3 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
       break;
   }
 }
-
