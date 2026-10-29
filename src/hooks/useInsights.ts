@@ -57,11 +57,31 @@ export function useInsights() {
     queryKey: ['insights'],
     queryFn: async () => {
       const res = await api.get<Partial<InsightsResponse> & { daysRecorded?: number }>('/insights');
+      const stats = res?.stats ?? [];
+      const daysOfData = res?.daysOfData ?? res?.daysRecorded ?? 0;
+
+      let observedDays = res?.progress?.observedDays ?? 0;
+      if (observedDays === 0) {
+        const daysLoggedStat = stats.find(s => s.key === 'days-logged');
+        if (daysLoggedStat?.value) {
+          const match = daysLoggedStat.value.match(/^(\d+)/);
+          if (match) observedDays = parseInt(match[1], 10);
+        } else if (daysOfData > 0) {
+          observedDays = Math.min(daysOfData, 30);
+        }
+      }
+
+      const progress: InsightProgress = {
+        observedDays,
+        daysNeeded: res?.progress?.daysNeeded ?? 30,
+        comparisons: res?.progress?.comparisons ?? 0,
+      };
+
       return {
         findings: res?.findings ?? [],
-        stats: res?.stats ?? [],
-        progress: res?.progress ?? DEFAULT_PROGRESS,
-        daysOfData: res?.daysOfData ?? res?.daysRecorded ?? 0,
+        stats,
+        progress,
+        daysOfData,
         lastComputedAt: res?.lastComputedAt,
       };
     },

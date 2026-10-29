@@ -62,6 +62,39 @@ interface AttachedFile {
   size?: number;
 }
 
+async function convertUriToBase64(uri: string): Promise<string> {
+  try {
+    const res = await fetch(uri);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to convert file to base64'));
+        }
+      };
+      reader.onerror = () => reject(new Error('FileReader error on file blob'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (blobErr) {
+    if (Platform.OS !== 'web') {
+      try {
+        const FileSystem = await import('expo-file-system');
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:application/octet-stream;base64,${base64}`;
+      } catch {
+        throw new Error('Unable to read attached file: ' + (blobErr as Error)?.message);
+      }
+    }
+    throw blobErr;
+  }
+}
+
 export default function RecordUploadScreen() {
   const styles = useStyles();
   const { palette, colorScheme } = useTheme();
@@ -89,6 +122,10 @@ export default function RecordUploadScreen() {
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
 
+  // AI Report Extraction State
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+
   // Type Segmented Options
   const typeOptions: Array<{ key: HealthRecordType; label: string }> = [
     { key: 'blood_test', label: 'Blood 🔬' },
@@ -97,8 +134,122 @@ export default function RecordUploadScreen() {
     { key: 'doctor_note', label: 'Note 📋' },
   ];
 
+  // AI Medical Report Extraction Function
+  const analyzeFileWithAi = async (fileToAnalyze?: AttachedFile) => {
+    const targetFile = fileToAnalyze || attachedFiles[attachedFiles.length - 1];
+    if (!targetFile) {
+      Alert.alert(
+        'Select Report for AI Reading',
+        'Choose how to attach your medical report to auto-fill Title, Date, Clinic, Doctor, Biomarkers, and Prescriptions:',
+        [
+          { text: 'Upload PDF', onPress: () => pickDocument(true) },
+          { text: 'Scan Camera', onPress: () => pickCamera(true) },
+          { text: 'Photo Library', onPress: () => pickGallery(true) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
+    try {
+      setIsAnalyzing(true);
+      setAiSummary(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const base64Data = await convertUriToBase64(targetFile.uri);
+      const res = await api.post<any>('/records/parse-report', {
+        fileBase64: base64Data,
+        mimeType: targetFile.mimeType || 'application/pdf',
+      });
+
+      const parsed = res?.data || res;
+      if (!parsed) {
+        throw new Error('AI could not extract structured data from this report. Please verify readability.');
+      }
+
+      // Auto-populate Title
+      if (parsed.title) {
+        setTitle(parsed.title);
+      }
+
+      // Auto-populate Date
+      if (parsed.date) {
+        setRecordDate(parsed.date);
+      }
+
+      // Auto-populate Doctor / Provider
+      const docName = parsed.doctorName || parsed.doctor || parsed.provider;
+      if (docName) {
+        setDoctorName(docName);
+      }
+
+      // Auto-populate Clinic / Lab
+      const labName = parsed.clinicOrLab || parsed.lab || parsed.clinic || parsed.facility;
+      if (labName) {
+        setClinicOrLab(labName);
+      }
+
+      // Auto-populate Biomarkers & Results
+      let bCount = 0;
+      if (Array.isArray(parsed.biomarkers) && parsed.biomarkers.length > 0) {
+        const mappedBiomarkers: IBiomarker[] = parsed.biomarkers.map((b: any) => ({
+          name: String(b.name || '').trim(),
+          value: b.value !== undefined && b.value !== null ? String(b.value).trim() : '',
+          unit: b.unit ? String(b.unit).trim() : '',
+          referenceRange: b.referenceRange ? String(b.referenceRange).trim() : '',
+          flag: ['normal', 'high', 'low', 'critical'].includes(b.flag) ? b.flag : 'normal',
+        })).filter((b: any) => b.name.length > 0);
+
+        setBiomarkers(mappedBiomarkers);
+        bCount = mappedBiomarkers.length;
+
+        // Ensure category is switched to blood_test so biomarkers table is visible
+        setRecordType('blood_test');
+      } else if (parsed.recordType && ['blood_test', 'doctor_prescription', 'imaging', 'doctor_note'].includes(parsed.recordType)) {
+        setRecordType(parsed.recordType);
+      }
+
+      // Auto-populate Clinical Observations & Notes
+      if (parsed.notes) {
+        setNotes(parsed.notes);
+      }
+
+      // Auto-populate Prescribed Medications
+      let mCount = 0;
+      if (Array.isArray(parsed.medications) && parsed.medications.length > 0) {
+        const mappedMeds: IPrescribedMedication[] = parsed.medications.map((m: any) => ({
+          name: String(m.name || '').trim(),
+          dosage: m.dosage ? String(m.dosage).trim() : '',
+          frequency: m.frequency ? String(m.frequency).trim() : '',
+          instructions: m.instructions ? String(m.instructions).trim() : '',
+          isActive: true,
+        })).filter((m: any) => m.name.length > 0);
+
+        setMedications(mappedMeds);
+        mCount = mappedMeds.length;
+        if (bCount === 0) {
+          setRecordType('doctor_prescription');
+        }
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const labLabel = labName ? ` from ${labName}` : '';
+      setAiSummary(
+        `AI successfully auto-filled ${bCount} biomarker${bCount === 1 ? '' : 's'}${labLabel}, provider, date & clinical observations.`
+      );
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'AI Extraction Notice',
+        err?.message || 'Could not parse document. Please ensure the report is clearly readable or enter details manually.'
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   // Document Picker (PDF / Docs)
-  const pickDocument = async () => {
+  const pickDocument = async (autoAnalyze = false) => {
     try {
       Haptics.selectionAsync();
       const res = await DocumentPicker.getDocumentAsync({
@@ -121,6 +272,12 @@ export default function RecordUploadScreen() {
           const cleanName = asset.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
           setTitle(cleanName);
         }
+
+        if (autoAnalyze) {
+          setTimeout(() => {
+            analyzeFileWithAi(newFile);
+          }, 150);
+        }
       }
     } catch (err: any) {
       Alert.alert('Error', 'Unable to pick document: ' + err.message);
@@ -128,7 +285,7 @@ export default function RecordUploadScreen() {
   };
 
   // Camera Picker
-  const pickCamera = async () => {
+  const pickCamera = async (autoAnalyze = false) => {
     try {
       Haptics.selectionAsync();
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -160,6 +317,12 @@ export default function RecordUploadScreen() {
               : 'Clinical Scan',
           );
         }
+
+        if (autoAnalyze) {
+          setTimeout(() => {
+            analyzeFileWithAi(newFile);
+          }, 150);
+        }
       }
     } catch (err: any) {
       Alert.alert('Error', 'Camera capture failed: ' + err.message);
@@ -167,7 +330,7 @@ export default function RecordUploadScreen() {
   };
 
   // Photo Library Picker
-  const pickGallery = async () => {
+  const pickGallery = async (autoAnalyze = false) => {
     try {
       Haptics.selectionAsync();
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -193,6 +356,12 @@ export default function RecordUploadScreen() {
               ? 'Prescription Photo'
               : 'Medical Document',
           );
+        }
+
+        if (autoAnalyze && newFiles.length > 0) {
+          setTimeout(() => {
+            analyzeFileWithAi(newFiles[0]);
+          }, 150);
         }
       }
     } catch (err: any) {
@@ -404,7 +573,7 @@ export default function RecordUploadScreen() {
               {/* PDF Document */}
               <TouchableOpacity
                 style={[styles.uploadTile, { backgroundColor: palette.surface, borderColor: palette.border }]}
-                onPress={pickDocument}
+                onPress={() => pickDocument()}
                 activeOpacity={0.8}
               >
                 <View style={[styles.uploadTileIcon, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)' }]}>
@@ -419,7 +588,7 @@ export default function RecordUploadScreen() {
               {/* Camera Scanner */}
               <TouchableOpacity
                 style={[styles.uploadTile, { backgroundColor: palette.surface, borderColor: palette.border }]}
-                onPress={pickCamera}
+                onPress={() => pickCamera()}
                 activeOpacity={0.8}
               >
                 <View style={[styles.uploadTileIcon, { backgroundColor: isDark ? 'rgba(2, 132, 199, 0.2)' : 'rgba(2, 132, 199, 0.1)' }]}>
@@ -434,7 +603,7 @@ export default function RecordUploadScreen() {
               {/* Photo Gallery */}
               <TouchableOpacity
                 style={[styles.uploadTile, { backgroundColor: palette.surface, borderColor: palette.border }]}
-                onPress={pickGallery}
+                onPress={() => pickGallery()}
                 activeOpacity={0.8}
               >
                 <View style={[styles.uploadTileIcon, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)' }]}>
@@ -473,6 +642,23 @@ export default function RecordUploadScreen() {
                       </Text>
                     </View>
 
+                    {/* Quick AI extraction for this file */}
+                    <TouchableOpacity
+                      style={[
+                        styles.fileAiBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)',
+                          borderColor: '#6366F1',
+                        },
+                      ]}
+                      onPress={() => analyzeFileWithAi(file)}
+                      disabled={isAnalyzing}
+                      activeOpacity={0.7}
+                    >
+                      <Sparkles size={12} color="#6366F1" />
+                      <Text style={[styles.fileAiBtnText, { color: '#6366F1' }]}>AI Fill</Text>
+                    </TouchableOpacity>
+
                     <TouchableOpacity
                       onPress={() => removeFile(idx)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -484,6 +670,93 @@ export default function RecordUploadScreen() {
                 ))}
               </View>
             )}
+
+            {/* Apple Intelligence Report Reader Card */}
+            <View
+              style={[
+                styles.aiCard,
+                {
+                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.06)',
+                  borderColor: isDark ? 'rgba(99, 102, 241, 0.35)' : 'rgba(99, 102, 241, 0.25)',
+                },
+              ]}
+            >
+              <View style={styles.aiCardHeader}>
+                <View
+                  style={[
+                    styles.aiBadge,
+                    {
+                      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.12)',
+                    },
+                  ]}
+                >
+                  <Sparkles size={15} color="#6366F1" />
+                  <Text style={[styles.aiBadgeText, { color: '#6366F1' }]}>AI Report Reader</Text>
+                </View>
+
+                {isAnalyzing && (
+                  <View style={styles.aiAnalyzingBadge}>
+                    <ActivityIndicator size="small" color="#6366F1" />
+                    <Text style={styles.aiAnalyzingText}>Reading document...</Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={[styles.aiCardDescription, { color: palette.textSecondary }]}>
+                AI scans your attached report to automatically fill Title, Date, Clinic, Doctor, Biomarkers & Results, Medications, and Clinical Observations.
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.aiActionBtn,
+                  {
+                    backgroundColor: '#6366F1',
+                    opacity: isAnalyzing ? 0.65 : 1,
+                  },
+                ]}
+                onPress={() => analyzeFileWithAi()}
+                disabled={isAnalyzing}
+                activeOpacity={0.85}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.aiActionBtnText}>Extracting Biomarkers & Clinical Info...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} color="#FFFFFF" />
+                    <Text style={styles.aiActionBtnText}>
+                      {attachedFiles.length > 0
+                        ? 'Auto-Fill Form with AI'
+                        : 'Choose Document & Auto-Fill with AI'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {aiSummary && (
+                <View
+                  style={[
+                    styles.aiSummaryBox,
+                    {
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.14)' : 'rgba(16, 185, 129, 0.08)',
+                      borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)',
+                    },
+                  ]}
+                >
+                  <View style={styles.aiSummaryHeader}>
+                    <Check size={15} color="#10B981" />
+                    <Text style={[styles.aiSummaryTitle, { color: isDark ? '#34D399' : '#059669' }]}>
+                      Extracted & Populated
+                    </Text>
+                  </View>
+                  <Text style={[styles.aiSummaryText, { color: palette.text }]}>
+                    {aiSummary}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Clinical Details Form */}
@@ -1130,5 +1403,90 @@ const useStyles = createThemedStyles((palette) => ({
     ...typography.body,
     minHeight: 88,
     paddingVertical: 8,
+  },
+  aiCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 14,
+    gap: 10,
+    marginTop: 6,
+  },
+  aiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  aiBadgeText: {
+    ...typography.caption1,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  aiAnalyzingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiAnalyzingText: {
+    ...typography.caption2,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  aiCardDescription: {
+    ...typography.caption1,
+    lineHeight: 18,
+  },
+  aiActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  aiActionBtnText: {
+    ...typography.subhead,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  aiSummaryBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    gap: 4,
+  },
+  aiSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiSummaryTitle: {
+    ...typography.caption1,
+    fontWeight: '700',
+  },
+  aiSummaryText: {
+    ...typography.caption2,
+    lineHeight: 16,
+  },
+  fileAiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  fileAiBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 }));

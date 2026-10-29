@@ -103,12 +103,19 @@ export default function InsightsScreen() {
   const hiddenCount = filtered.length - shown.length;
   const empty = progressText(progress.observedDays, progress.daysNeeded);
 
+  const onRefresh = useCallback(async () => {
+    try {
+      await recompute.mutateAsync();
+    } catch {}
+    await refetch();
+  }, [recompute, refetch]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={palette.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching || recompute.isPending} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         <View style={styles.flush}>
           <LargeTitleHeader

@@ -114,7 +114,7 @@ export default function TodayScreen() {
       fetchGlanceConfig(),
       loadSleepState(),
       initWeather(),
-      useTaskStore.getState().fetchTasks(),
+      useTaskStore.getState().fetchTasks(boundaryHour),
       useTaskStore.getState().fetchLists(),
     ]);
   }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, fetchGlanceConfig, loadSleepState, initWeather]);
@@ -162,6 +162,21 @@ export default function TodayScreen() {
 
   const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
   const todayWalkingMinutes = todaySummary?.totalDurationMinutes ?? 0;
+  const liveActiveMinutes = useActivityStore(s => (s.isTracking ? Math.floor(s.activeSeconds / 60) : 0));
+  const activeGoalMinutes = 30;
+  const stepActiveMinutes = phoneStepsToday && phoneStepsToday > 0 ? Math.floor(phoneStepsToday / 100) : 0;
+  const totalActiveMinutes = Math.max(todayWalkingMinutes + liveActiveMinutes, stepActiveMinutes);
+  const activeTimePercent = Math.min(100, Math.round((totalActiveMinutes / activeGoalMinutes) * 100));
+  const activeTimeValue = totalActiveMinutes >= 60
+    ? `${Math.floor(totalActiveMinutes / 60)}h ${totalActiveMinutes % 60}m`
+    : `${totalActiveMinutes} min`;
+  const activeTimeSub = isTracking
+    ? 'Tracking live'
+    : totalActiveMinutes >= activeGoalMinutes
+      ? `${activeGoalMinutes} min goal met`
+      : totalActiveMinutes > 0
+        ? `${totalActiveMinutes} of ${activeGoalMinutes} min · ${activeTimePercent}%`
+        : `0 of ${activeGoalMinutes} min goal`;
   const enabledReminders = reminders.filter(r => r.enabled).length;
   const totalTapCount = Object.values(todayTaps).reduce((sum, t) => sum + (t?.count ?? 0), 0);
   const distinctTapCount = Object.values(todayTaps).filter(t => t.count > 0).length;
@@ -214,7 +229,15 @@ export default function TodayScreen() {
           value: `${todayDistanceKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
         };
       case 'active_time':
-        return { icon: Timer, tile: palette.secondary, label: 'Active Time', value: `${todayWalkingMinutes} min` };
+        return {
+          icon: Timer,
+          tile: palette.secondary,
+          label: 'Active Time',
+          sub: activeTimeSub,
+          value: activeTimeValue,
+          chevron: true,
+          onPress: () => router.push('/walking'),
+        };
       case 'day_session':
         return {
           icon: isSleeping || lastSleepRecord || !wakeTimeStr ? Moon : Sun,

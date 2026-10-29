@@ -1,142 +1,167 @@
 /**
- * Question editor — create or edit a question.
+ * Question Editor Screen — Apple InsetGroup style
  * Route: /customize/question/new?categoryId=X
  *        /customize/question/:id?categoryId=X
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Platform, KeyboardAvoidingView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { AppleSwitch } from '../../../src/components/common/AppleSwitch';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { safeGoBack } from '../../../src/utils/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { Check, ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { IQuestion, QuestionFrequency, SelectionType } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
+import { ScreenTopBar, HeaderTextButton } from '../../../src/components/ios/ScreenTopBar';
+import { InsetGroup, GroupedRow } from '../../../src/components/ios/InsetGroup';
+import { IosSegmented } from '../../../src/components/ios/IosSegmented';
 import { IconPicker } from '../../../src/components/customize/IconPicker';
-import { useKeyboard } from '../../../src/hooks/useKeyboard';
+import { safeGoBack } from '../../../src/utils/navigation';
 
-const FREQ_OPTIONS: { value: QuestionFrequency; label: string }[] = [
-  { value: 'anytime',     label: 'Any time' },
-  { value: 'once_per_day',label: 'Once per day' },
-  { value: 'per_meal',    label: 'Per meal' },
-  { value: 'morning',     label: 'Morning only' },
-  { value: 'evening',     label: 'Evening only' },
+const FREQ_OPTIONS: Array<{ value: QuestionFrequency; label: string }> = [
+  { value: 'anytime', label: 'Any time' },
+  { value: 'once_per_day', label: 'Once per day' },
+  { value: 'morning', label: 'Morning only' },
+  { value: 'evening', label: 'Evening only' },
 ];
 
-export default function QuestionEditor() {
-  const insets = useSafeAreaInsets();
+export default function QuestionEditorScreen() {
   const { palette } = useTheme();
   const styles = useStyles();
-  const { isKeyboardVisible } = useKeyboard();
   const { id, categoryId } = useLocalSearchParams<{ id: string; categoryId: string }>();
   const isNew = id === 'new';
   const { config, invalidate, fetchConfig } = useConfigStore();
 
   const existing: IQuestion | undefined = isNew
     ? undefined
-    : config?.questions.find(q => q._id === id);
+    : config?.questions.find((q) => q._id === id);
 
-  const [title,      setTitle]      = useState(existing?.title ?? '');
-  const [helpText,   setHelpText]   = useState(existing?.helpText ?? '');
-  const [icon,       setIcon]       = useState(existing?.icon ?? '');
-  const [selType,    setSelType]    = useState<SelectionType>(existing?.selectionType ?? 'single');
+  const [title, setTitle] = useState(existing?.title ?? '');
+  const [helpText, setHelpText] = useState(existing?.helpText ?? '');
+  const [icon, setIcon] = useState(existing?.icon ?? '');
+  const [selType, setSelType] = useState<SelectionType>(existing?.selectionType ?? 'single');
   const [allowOther, setAllowOther] = useState(existing?.allowOther ?? false);
-  const [required,   setRequired]   = useState(existing?.required ?? false);
-  const [frequency,  setFrequency]  = useState<QuestionFrequency>(existing?.frequency ?? 'anytime');
+  const [required, setRequired] = useState(existing?.required ?? false);
+  const [frequency, setFrequency] = useState<QuestionFrequency>(existing?.frequency ?? 'anytime');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (existing) {
-      setTitle(existing.title); setHelpText(existing.helpText ?? '');
-      setIcon(existing.icon ?? ''); setSelType(existing.selectionType);
-      setAllowOther(existing.allowOther); setRequired(existing.required);
+      setTitle(existing.title);
+      setHelpText(existing.helpText ?? '');
+      setIcon(existing.icon ?? '');
+      setSelType(existing.selectionType);
+      setAllowOther(existing.allowOther);
+      setRequired(existing.required);
       setFrequency(existing.frequency);
     }
   }, [existing?._id]);
 
   const catId = categoryId ?? existing?.categoryId ?? '';
+  const optionsCount = isNew
+    ? 0
+    : (config?.options ?? []).filter((o) => o.questionId === id && o.isActive).length;
 
   const handleSave = async () => {
-    if (!title.trim()) { Alert.alert('Title required', 'Enter a question title.'); return; }
+    if (!title.trim()) {
+      Alert.alert('Title Required', 'Please enter a question title.');
+      return;
+    }
     setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const body = {
-        categoryId: catId, title: title.trim(), helpText: helpText.trim() || undefined,
-        icon: icon || undefined, selectionType: selType,
-        allowOther, required, frequency,
+        categoryId: catId,
+        title: title.trim(),
+        helpText: helpText.trim() || undefined,
+        icon: icon || undefined,
+        selectionType: selType,
+        allowOther,
+        required,
+        frequency,
       };
+
       if (isNew) {
         await api.post('/questions', body);
       } else {
         await api.patch(`/questions/${id}`, body);
       }
-      invalidate(); await fetchConfig();
-      // After saving, go to the options list for this question
-      if (isNew) {
-        // Navigate back to questions list for category
-        router.replace(`/customize/questions/${catId}`);
-      } else {
-        router.push(`/customize/options/${id}`);
-      }
-    } catch (err: unknown) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : 'Unknown error');
-    } finally { setSaving(false); }
+      invalidate();
+      await fetchConfig();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      safeGoBack(`/customize/questions/${catId}`);
+    } catch (err: any) {
+      Alert.alert('Save Failed', err?.message || 'Unable to save question.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const isArchived = existing ? (!existing.isActive || !!existing.archivedAt) : false;
-
   const handleArchive = () => {
-    if (isNew) return;
-    Alert.alert(`Archive "${title}"?`, 'Existing log entries are preserved. You can restore it later.', [
+    if (!existing) return;
+    Alert.alert(`Archive "${existing.title}"?`, 'Existing logs are preserved. You can restore it later at any time.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Archive', style: 'destructive',
+        text: 'Archive',
+        style: 'destructive',
         onPress: async () => {
-          try {
-            await api.post(`/questions/${id}/archive`, {});
-            invalidate(); await fetchConfig();
-            safeGoBack('/customize');
-          } catch (err: any) {
-            Alert.alert('Archive failed', err?.message || 'Unknown error');
-          }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          await api.post(`/questions/${existing._id}/archive`, {});
+          invalidate();
+          await fetchConfig();
+          safeGoBack(`/customize/questions/${catId}`);
         },
       },
     ]);
   };
 
-  const handleUnarchive = async () => {
-    try {
-      await api.post(`/questions/${id}/unarchive`, {});
-      invalidate(); await fetchConfig();
-      Alert.alert('Question Restored', `"${title}" is active again.`);
-      safeGoBack('/customize');
-    } catch (err: any) {
-      Alert.alert('Restore failed', err?.message || 'Unknown error');
-    }
-  };
-
   const handlePermanentDelete = () => {
-    if (isNew) return;
+    if (!existing) return;
     Alert.alert(
-      `Permanently delete "${title}"?`,
-      'This action cannot be undone. If tracking entries have been logged for this question, deletion will be blocked to protect your records.',
+      `Delete "${existing.title}"?`,
+      'This action cannot be undone. Questions with logged tracking history cannot be permanently deleted and should be kept archived instead.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Permanently', style: 'destructive',
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             try {
-              const res: any = await api.delete(`/questions/${id}`);
-              invalidate(); await fetchConfig();
-              Alert.alert('Deleted', res.message || 'Question deleted permanently.');
-              safeGoBack('/customize');
+              const res: any = await api.delete(`/questions/${existing._id}`);
+              invalidate();
+              await fetchConfig();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Deleted', res?.message || `Question "${existing.title}" deleted.`);
+              safeGoBack(`/customize/questions/${catId}`);
             } catch (err: any) {
-              Alert.alert('Cannot Delete', err?.message || 'Error deleting question');
+              const msg = err?.message || 'Could not delete question.';
+              Alert.alert(
+                'Cannot Delete Question',
+                msg,
+                existing.isActive
+                  ? [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Archive Instead',
+                        onPress: handleArchive,
+                      },
+                    ]
+                  : [{ text: 'OK' }],
+              );
             }
           },
         },
@@ -145,255 +170,180 @@ export default function QuestionEditor() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenTopBar
+        title={isNew ? 'New Question' : 'Edit Question'}
+        backLabel="Cancel"
+        onBack={() => safeGoBack(`/customize/questions/${catId}`)}
+        fallbackRoute={`/customize/questions/${catId}`}
+        right={
+          <HeaderTextButton
+            label="Save"
+            prominent
+            onPress={handleSave}
+            loading={saving}
+            disabled={saving}
+          />
+        }
+      />
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Stack.Screen options={{ title: isNew ? 'New question' : 'Edit question' }} />
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Question Title & Help Text InsetGroup */}
+          <InsetGroup>
+            <View style={styles.fieldRow}>
+              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Question Title</Text>
+              <TextInput
+                style={[styles.fieldInput, { color: palette.text }]}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="e.g. What symptoms are you experiencing?"
+                placeholderTextColor={palette.placeholder}
+                autoFocus={isNew}
+              />
+            </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
+            <View style={styles.fieldRow}>
+              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Help Text</Text>
+              <TextInput
+                style={[styles.fieldInput, { color: palette.text }]}
+                value={helpText}
+                onChangeText={setHelpText}
+                placeholder="e.g. Select all that apply right now"
+                placeholderTextColor={palette.placeholder}
+              />
+            </View>
 
-        {isArchived && (
-          <View style={styles.archivedNotice}>
-            <Text style={styles.archivedNoticeText}>
-              📁 This question is currently archived. It will not appear in tracking forms until restored.
-            </Text>
-          </View>
-        )}
+            <View style={styles.iconRow}>
+              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Icon (optional)</Text>
+              <IconPicker value={icon} onChange={setIcon} />
+            </View>
+          </InsetGroup>
 
-        <Field label="Question title *">
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g. How severe is the pain?"
-            placeholderTextColor={palette.placeholder}
-            returnKeyType="done"
-            autoFocus={isNew}
-          />
-        </Field>
+          {/* Selection Type Segmented InsetGroup */}
+          <InsetGroup title="Selection type">
+            <View style={styles.segWrap}>
+              <IosSegmented
+                options={[
+                  { key: 'single', label: 'Single select' },
+                  { key: 'multiple', label: 'Multi select' },
+                ]}
+                value={selType}
+                onChange={(val) => {
+                  Haptics.selectionAsync();
+                  setSelType(val);
+                }}
+              />
+            </View>
+          </InsetGroup>
 
-        <Field label="Help text (optional)">
-          <TextInput
-            style={[styles.input, { minHeight: 64 }]}
-            value={helpText}
-            onChangeText={setHelpText}
-            placeholder="Short description shown under the question"
-            placeholderTextColor={palette.placeholder}
-            multiline
-          />
-        </Field>
+          {/* Frequency InsetGroup */}
+          <InsetGroup title="Frequency">
+            {FREQ_OPTIONS.map((f) => {
+              const isSelected = frequency === f.value;
+              return (
+                <GroupedRow
+                  key={f.value}
+                  label={f.label}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setFrequency(f.value);
+                  }}
+                  trailing={isSelected ? <Check size={18} color={palette.primary} strokeWidth={2.5} /> : null}
+                />
+              );
+            })}
+          </InsetGroup>
 
-        <Field label="Icon (optional)">
-          <IconPicker value={icon} onChange={setIcon} label="Icon" />
-        </Field>
+          {/* Rules & Flags InsetGroup */}
+          <InsetGroup title="Rules">
+            <GroupedRow
+              label="Required"
+              sub="Users must answer this before submitting log"
+              toggle
+              toggled={required}
+              onToggle={setRequired}
+            />
+            <GroupedRow
+              label="Allow 'Other' answer"
+              sub="Shows a free-text box for unlisted options"
+              toggle
+              toggled={allowOther}
+              onToggle={setAllowOther}
+            />
+          </InsetGroup>
 
-        <Field label="Selection type">
-          <View style={styles.segmentRow}>
-            {(['single', 'multiple'] as SelectionType[]).map(t => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.segment, selType === t && styles.segmentActive]}
-                onPress={() => setSelType(t)}
-                accessibilityRole="radio"
-                accessibilityLabel={t === 'single' ? 'Single select' : 'Multi select'}
-                accessibilityState={{ checked: selType === t }}
-              >
-                <Text style={[styles.segmentText, selType === t && styles.segmentTextActive]}>
-                  {t === 'single' ? 'One answer' : 'Multiple answers'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Field>
+          {/* Link to Options List */}
+          {!isNew && (
+            <InsetGroup title="Options">
+              <GroupedRow
+                label="Options"
+                value={`${optionsCount} choices`}
+                chevron
+                onPress={() => router.push(`/customize/options/${id}`)}
+              />
+            </InsetGroup>
+          )}
 
-        <Field label="Frequency">
-          <View style={styles.chipRow}>
-            {FREQ_OPTIONS.map(f => (
-              <TouchableOpacity
-                key={f.value}
-                style={[styles.chip, frequency === f.value && styles.chipActive]}
-                onPress={() => setFrequency(f.value)}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: frequency === f.value }}
-              >
-                <Text style={[styles.chipText, frequency === f.value && styles.chipTextActive]}>
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Field>
+          {/* Archive & Delete Actions */}
+          {!isNew && (
+            <InsetGroup footer="Archiving hides this question from daily logging while preserving existing data. Permanent delete completely removes the question and its choices.">
+              <GroupedRow
+                label="Archive this question"
+                sub="Keep past logs, but hide from tracking"
+                destructive
+                onPress={handleArchive}
+              />
+              <GroupedRow
+                label="Delete this question"
+                sub="Permanently remove question and choices"
+                destructive
+                onPress={handlePermanentDelete}
+              />
+            </InsetGroup>
+          )}
 
-        <ToggleRow label="Required" desc="Users must answer this before submitting" value={required} onChange={setRequired} />
-        <ToggleRow label="Allow 'Other' answer" desc="Shows a free-text box for unlisted options" value={allowOther} onChange={setAllowOther} />
-
-        {!isNew && (
-          <TouchableOpacity
-            style={styles.optionsLink}
-            onPress={() => router.push(`/customize/options/${id}`)}
-            accessibilityRole="button"
-          >
-            <Text style={styles.optionsLinkText}>🗂  Manage options →</Text>
-          </TouchableOpacity>
-        )}
-
-        {!isNew && (
-          <View style={styles.actionSection}>
-            {isArchived ? (
-              <TouchableOpacity style={styles.unarchiveBtn} onPress={handleUnarchive} accessibilityRole="button">
-                <Text style={styles.unarchiveBtnText}>↺  Restore / Unarchive question</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.archiveBtn} onPress={handleArchive} accessibilityRole="button">
-                <Text style={styles.archiveBtnText}>Archive this question</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity style={styles.deleteBtn} onPress={handlePermanentDelete} accessibilityRole="button">
-              <Text style={styles.deleteBtnText}>🗑  Delete permanently</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={{ height: 84 + Math.max(insets.bottom, 16) }} />
-      </ScrollView>
-
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom: isKeyboardVisible
-              ? 8
-              : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 16)),
-          },
-        ]}
-      >
-        <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save question</Text>}
-        </TouchableOpacity>
-      </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  const fieldStyles = useFieldStyles();
-  return (
-    <View style={fieldStyles.wrapper}>
-      <Text style={fieldStyles.label}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function ToggleRow({ label, desc, value, onChange }: { label: string; desc: string; value: boolean; onChange: (v: boolean) => void }) {
-  const { palette } = useTheme();
-  const toggleStyles = useToggleStyles();
-  return (
-    <View style={toggleStyles.row}>
-      <View style={toggleStyles.text}>
-        <Text style={toggleStyles.label}>{label}</Text>
-        <Text style={toggleStyles.desc}>{desc}</Text>
-      </View>
-      <AppleSwitch
-        value={value}
-        onValueChange={onChange}
-        activeColor={palette.primary || '#34C759'}
-        accessibilityLabel={label}
-      />
-    </View>
-  );
-}
-
-const useFieldStyles = createThemedStyles((palette) => ({
-  wrapper: { gap: 6 },
-  label: { ...typography.smallBold, color: palette.textSecondary },
-}));
-
-const useToggleStyles = createThemedStyles((palette) => ({
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: palette.surface, borderRadius: 22,
-    paddingHorizontal: 14, paddingVertical: 12, gap: 12,
-  },
-  text: { flex: 1 },
-  label: { ...typography.body, color: palette.text },
-  desc: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
-}));
 
 const useStyles = createThemedStyles((palette) => ({
-  screen: { flex: 1, backgroundColor: palette.background },
-  scroll: { padding: 16, gap: 16, paddingBottom: 100 },
-  input: {
-    backgroundColor: palette.surface,
-    borderRadius: 22, paddingHorizontal: 14, paddingVertical: 14,
-    ...typography.body, color: palette.text, minHeight: 52,
+  safe: {
+    flex: 1,
+    backgroundColor: palette.background,
   },
-  segmentRow: {
-    flexDirection: 'row',
-    backgroundColor: palette.surfaceAlt, borderRadius: 12, padding: 3, gap: 3,
+  scroll: {
+    paddingTop: 12,
+    paddingBottom: 40,
+    gap: 16,
   },
-  segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  segmentActive: { backgroundColor: palette.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  segmentText: { ...typography.smallBold, color: palette.textSecondary },
-  segmentTextActive: { color: palette.primaryText },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1.5, borderColor: palette.border, backgroundColor: palette.surface,
+  fieldRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 4,
   },
-  chipActive: { backgroundColor: palette.primary, borderColor: palette.primary },
-  chipText: { ...typography.small, color: palette.text },
-  chipTextActive: { color: palette.white, fontWeight: '600' },
-  optionsLink: {
-    backgroundColor: palette.surfaceAlt, borderRadius: 12,
-    borderWidth: 1, borderColor: palette.border,
-    paddingHorizontal: 16, paddingVertical: 14,
+  fieldLabel: {
+    ...typography.caption1,
+    fontWeight: '500',
   },
-  optionsLinkText: { ...typography.bodyBold, color: palette.primaryText },
-  archivedNotice: {
-    backgroundColor: palette.warning + '18',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.warning + '40',
-    padding: 14,
+  fieldInput: {
+    ...typography.bodyLarge,
+    fontSize: 17,
+    padding: 0,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
-  actionSection: { gap: 10, marginTop: 12 },
-  unarchiveBtn: {
-    backgroundColor: palette.secondary + '18', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.secondary + '60',
-    paddingVertical: 14, alignItems: 'center',
+  iconRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
-  archiveBtn: {
-    backgroundColor: palette.warning + '12', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.warning + '40',
-    paddingVertical: 14, alignItems: 'center',
+  segWrap: {
+    paddingVertical: 10,
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
-  deleteBtn: {
-    backgroundColor: palette.error + '12', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.error + '40',
-    paddingVertical: 14, alignItems: 'center',
-  },
-  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
-  footer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 16, paddingBottom: 28, backgroundColor: palette.surface,
-    borderTopWidth: 1, borderTopColor: palette.border,
-  },
-  saveBtn: {
-    backgroundColor: palette.primary, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', minHeight: 54,
-  },
-  disabled: { opacity: 0.6 },
-  saveBtnText: { ...typography.button, color: palette.white },
 }));

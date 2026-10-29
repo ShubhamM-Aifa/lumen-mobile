@@ -10,6 +10,7 @@ import {
   CHANNEL_ID_SAFETY,
   CHANNEL_ID_HEADS_UP,
   CHANNEL_ID_INSIGHTS,
+  CHANNEL_ID_WALK_ACTIVE,
   NOTIF_CATEGORIES,
   NOTIF_ACTIONS,
   ensureNotificationChannel,
@@ -89,7 +90,7 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
     it('creates all specialized notification channels on Android', async () => {
       await ensureNotificationChannel();
 
-      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(8);
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(9);
 
       // Intelligent-notification channels: only safety may bypass Do Not Disturb,
       // and the insights channel must stay silent.
@@ -103,6 +104,10 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
       );
       expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
         CHANNEL_ID_INSIGHTS,
+        expect.objectContaining({ importance: 2, sound: null, enableVibrate: false }),
+      );
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        CHANNEL_ID_WALK_ACTIVE,
         expect.objectContaining({ importance: 2, sound: null, enableVibrate: false }),
       );
 

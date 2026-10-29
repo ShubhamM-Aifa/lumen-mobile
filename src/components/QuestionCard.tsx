@@ -210,11 +210,6 @@ export function QuestionCard({
                   <Text style={styles.freqOncePerDayText}>📅 Once per day</Text>
                 </View>
               )}
-              {question.frequency === 'per_meal' && (
-                <View style={[styles.freqBadge, styles.freqPerMeal]}>
-                  <Text style={styles.freqPerMealText}>🍽️ Per meal</Text>
-                </View>
-              )}
             </View>
           )}
 
@@ -829,16 +824,6 @@ const useStyles = createThemedStyles(palette => ({
     fontSize: 10.5,
     fontWeight: '700',
     color: '#059669',
-  },
-  freqPerMeal: {
-    backgroundColor: '#EC489914',
-    borderColor: '#EC489930',
-  },
-  freqPerMealText: {
-    ...typography.caption,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#DB2777',
   },
 
   // Completed once per day card

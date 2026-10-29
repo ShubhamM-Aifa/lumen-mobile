@@ -7,6 +7,7 @@ export default function LogLayout() {
   return (
     <Stack
       screenOptions={{
+        headerShown: false,
         headerStyle: { backgroundColor: palette.background },
         headerTintColor: palette.tint,
         headerTitleStyle: { ...typography.headline, color: palette.text },

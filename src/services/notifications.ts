@@ -51,6 +51,8 @@ export const CHANNEL_ID_PACING = 'lumen_pacing_v2';
 export const CHANNEL_ID_SAFETY = 'lumen_safety_v1';        // MAX, alarm audio, bypasses DND
 export const CHANNEL_ID_HEADS_UP = 'lumen_heads_up_v1';    // HIGH, default sound, respects DND
 export const CHANNEL_ID_INSIGHTS = 'lumen_insights_v1';    // LOW, silent
+export const CHANNEL_ID_WALK_ACTIVE = 'lumen_walk_active_v2'; // LOW, silent, public lockscreen for live activity
+export const NOTIFICATION_ID_WALK_ACTIVE = 'lumen_active_walk_session';
 export const CHANNEL_ID = CHANNEL_ID_ALARM; // Default high-priority alarm channel
 
 export const TRIGGER_TYPES = {
@@ -271,6 +273,15 @@ export async function ensureNotificationChannel(): Promise<void> {
         importance: N.AndroidImportance?.HIGH ?? 4,
         vibrationPattern: [0, 250, 250, 250],
         sound: 'default',
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PUBLIC ?? 1,
+      }),
+      // 9. Ongoing Live Walk Activity (silent, public lockscreen for Samsung / Android)
+      createChannelSafe(CHANNEL_ID_WALK_ACTIVE, {
+        name: 'Live Walk Activity',
+        description: 'Ongoing walk duration, distance, and steps on your lock screen',
+        importance: N.AndroidImportance?.LOW ?? 2,
+        sound: null,
+        enableVibrate: false,
         lockscreenVisibility: N.AndroidNotificationVisibility?.PUBLIC ?? 1,
       }),
     ]);
@@ -1017,3 +1028,79 @@ export async function scheduleIntelligentNotification(opts: {
     return null;
   }
 }
+
+export interface WalkLiveNotificationParams {
+  title?: string;
+  activeSeconds: number;
+  distanceMeters: number;
+  steps: number;
+  averagePaceMinPerKm?: number;
+  isPaused?: boolean;
+}
+
+/**
+ * Ongoing lock screen notification for active walking sessions (Samsung OneUI / Android & iOS).
+ * Displays live updating duration, distance in km, and step count directly on the lock screen.
+ */
+export async function showWalkLiveNotification(params: WalkLiveNotificationParams): Promise<void> {
+  if (!N || typeof N.scheduleNotificationAsync !== 'function') return;
+
+  try {
+    await ensureNotificationChannel();
+
+    const safeSec = Math.max(0, Math.floor(params.activeSeconds || 0));
+    const h = Math.floor(safeSec / 3600);
+    const m = Math.floor((safeSec % 3600) / 60);
+    const s = safeSec % 60;
+    const hh = h > 0 ? `${h}:` : '';
+    const mm = String(m).padStart(h > 0 ? 2 : 1, '0');
+    const ss = String(s).padStart(2, '0');
+    const timeStr = `${hh}${mm}:${ss}`;
+
+    const distKm = (params.distanceMeters / 1000).toFixed(2);
+    const stepsFormatted = (params.steps || 0).toLocaleString();
+
+    const title = params.isPaused
+      ? '⏸️ Walk Paused · Lumen'
+      : `🚶‍♂️ ${params.title || 'Outdoor Walk'} · Lumen`;
+
+    const body = `⏱️ ${timeStr}  |  📍 ${distKm} km  |  👣 ${stepsFormatted} steps`;
+
+    await N.scheduleNotificationAsync({
+      identifier: NOTIFICATION_ID_WALK_ACTIVE,
+      content: {
+        title,
+        body,
+        sound: null,
+        data: {
+          type: 'WALK_ACTIVE',
+          route: '/walking/active',
+        },
+        sticky: true,
+        autoDismiss: false,
+        ...(Platform.OS === 'android'
+          ? {
+              channelId: CHANNEL_ID_WALK_ACTIVE,
+              priority: N.AndroidNotificationPriority?.LOW ?? 'low',
+              color: '#FF6B35',
+            }
+          : {}),
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    // Non-fatal, do not break in-app tracking
+    console.warn('[Notifications] Could not show live walk notification:', err);
+  }
+}
+
+/**
+ * Dismisses the ongoing walk lock screen notification when session ends or is discarded.
+ */
+export async function dismissWalkLiveNotification(): Promise<void> {
+  if (!N || typeof N.dismissNotificationAsync !== 'function') return;
+  try {
+    await N.dismissNotificationAsync(NOTIFICATION_ID_WALK_ACTIVE);
+  } catch {}
+}
+

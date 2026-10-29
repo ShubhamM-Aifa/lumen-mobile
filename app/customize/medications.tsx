@@ -1,19 +1,37 @@
 /**
- * Medications list — add, edit, deactivate medications.
+ * Medications Screen — Apple InsetGroup style
+ * Route: /customize/medications
+ * Allows adding, editing, deactivating, and managing medications.
  */
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal,
-  Pressable, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { AppleSwitch } from '../../src/components/common/AppleSwitch';
-import { Stack } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '../../src/api/client';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, Stack } from 'expo-router';
+import { ChevronLeft, Plus, Pill, Trash2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { safeGoBack } from '../../src/utils/navigation';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
+import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { ScreenTopBar, HeaderTextButton } from '../../src/components/ios/ScreenTopBar';
+import { InsetGroup, GroupedRow } from '../../src/components/ios/InsetGroup';
+import { AppleSwitch } from '../../src/components/common/AppleSwitch';
+import { api } from '../../src/api/client';
 
-interface IMedication {
+export interface IMedication {
   _id: string;
   name: string;
   dose?: string;
@@ -23,23 +41,46 @@ interface IMedication {
 }
 
 export default function MedicationsScreen() {
-  const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   const styles = useStyles();
   const [meds, setMeds] = useState<IMedication[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<IMedication> | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const res: any = await api.get('/medications');
-    setMeds(res.data?.medications ?? res.data ?? []);
+    try {
+      const res: any = await api.get('/medications');
+      setMeds(res.data?.medications ?? res.data ?? []);
+    } catch {
+      // Silently handle offline/error
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const openAdd = () => {
+    Haptics.selectionAsync();
+    setEditing({ active: true, name: '', dose: '', unit: 'mg', schedule: '' });
+  };
+
+  const openEdit = (med: IMedication) => {
+    Haptics.selectionAsync();
+    setEditing({ ...med });
+  };
 
   const save = async () => {
     if (!editing) return;
-    if (!editing.name?.trim()) { Alert.alert('Name required'); return; }
+    if (!editing.name?.trim()) {
+      Alert.alert('Name Required', 'Please enter a medication name.');
+      return;
+    }
     setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       if (editing._id) {
         await api.patch(`/medications/${editing._id}`, editing);
@@ -47,133 +88,278 @@ export default function MedicationsScreen() {
         await api.post('/medications', editing);
       }
       await load();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditing(null);
-    } finally { setSaving(false); }
+    } catch (err: any) {
+      Alert.alert('Save Failed', err?.message || 'Unable to save medication.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteMed = (med: IMedication) => {
-    Alert.alert(`Delete "${med.name}"?`, 'Or deactivate it to keep your history.', [
+    Alert.alert(`Delete "${med.name}"?`, 'Or mark it inactive to preserve your tracking history.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Deactivate', onPress: async () => { await api.patch(`/medications/${med._id}`, { active: false }); load(); } },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await api.delete(`/medications/${med._id}`); load(); } },
+      {
+        text: 'Mark Inactive',
+        onPress: async () => {
+          await api.patch(`/medications/${med._id}`, { active: false });
+          load();
+        },
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await api.delete(`/medications/${med._id}`);
+          load();
+        },
+      },
     ]);
   };
 
-  const active = meds.filter(m => m.active);
-  const inactive = meds.filter(m => !m.active);
+  const active = meds.filter((m) => m.active);
+  const inactive = meds.filter((m) => !m.active);
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Medications' }} />
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <LargeTitleHeader
+          title="Medications"
+          subtitle="Track what you take so Lumen can include it in logs and patterns."
+          leading={
+            <GlassCircleButton
+              accessibilityLabel="Go back"
+              onPress={() => safeGoBack('/(tabs)/customize')}
+            >
+              <ChevronLeft size={22} color={palette.text} strokeWidth={2.4} />
+            </GlassCircleButton>
+          }
+          actions={
+            <GlassCircleButton accessibilityLabel="Add medication" onPress={openAdd}>
+              <Plus size={20} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          }
+        />
 
-      <FlatList
-        data={active}
-        keyExtractor={m => m._id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
-        ListHeaderComponent={<Text style={styles.hint}>Track what you take so Lumen can include it in your logs and insights.</Text>}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>No medications yet.</Text></View>}
-        ListFooterComponent={inactive.length > 0 ? (
-          <View style={styles.inactiveSection}>
-            <Text style={styles.sectionLabel}>Inactive ({inactive.length})</Text>
-            {inactive.map(m => (
-              <TouchableOpacity key={m._id} style={styles.inactiveRow} onPress={() => setEditing({ ...m })}>
-                <Text style={styles.inactiveName}>{m.name}</Text>
-                <Text style={styles.inactiveBadge}>Inactive</Text>
-              </TouchableOpacity>
-            ))}
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={palette.primary} />
           </View>
-        ) : null}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.row} onPress={() => setEditing({ ...item })} accessibilityRole="button">
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowName}>💊 {item.name}</Text>
-              {(item.dose || item.unit || item.schedule) && (
-                <Text style={styles.rowMeta}>
-                  {[item.dose, item.unit, item.schedule].filter(Boolean).join(' · ')}
-                </Text>
+        ) : (
+          <View style={styles.contentWrap}>
+            {/* Active Medications */}
+            <InsetGroup title="Active">
+              {active.length > 0 ? (
+                active.map((med) => {
+                  const meta = [med.dose, med.unit, med.schedule].filter(Boolean).join(' · ');
+                  return (
+                    <GroupedRow
+                      key={med._id}
+                      icon={Pill}
+                      tile="#AF52DE"
+                      label={med.name}
+                      sub={meta || 'Active'}
+                      chevron
+                      onPress={() => openEdit(med)}
+                    />
+                  );
+                })
+              ) : (
+                <GroupedRow
+                  icon={Pill}
+                  tile="#8E8E93"
+                  label="No active medications"
+                  sub="Tap + above to add a medication"
+                  disabled
+                />
               )}
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        )}
-      />
+            </InsetGroup>
 
-      <TouchableOpacity style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]} onPress={() => setEditing({ active: true, name: '' })} accessibilityRole="button" accessibilityLabel="Add medication">
-        <Text style={styles.fabText}>＋ Add medication</Text>
-      </TouchableOpacity>
-
-      {editing && (
-        <Modal visible animationType="slide" transparent>
-          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
-            <View style={styles.sheet}>
-              <View style={styles.sheetHeader}>
-                <TouchableOpacity onPress={() => setEditing(null)}><Text style={styles.cancel}>Cancel</Text></TouchableOpacity>
-                <Text style={styles.sheetTitle}>{editing._id ? 'Edit' : 'Add'} medication</Text>
-                <TouchableOpacity onPress={save} disabled={saving}><Text style={[styles.done, saving && styles.dim]}>Save</Text></TouchableOpacity>
-              </View>
-              <View style={styles.sheetBody}>
-                <Text style={styles.fieldLabel}>Name *</Text>
-                <TextInput style={styles.input} value={editing.name ?? ''} onChangeText={v => setEditing(e => ({ ...e!, name: v }))} placeholder="e.g. Hydroxychloroquine, Vitamin D" placeholderTextColor={palette.textDisabled} autoFocus />
-                <Text style={styles.fieldLabel}>Dose</Text>
-                <TextInput style={styles.input} value={editing.dose ?? ''} onChangeText={v => setEditing(e => ({ ...e!, dose: v }))} placeholder="200" placeholderTextColor={palette.textDisabled} keyboardType="numeric" />
-                <Text style={styles.fieldLabel}>Unit</Text>
-                <TextInput style={styles.input} value={editing.unit ?? ''} onChangeText={v => setEditing(e => ({ ...e!, unit: v }))} placeholder="mg, mcg, IU" placeholderTextColor={palette.textDisabled} />
-                <Text style={styles.fieldLabel}>Schedule</Text>
-                <TextInput style={styles.input} value={editing.schedule ?? ''} onChangeText={v => setEditing(e => ({ ...e!, schedule: v }))} placeholder="e.g. Once daily with food" placeholderTextColor={palette.textDisabled} />
-                <View style={styles.toggleRow}>
-                  <Text style={styles.fieldLabel}>Active</Text>
-                  <AppleSwitch
-                    value={editing.active ?? true}
-                    onValueChange={v => setEditing(e => ({ ...e!, active: v }))}
-                    activeColor={palette.primary || '#34C759'}
-                    accessibilityLabel="Active medication"
+            {/* Inactive Medications */}
+            {inactive.length > 0 && (
+              <InsetGroup title={`Inactive (${inactive.length})`}>
+                {inactive.map((med) => (
+                  <GroupedRow
+                    key={med._id}
+                    icon={Pill}
+                    tile="#8E8E93"
+                    label={med.name}
+                    sub="Inactive"
+                    value="Restore"
+                    valueColor={palette.primary}
+                    chevron
+                    onPress={() => openEdit(med)}
                   />
-                </View>
+                ))}
+              </InsetGroup>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Edit / Add Medication Apple Sheet Modal */}
+      {editing && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setEditing(null)}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
+            <View style={[styles.sheetCard, { backgroundColor: palette.background }]}>
+              <ScreenTopBar
+                title={editing._id ? 'Edit Medication' : 'Add Medication'}
+                backLabel="Cancel"
+                backIcon="close"
+                onBack={() => setEditing(null)}
+                sheet
+                right={
+                  <HeaderTextButton
+                    label="Save"
+                    prominent
+                    onPress={save}
+                    loading={saving}
+                    disabled={saving}
+                  />
+                }
+              />
+
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={styles.sheetScrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <InsetGroup>
+                  <View style={styles.sheetFieldRow}>
+                    <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Name</Text>
+                    <TextInput
+                      style={[styles.fieldInput, { color: palette.text }]}
+                      value={editing.name ?? ''}
+                      onChangeText={(v) => setEditing((e) => ({ ...e!, name: v }))}
+                      placeholder="e.g. Hydroxychloroquine, Vitamin D"
+                      placeholderTextColor={palette.placeholder}
+                      autoFocus={!editing._id}
+                    />
+                  </View>
+                  <View style={styles.sheetFieldRow}>
+                    <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Dose</Text>
+                    <TextInput
+                      style={[styles.fieldInput, { color: palette.text }]}
+                      value={editing.dose ?? ''}
+                      onChangeText={(v) => setEditing((e) => ({ ...e!, dose: v }))}
+                      placeholder="e.g. 200"
+                      placeholderTextColor={palette.placeholder}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.sheetFieldRow}>
+                    <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Unit</Text>
+                    <TextInput
+                      style={[styles.fieldInput, { color: palette.text }]}
+                      value={editing.unit ?? ''}
+                      onChangeText={(v) => setEditing((e) => ({ ...e!, unit: v }))}
+                      placeholder="e.g. mg, mcg, IU"
+                      placeholderTextColor={palette.placeholder}
+                    />
+                  </View>
+                  <View style={styles.sheetFieldRow}>
+                    <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Schedule</Text>
+                    <TextInput
+                      style={[styles.fieldInput, { color: palette.text }]}
+                      value={editing.schedule ?? ''}
+                      onChangeText={(v) => setEditing((e) => ({ ...e!, schedule: v }))}
+                      placeholder="e.g. Once daily with food"
+                      placeholderTextColor={palette.placeholder}
+                    />
+                  </View>
+                </InsetGroup>
+
+                <InsetGroup>
+                  <GroupedRow
+                    label="Active"
+                    sub="Included in logs, reminders & insights"
+                    toggle
+                    toggled={editing.active ?? true}
+                    onToggle={(v) => setEditing((e) => ({ ...e!, active: v }))}
+                  />
+                </InsetGroup>
+
                 {editing._id && (
-                  <TouchableOpacity style={styles.deleteRow} onPress={() => { setEditing(null); deleteMed(editing as IMedication); }}>
-                    <Text style={styles.deleteText}>Delete medication</Text>
-                  </TouchableOpacity>
+                  <InsetGroup>
+                    <GroupedRow
+                      label="Delete Medication"
+                      destructive
+                      onPress={() => {
+                        const m = editing as IMedication;
+                        setEditing(null);
+                        deleteMed(m);
+                      }}
+                    />
+                  </InsetGroup>
                 )}
-              </View>
+
+                <View style={{ height: 40 }} />
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </Modal>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
-const useStyles = createThemedStyles(palette => ({
-  screen: { flex: 1, backgroundColor: palette.background },
-  list: { padding: 16, paddingBottom: 100, gap: 8 },
-  hint: { ...typography.small, color: palette.textSecondary, marginBottom: 8 },
-  empty: { alignItems: 'center', paddingVertical: 40 },
-  emptyText: { ...typography.body, color: palette.textSecondary },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 14, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 14 },
-  rowLeft: { flex: 1 },
-  rowName: { ...typography.bodyBold, color: palette.text },
-  rowMeta: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
-  chevron: { ...typography.h4, color: palette.textDisabled },
-  inactiveSection: { marginTop: 24, gap: 6 },
-  sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 4 },
-  inactiveRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 10, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, opacity: 0.7 },
-  inactiveName: { ...typography.body, color: palette.textSecondary, flex: 1 },
-  inactiveBadge: { ...typography.caption, color: palette.textDisabled, backgroundColor: palette.surfaceAlt, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  fab: { position: 'absolute', bottom: 20, alignSelf: 'center', backgroundColor: palette.primary, borderRadius: 24, paddingHorizontal: 28, paddingVertical: 14, elevation: 8 },
-  fabText: { ...typography.button, color: '#FFFFFF' },
-  modalWrap: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: { backgroundColor: palette.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.border },
-  sheetTitle: { ...typography.bodyBold, color: palette.text },
-  cancel: { ...typography.body, color: palette.textSecondary },
-  done: { ...typography.bodyBold, color: palette.primaryText },
-  dim: { opacity: 0.4 },
-  sheetBody: { padding: 20, gap: 6, paddingBottom: 40 },
-  fieldLabel: { ...typography.label, color: palette.textSecondary, marginTop: 10 },
-  input: { backgroundColor: palette.surfaceAlt, borderRadius: 10, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: palette.text },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  deleteRow: { marginTop: 24, borderRadius: 12, borderWidth: 1, borderColor: palette.error + '55', padding: 12, alignItems: 'center' },
-  deleteText: { ...typography.bodyBold, color: palette.errorText },
+const useStyles = createThemedStyles((palette) => ({
+  safe: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
+  scroll: {
+    paddingBottom: 40,
+  },
+  contentWrap: {
+    gap: 20,
+    marginTop: 12,
+  },
+  loadingWrap: {
+    paddingVertical: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheetCard: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '88%',
+    paddingBottom: 24,
+    overflow: 'hidden',
+  },
+  sheetScroll: {
+    flex: 1,
+  },
+  sheetScrollContent: {
+    paddingTop: 16,
+    gap: 16,
+  },
+  sheetFieldRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  fieldLabel: {
+    ...typography.caption1,
+    fontWeight: '500',
+  },
+  fieldInput: {
+    ...typography.body,
+    padding: 0,
+    fontSize: 17,
+  },
 }));

@@ -1,102 +1,126 @@
 /**
- * Questions list for a category.
- * Tap to edit, ↑↓ to reorder, "＋ New question" at bottom.
+ * Questions List Screen — Apple InsetGroup style
+ * Route: /customize/questions/[categoryId]
+ * Displays questions for a given category, selection type, frequency, options count, and reorder controls.
  */
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Platform,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { ChevronLeft, Plus, Trash2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { IQuestion } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
-
-const FREQ_LABEL: Record<string, string> = {
-  anytime: 'Any time', once_per_day: 'Once/day',
-  per_meal: 'Per meal', morning: 'Morning', evening: 'Evening',
-};
+import { LargeTitleHeader } from '../../../src/components/ios/LargeTitleHeader';
+import { GlassCircleButton } from '../../../src/components/ios/GlassCircleButton';
+import { InsetGroup, GroupedRow } from '../../../src/components/ios/InsetGroup';
+import { safeGoBack } from '../../../src/utils/navigation';
+import { reorderItems } from '../../../src/utils/reorderHelper';
+import { DraggableQuestionsList } from '../../../src/components/customize/DraggableQuestionsList';
 
 export default function QuestionsScreen() {
-  const insets = useSafeAreaInsets();
+  const { palette } = useTheme();
   const styles = useStyles();
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
-  const { config, fetchConfig, invalidate } = useConfigStore();
-  const [reordering, setReordering] = useState(false);
+  const { config, fetchConfig, invalidate, isLoading } = useConfigStore();
+  const [archiveMode, setArchiveMode] = useState(false);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
-  useEffect(() => { fetchConfig(); }, []);
+  useEffect(() => {
+    fetchConfig();
+  }, []);
 
-  const category = config?.categories.find(c => c._id === categoryId);
+  const category = config?.categories.find((c) => c._id === categoryId);
   const questions = (config?.questions ?? [])
-    .filter(q => q.categoryId === categoryId)
+    .filter((q) => q.categoryId === categoryId)
     .sort((a, b) => a.order - b.order);
 
-  const active   = questions.filter(q => q.isActive);
-  const archived = questions.filter(q => !q.isActive);
+  const active = questions.filter((q) => q.isActive);
+  const archived = questions.filter((q) => !q.isActive);
 
-  const moveUp = async (q: IQuestion) => {
-    const idx = active.findIndex(x => x._id === q._id);
-    if (idx <= 0) return;
-    const ids = active.map(x => x._id);
-    [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-    setReordering(true);
-    try { await api.patch('/questions/reorder', { ids }); invalidate(); await fetchConfig(); }
-    finally { setReordering(false); }
+  const getOptionCount = (questionId: string) => {
+    return (config?.options ?? []).filter((o) => o.questionId === questionId && o.isActive).length;
   };
 
-  const moveDown = async (q: IQuestion) => {
-    const idx = active.findIndex(x => x._id === q._id);
-    if (idx < 0 || idx >= active.length - 1) return;
-    const ids = active.map(x => x._id);
-    [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-    setReordering(true);
-    try { await api.patch('/questions/reorder', { ids }); invalidate(); await fetchConfig(); }
-    finally { setReordering(false); }
+  const handleReorder = async (newQuestions: IQuestion[]) => {
+    try {
+      await reorderItems('questions', newQuestions.map((q) => q._id));
+      invalidate();
+      await fetchConfig();
+    } catch (err: any) {
+      Alert.alert('Reorder failed', err?.message || 'Could not reorder questions');
+    }
   };
 
   const archive = (q: IQuestion) => {
-    Alert.alert(
-      `Archive "${q.title}"?`,
-      'Existing logs are preserved. You can restore it later at any time.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive', style: 'destructive',
-          onPress: async () => {
-            await api.post(`/questions/${q._id}/archive`, {});
-            invalidate(); await fetchConfig();
-          },
+    Alert.alert(`Archive "${q.title}"?`, 'Existing logs are preserved. You can restore it later at any time.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Archive',
+        style: 'destructive',
+        onPress: async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          await api.post(`/questions/${q._id}/archive`, {});
+          invalidate();
+          await fetchConfig();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const unarchive = async (q: IQuestion) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await api.post(`/questions/${q._id}/unarchive`, {});
-      invalidate(); await fetchConfig();
+      invalidate();
+      await fetchConfig();
     } catch (err: any) {
-      Alert.alert('Restore failed', err?.message || 'Unknown error');
+      Alert.alert('Restore Failed', err?.message || 'Unknown error');
     }
   };
 
   const deletePermanently = (q: IQuestion) => {
     Alert.alert(
-      `Permanently delete "${q.title}"?`,
-      'This action cannot be undone. Questions with logged data cannot be deleted.',
+      `Delete "${q.title}"?`,
+      'This action cannot be undone. Questions with logged tracking history cannot be permanently deleted and will be kept archived instead.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             try {
               const res: any = await api.delete(`/questions/${q._id}`);
-              invalidate(); await fetchConfig();
-              Alert.alert('Deleted', res.message || 'Question deleted.');
+              invalidate();
+              await fetchConfig();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Deleted', res?.message || `Question "${q.title}" deleted.`);
             } catch (err: any) {
-              Alert.alert('Cannot Delete', err?.message || 'Error deleting question');
+              const msg = err?.message || 'Could not delete question.';
+              Alert.alert(
+                'Cannot Delete Question',
+                msg,
+                q.isActive
+                  ? [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Archive Instead',
+                        onPress: () => archive(q),
+                      },
+                    ]
+                  : [{ text: 'OK' }],
+              );
             }
           },
         },
@@ -104,143 +128,173 @@ export default function QuestionsScreen() {
     );
   };
 
-  const renderRow = ({ item, index }: { item: IQuestion; index: number }) => (
-    <View style={styles.row}>
-      <TouchableOpacity
-        style={styles.rowMain}
-        onPress={() => router.push(`/customize/question/${item._id}?categoryId=${categoryId}`)}
-        accessibilityRole="button"
-      >
-        {item.icon ? <Text style={styles.icon}>{item.icon}</Text> : null}
-        <View style={styles.rowText}>
-          <Text style={styles.rowTitle}>{item.title}</Text>
-          <Text style={styles.rowMeta}>
-            {item.selectionType === 'multiple' ? 'Multi' : 'Single'} · {FREQ_LABEL[item.frequency]}
-            {item.required ? ' · Required' : ''}
-          </Text>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </TouchableOpacity>
-      <View style={styles.actions}>
-        <TouchableOpacity style={[styles.arrowBtn, index === 0 && styles.disabled]} onPress={() => moveUp(item)} disabled={index === 0 || reordering} accessibilityLabel="Move up">
-          <Text style={styles.arrow}>↑</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.arrowBtn, index === active.length - 1 && styles.disabled]} onPress={() => moveDown(item)} disabled={index === active.length - 1 || reordering} accessibilityLabel="Move down">
-          <Text style={styles.arrow}>↓</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.moreBtn} onPress={() => archive(item)} accessibilityLabel="Archive">
-          <Text style={styles.moreText}>⋯</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: category?.name ?? 'Questions' }} />
-
-      <FlatList
-        data={active}
-        keyExtractor={q => q._id}
-        contentContainerStyle={[styles.list, { paddingBottom: 100 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No questions yet.</Text>
-            <Text style={styles.emptyHint}>Tap "＋ New question" to add your first.</Text>
-          </View>
-        }
-        ListFooterComponent={
-          archived.length > 0 ? (
-            <View style={styles.archivedSection}>
-              <Text style={styles.sectionLabel}>Archived ({archived.length})</Text>
-              {archived.map(q => (
-                <View key={q._id} style={styles.archivedRow}>
-                  <TouchableOpacity
-                    style={styles.archivedRowMain}
-                    onPress={() => router.push(`/customize/question/${q._id}?categoryId=${categoryId}`)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Edit archived question ${q.title}`}
-                  >
-                    <Text style={styles.archivedTitle} numberOfLines={1}>{q.title}</Text>
-                    <Text style={styles.archivedBadge}>Archived</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.restoreBtn}
-                    onPress={() => unarchive(q)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Restore ${q.title}`}
-                  >
-                    <Text style={styles.restoreBtnText}>↺ Restore</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.deleteIconBtn}
-                    onPress={() => deletePermanently(q)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete ${q.title}`}
-                  >
-                    <Text style={styles.deleteIconText}>🗑</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          ) : null
-        }
-        renderItem={renderRow}
-      />
-
-      <TouchableOpacity
-        style={[styles.fab, { bottom: 20 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) : insets.bottom) }]}
-        onPress={() => router.push(`/customize/question/new?categoryId=${categoryId}`)}
-        accessibilityRole="button"
-        accessibilityLabel="New question"
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView
+        scrollEnabled={scrollEnabled}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.fabText}>＋ New question</Text>
-      </TouchableOpacity>
-    </View>
+        <LargeTitleHeader
+          title={category?.name ?? 'Questions'}
+          subtitle={`${active.length} active question${active.length !== 1 ? 's' : ''}`}
+          leading={
+            <GlassCircleButton
+              accessibilityLabel="Go back"
+              onPress={() => safeGoBack('/customize/categories')}
+            >
+              <ChevronLeft size={22} color={palette.text} strokeWidth={2.4} />
+            </GlassCircleButton>
+          }
+          actions={
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[
+                  styles.archiveToggleBtn,
+                  { backgroundColor: archiveMode ? (palette.warning || '#FF9500') : palette.surfaceAlt },
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setArchiveMode((prev) => !prev);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.archiveToggleText,
+                    { color: archiveMode ? '#FFFFFF' : palette.text },
+                  ]}
+                >
+                  {archiveMode ? 'Done' : 'Archive'}
+                </Text>
+              </TouchableOpacity>
+              <GlassCircleButton
+                accessibilityLabel="New question"
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push(`/customize/question/new?categoryId=${categoryId}`);
+                }}
+              >
+                <Plus size={20} color={palette.text} strokeWidth={2.2} />
+              </GlassCircleButton>
+            </View>
+          }
+        />
+
+        {isLoading && questions.length === 0 ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        ) : (
+          <View style={styles.contentWrap}>
+            {/* Active Questions InsetGroup with Drag to Reorder */}
+            <InsetGroup
+              footer={
+                archiveMode
+                  ? 'Tap Archive on any question to move it to the Archived list.'
+                  : 'Hold and drag any question to reorder. Tap to edit choices and rules.'
+              }
+            >
+              <DraggableQuestionsList
+                questions={active}
+                categoryId={categoryId}
+                archiveMode={archiveMode}
+                getOptionCount={getOptionCount}
+                onReorder={handleReorder}
+                onArchive={archive}
+                onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+              />
+            </InsetGroup>
+
+            {/* Archived Questions InsetGroup */}
+            {archived.length > 0 && (
+              <InsetGroup title="Archived">
+                {archived.map((q) => (
+                  <GroupedRow
+                    key={q._id}
+                    label={q.title}
+                    sub="Archived"
+                    trailing={
+                      <View style={styles.trailingRow}>
+                        <TouchableOpacity
+                          style={styles.restoreBtn}
+                          onPress={() => unarchive(q)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Restore ${q.title}`}
+                        >
+                          <Text style={[styles.restoreBtnText, { color: palette.primary }]}>Restore</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.trashBtn}
+                          onPress={() => deletePermanently(q)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete ${q.title} permanently`}
+                        >
+                          <Trash2 size={17} color={palette.error} />
+                        </TouchableOpacity>
+                      </View>
+                    }
+                  />
+                ))}
+              </InsetGroup>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const useStyles = createThemedStyles((palette) => ({
-  screen: { flex: 1, backgroundColor: palette.background },
-  list: { padding: 16, paddingBottom: 100, gap: 8 },
-  row: { backgroundColor: palette.surface, borderRadius: 14, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
-  rowMain: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
-  icon: { fontSize: 20 },
-  rowText: { flex: 1 },
-  rowTitle: { ...typography.bodyBold, color: palette.text },
-  rowMeta: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
-  chevron: { ...typography.h4, color: palette.textDisabled },
-  actions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surfaceAlt },
-  arrowBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRightWidth: 1, borderRightColor: palette.border },
-  disabled: { opacity: 0.3 },
-  arrow: { ...typography.bodyBold, color: palette.primaryText },
-  moreBtn: { paddingVertical: 8, paddingHorizontal: 20, alignItems: 'center' },
-  moreText: { ...typography.h4, color: palette.textSecondary },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 6 },
-  emptyText: { ...typography.body, color: palette.textSecondary },
-  emptyHint: { ...typography.small, color: palette.textDisabled },
-  archivedSection: { marginTop: 24, gap: 6 },
-  sectionLabel: { ...typography.label, color: palette.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginLeft: 4 },
-  archivedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: palette.surface, borderRadius: 22,
-    paddingHorizontal: 12, paddingVertical: 10,
+  safe: {
+    flex: 1,
+    backgroundColor: palette.background,
   },
-  archivedRowMain: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  archivedTitle: { ...typography.body, color: palette.textSecondary, flex: 1 },
-  archivedBadge: { ...typography.caption, color: palette.textDisabled, backgroundColor: palette.surfaceAlt, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  scroll: {
+    paddingBottom: 40,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  archiveToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  archiveToggleText: {
+    ...typography.subhead,
+    fontWeight: '600',
+  },
+  contentWrap: {
+    gap: 20,
+    marginTop: 12,
+  },
+  loadingWrap: {
+    paddingVertical: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trailingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  trashBtn: {
+    padding: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   restoreBtn: {
-    backgroundColor: palette.secondary + '18', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: palette.secondary + '50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: palette.surfaceAlt,
   },
-  restoreBtnText: { ...typography.smallBold, color: palette.secondaryText },
-  deleteIconBtn: {
-    backgroundColor: palette.error + '14', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: palette.error + '40',
+  restoreBtnText: {
+    ...typography.footnote,
+    fontWeight: '600',
   },
-  deleteIconText: { fontSize: 14 },
-  fab: { position: 'absolute', bottom: 20, alignSelf: 'center', backgroundColor: palette.primary, borderRadius: 24, paddingHorizontal: 28, paddingVertical: 14, shadowColor: palette.primary, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
-  fabText: { ...typography.button, color: palette.white },
 }));

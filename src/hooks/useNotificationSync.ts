@@ -85,14 +85,20 @@ export function useNotificationSync() {
     // Fired when user taps a notification action button
     const responseSub = typeof N.addNotificationResponseReceivedListener === 'function'
       ? N.addNotificationResponseReceivedListener((response: any) => {
-          const reminderId = response.notification?.request?.content?.data?.reminderId;
-          // Default tap (no action button) → open alarm screen
-          if (
-            response.actionIdentifier === N.DEFAULT_ACTION_IDENTIFIER &&
-            reminderId
-          ) {
-            router.push(`/alarm/${reminderId}`);
-            return;
+          const data = response.notification?.request?.content?.data;
+          const reminderId = data?.reminderId;
+          const targetRoute = data?.route;
+
+          // Default tap (no action button)
+          if (response.actionIdentifier === N.DEFAULT_ACTION_IDENTIFIER) {
+            if (targetRoute) {
+              router.push(targetRoute as any);
+              return;
+            }
+            if (reminderId) {
+              router.push(`/alarm/${reminderId}`);
+              return;
+            }
           }
           handleNotificationActionResponse(response).catch(() => {});
         })

@@ -1,128 +1,149 @@
 /**
- * Option editor — create or edit an option for a question.
- * Includes inline field definition management (add via presets, edit, remove).
+ * Option Editor Screen — Apple InsetGroup style
  * Route: /customize/option/new?questionId=X
  *        /customize/option/:id?questionId=X
+ * Includes appearance, time capture rules, field definitions, and presets.
  */
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, Modal, Pressable, Platform,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Modal,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { AppleSwitch } from '../../../src/components/common/AppleSwitch';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { safeGoBack } from '../../../src/utils/navigation';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
+import { Check, Plus, Trash2, Edit3, Clock } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { IOption, CaptureTime, FieldDefinition, EnumValue } from '@lumen/shared';
 import { useConfigStore } from '../../../src/store/configStore';
 import { api } from '../../../src/api/client';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
+import { ScreenTopBar, HeaderTextButton } from '../../../src/components/ios/ScreenTopBar';
+import { InsetGroup, GroupedRow, IconTile } from '../../../src/components/ios/InsetGroup';
 import { IconPicker } from '../../../src/components/customize/IconPicker';
 import { ColorSwatchPicker } from '../../../src/components/customize/ColorSwatchPicker';
 import { FieldPresetPicker, Preset } from '../../../src/components/customize/FieldPresetPicker';
+import { DraggableValueFieldsList } from '../../../src/components/customize/DraggableValueFieldsList';
 import { LivePreview } from '../../../src/components/customize/LivePreview';
+import { safeGoBack } from '../../../src/utils/navigation';
 
-const CAPTURE_OPTIONS: { value: CaptureTime; label: string; desc: string }[] = [
-  { value: 'none',       label: 'No time',          desc: 'Do not capture time for this option' },
-  { value: 'auto_now',   label: 'Auto (right now)',  desc: 'Records the current time automatically' },
-  { value: 'user_picks', label: 'User picks time',   desc: 'Shows a time picker for the user to fill' },
+const CAPTURE_OPTIONS: Array<{ value: CaptureTime; label: string; desc: string }> = [
+  { value: 'none', label: 'No time', desc: 'Do not capture time for this option' },
+  { value: 'user_picks', label: 'User picks time', desc: 'Shows a time picker for the user to fill' },
 ];
 
-type DataTypeGroup = { dataType: FieldDefinition['dataType']; label: string; displayAs?: string };
-const DATA_TYPE_LABELS: Record<string, string> = {
-  range: 'Severity slider', number: 'Number', temperature: 'Temperature',
-  duration: 'Duration', time: 'Time', string: 'Text', boolean: 'Yes/No',
-  enum: 'Choice list', image: 'Image', location: 'Body map', datetime: 'Date & time',
-};
-
-export default function OptionEditor() {
-  const insets = useSafeAreaInsets();
+export default function OptionEditorScreen() {
   const { palette } = useTheme();
   const styles = useStyles();
-  const sectionStyles = useSectionStyles();
-  const toggleStyles = useToggleStyles();
   const { id, questionId } = useLocalSearchParams<{ id: string; questionId: string }>();
   const isNew = id === 'new';
   const { config, invalidate, fetchConfig } = useConfigStore();
 
   const existing: IOption | undefined = isNew
     ? undefined
-    : config?.options.find(o => o._id === id);
+    : config?.options.find((o) => o._id === id);
 
-  const [label,        setLabel]        = useState(existing?.label ?? '');
-  const [icon,         setIcon]         = useState(existing?.icon ?? '');
-  const [color,        setColor]        = useState(existing?.color ?? palette.primary);
+  const normalizeCaptureTime = (ct?: CaptureTime): CaptureTime => {
+    if (!ct || ct === 'none') return 'none';
+    return 'user_picks';
+  };
+
+  const [label, setLabel] = useState(existing?.label ?? '');
+  const [icon, setIcon] = useState(existing?.icon ?? '');
+  const [color, setColor] = useState(existing?.color ?? '#007AFF');
   const [allowComment, setAllowComment] = useState(existing?.allowComment ?? false);
-  const [captureTime,  setCaptureTime]  = useState<CaptureTime>(existing?.captureTime ?? 'none');
-  const [fields,       setFields]       = useState<FieldDefinition[]>(existing?.fields ?? []);
-  const [saving,       setSaving]       = useState(false);
-  const [editingField, setEditingField] = useState<number | null>(null); // index in fields
+  const [captureTime, setCaptureTime] = useState<CaptureTime>(normalizeCaptureTime(existing?.captureTime));
+  const [fields, setFields] = useState<FieldDefinition[]>(existing?.fields ?? []);
+  const [saving, setSaving] = useState(false);
+  const [editingField, setEditingField] = useState<number | null>(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   useEffect(() => {
     if (existing) {
-      setLabel(existing.label); setIcon(existing.icon ?? '');
-      setColor(existing.color ?? palette.primary); setAllowComment(existing.allowComment);
-      setCaptureTime(existing.captureTime); setFields([...existing.fields]);
+      setLabel(existing.label);
+      setIcon(existing.icon ?? '');
+      setColor(existing.color ?? '#007AFF');
+      setAllowComment(existing.allowComment);
+      setCaptureTime(normalizeCaptureTime(existing.captureTime));
+      setFields([...existing.fields]);
     }
   }, [existing?._id]);
 
   const qId = questionId ?? existing?.questionId ?? '';
 
-  // ── Field management ────────────────────────────────────────────────────────
-
   const addFieldFromPreset = (preset: Preset) => {
-    // Ensure key is unique by appending a suffix if needed
+    Haptics.selectionAsync();
     let key = preset.field.key;
-    while (fields.some(f => f.key === key)) key = key + '_2';
-    setFields(prev => [...prev, { ...preset.field, key }]);
+    while (fields.some((f) => f.key === key)) key = key + '_2';
+    setFields((prev) => [...prev, { ...preset.field, key }]);
   };
 
   const removeField = (idx: number) => {
-    setFields(prev => prev.filter((_, i) => i !== idx));
+    Haptics.selectionAsync();
+    setFields((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const updateField = (idx: number, patch: Partial<FieldDefinition>) => {
-    setFields(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f));
+    setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
   };
 
-  // ── Save ────────────────────────────────────────────────────────────────────
-
   const handleSave = async () => {
-    if (!label.trim()) { Alert.alert('Label required', 'Enter an option label.'); return; }
+    if (!label.trim()) {
+      Alert.alert('Label Required', 'Please enter an option label.');
+      return;
+    }
     setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const body = {
-        questionId: qId, label: label.trim(), icon: icon || undefined,
-        color, allowComment, captureTime, fields,
+        questionId: qId,
+        label: label.trim(),
+        icon: icon || undefined,
+        color,
+        allowComment,
+        captureTime: normalizeCaptureTime(captureTime),
+        fields,
       };
+
       if (isNew) {
         await api.post('/options', body);
       } else {
         await api.patch(`/options/${id}`, body);
       }
-      invalidate(); await fetchConfig();
-      safeGoBack('/customize');
-    } catch (err: unknown) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : 'Unknown error');
-    } finally { setSaving(false); }
+      invalidate();
+      await fetchConfig();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      safeGoBack(`/customize/options/${qId}`);
+    } catch (err: any) {
+      Alert.alert('Save Failed', err?.message || 'Unable to save option.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isArchived = existing ? (!existing.isActive || !!existing.archivedAt) : false;
 
   const handleArchive = () => {
     if (isNew) return;
-    Alert.alert(`Archive "${label}"?`, 'Logs with this option are preserved. You can restore it later at any time.', [
+    Alert.alert(`Archive "${label}"?`, 'Existing logs are preserved. You can restore it later at any time.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Archive', style: 'destructive',
+        text: 'Archive',
+        style: 'destructive',
         onPress: async () => {
-          try {
-            await api.post(`/options/${id}/archive`, {});
-            invalidate(); await fetchConfig(); safeGoBack('/customize');
-          } catch (err: any) {
-            Alert.alert('Archive failed', err?.message || 'Unknown error');
-          }
+          await api.post(`/options/${id}/archive`, {});
+          invalidate();
+          await fetchConfig();
+          safeGoBack(`/customize/options/${qId}`);
         },
       },
     ]);
@@ -131,462 +152,304 @@ export default function OptionEditor() {
   const handleUnarchive = async () => {
     try {
       await api.post(`/options/${id}/unarchive`, {});
-      invalidate(); await fetchConfig();
-      Alert.alert('Option Restored', `"${label}" is active again.`);
-      safeGoBack('/customize');
+      invalidate();
+      await fetchConfig();
+      safeGoBack(`/customize/options/${qId}`);
     } catch (err: any) {
-      Alert.alert('Restore failed', err?.message || 'Unknown error');
+      Alert.alert('Restore Failed', err?.message || 'Unknown error');
     }
   };
 
-  const handlePermanentDelete = () => {
-    if (isNew) return;
-    Alert.alert(
-      `Permanently delete "${label}"?`,
-      'This action cannot be undone. If tracking entries have been logged for this option, deletion will be blocked to protect your records.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Permanently', style: 'destructive',
-          onPress: async () => {
-            try {
-              const res: any = await api.delete(`/options/${id}`);
-              invalidate(); await fetchConfig();
-              Alert.alert('Deleted', res.message || 'Option deleted permanently.');
-              safeGoBack('/customize');
-            } catch (err: any) {
-              Alert.alert('Cannot Delete', err?.message || 'Error deleting option');
-            }
-          },
-        },
-      ],
-    );
-  };
-
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: isNew ? 'New option' : 'Edit option' }} />
-
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {isArchived && (
-          <View style={styles.archivedNotice}>
-            <Text style={styles.archivedNoticeText}>
-              📁 This option is currently archived. It will not appear in question forms until restored.
-            </Text>
-          </View>
-        )}
-
-        {/* Live preview */}
-        <LivePreview
-          label={label || 'Option label'}
-          icon={icon}
-          color={color}
-          fields={fields}
-          captureTime={captureTime}
-          allowComment={allowComment}
-        />
-
-        <SectionHeader title="Appearance" />
-
-        <Field label="Label *">
-          <TextInput
-            style={styles.input} value={label} onChangeText={setLabel}
-            placeholder="e.g. Joint pain, Fatigue, Gluten…"
-            placeholderTextColor={palette.placeholder} returnKeyType="done" autoFocus={isNew}
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenTopBar
+        title={isNew ? 'New Option' : 'Edit Option'}
+        backLabel="Cancel"
+        onBack={() => safeGoBack(`/customize/options/${qId}`)}
+        fallbackRoute={`/customize/options/${qId}`}
+        right={
+          <HeaderTextButton
+            label="Save"
+            prominent
+            onPress={handleSave}
+            loading={saving}
+            disabled={saving}
           />
-        </Field>
+        }
+      />
 
-        <Field label="Icon (optional)">
-          <IconPicker value={icon} onChange={setIcon} label="Icon" />
-        </Field>
-
-        <Field label="Color">
-          <ColorSwatchPicker value={color} onChange={setColor} label="Color" />
-        </Field>
-
-        <SectionHeader title="Behaviour" />
-
-        <ToggleRow
-          label="Allow comment"
-          desc="Shows a text box when this option is selected"
-          value={allowComment} onChange={setAllowComment}
-        />
-
-        <Field label="Capture time">
-          {CAPTURE_OPTIONS.map(opt => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.radioRow, captureTime === opt.value && styles.radioRowActive]}
-              onPress={() => setCaptureTime(opt.value)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: captureTime === opt.value }}
-            >
-              <View style={[styles.radio, captureTime === opt.value && styles.radioActive]}>
-                {captureTime === opt.value && <View style={styles.radioDot} />}
-              </View>
-              <View style={styles.radioText}>
-                <Text style={styles.radioLabel}>{opt.label}</Text>
-                <Text style={styles.radioDesc}>{opt.desc}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </Field>
-
-        <SectionHeader title={`Value fields (${fields.length})`} />
-
-        {fields.map((f, idx) => (
-          <FieldRow
-            key={f.key + idx}
-            field={f}
-            onEdit={() => setEditingField(idx)}
-            onRemove={() => removeField(idx)}
-          />
-        ))}
-
-        <FieldPresetPicker onPick={addFieldFromPreset} />
-
-        {!isNew && (
-          <View style={styles.actionSection}>
-            {isArchived ? (
-              <TouchableOpacity style={styles.unarchiveBtn} onPress={handleUnarchive} accessibilityRole="button">
-                <Text style={styles.unarchiveBtnText}>↺  Restore / Unarchive option</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.archiveBtn} onPress={handleArchive} accessibilityRole="button">
-                <Text style={styles.archiveBtnText}>Archive this option</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity style={styles.deleteBtn} onPress={handlePermanentDelete} accessibilityRole="button">
-              <Text style={styles.deleteBtnText}>🗑  Delete permanently</Text>
-            </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView scrollEnabled={scrollEnabled} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Live Preview */}
+          <View style={styles.previewContainer}>
+            <LivePreview
+              label={label || 'Option label'}
+              icon={icon}
+              color={color}
+              fields={fields}
+              captureTime={captureTime}
+              allowComment={allowComment}
+            />
           </View>
-        )}
 
-        <View style={{ height: 84 + (Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 8) }} />
-      </ScrollView>
+          {/* Appearance InsetGroup */}
+          <InsetGroup title="Appearance">
+            <View style={styles.fieldRow}>
+              <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Label</Text>
+              <TextInput
+                style={[styles.fieldInput, { color: palette.text }]}
+                value={label}
+                onChangeText={setLabel}
+                placeholder="e.g. Joint pain, Fatigue, Gluten"
+                placeholderTextColor={palette.placeholder}
+                autoFocus={isNew}
+              />
+            </View>
 
-      {/* Inline field editor modal */}
-      {editingField !== null && (
-        <InlineFieldEditor
-          field={fields[editingField]!}
-          onSave={(patch) => { updateField(editingField, patch); setEditingField(null); }}
+            <View style={styles.iconRow}>
+              <View style={styles.iconPreviewWrap}>
+                <IconTile emoji={icon || undefined} color={color} size={36} />
+                <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Icon (optional)</Text>
+              </View>
+              <IconPicker value={icon} onChange={setIcon} />
+            </View>
+          </InsetGroup>
+
+          {/* Color Swatches InsetGroup */}
+          <InsetGroup title="Color">
+            <View style={styles.colorWrap}>
+              <ColorSwatchPicker value={color} onChange={setColor} />
+            </View>
+          </InsetGroup>
+
+          {/* Behaviour InsetGroup */}
+          <InsetGroup title="Behaviour">
+            <GroupedRow
+              label="Allow Comment"
+              sub="Shows a free-text box when this option is selected"
+              toggle
+              toggled={allowComment}
+              onToggle={setAllowComment}
+            />
+          </InsetGroup>
+
+          {/* Capture Time InsetGroup */}
+          <InsetGroup title="Capture time" footer="Controls whether a timestamp is saved when this option is logged.">
+            {CAPTURE_OPTIONS.map((opt) => {
+              const isSelected = captureTime === opt.value;
+              return (
+                <GroupedRow
+                  key={opt.value}
+                  label={opt.label}
+                  sub={opt.desc}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setCaptureTime(opt.value);
+                  }}
+                  trailing={isSelected ? <Check size={18} color={palette.primary} strokeWidth={2.5} /> : null}
+                />
+              );
+            })}
+          </InsetGroup>
+
+          {/* Value Fields InsetGroup */}
+          <InsetGroup
+            title={`Value fields (${fields.length})`}
+            footer="Add extra measurements (sliders, body map, numbers) to capture when logging this option."
+          >
+            <DraggableValueFieldsList
+              fields={fields}
+              onReorder={(newFields) => setFields(newFields)}
+              onEditField={(index) => setEditingField(index)}
+              onRemoveField={(index) => removeField(index)}
+              onDragStateChange={(isDragging) => setScrollEnabled(!isDragging)}
+            />
+            <View style={styles.presetSection}>
+              <Text style={[styles.presetTitle, { color: palette.textSecondary }]}>Add from Presets:</Text>
+              <FieldPresetPicker onPick={addFieldFromPreset} />
+            </View>
+          </InsetGroup>
+
+          {/* Archive / Restore Action */}
+          {!isNew && (
+            <InsetGroup>
+              {isArchived ? (
+                <GroupedRow
+                  label="Restore this option"
+                  valueColor={palette.primary}
+                  onPress={handleUnarchive}
+                />
+              ) : (
+                <GroupedRow
+                  label="Archive this option"
+                  destructive
+                  onPress={handleArchive}
+                />
+              )}
+            </InsetGroup>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Field Editor Modal (preserved from original) */}
+      {editingField !== null && fields[editingField] && (
+        <FieldEditModal
+          field={fields[editingField]}
+          onSave={(updated) => {
+            updateField(editingField, updated);
+            setEditingField(null);
+          }}
           onClose={() => setEditingField(null)}
         />
       )}
-
-      <View style={[styles.footer, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 48) + 12 : Math.max(insets.bottom, 16) + 8 }]}>
-        <TouchableOpacity style={[styles.saveBtn, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color={palette.white} /> : <Text style={styles.saveBtnText}>Save option</Text>}
-        </TouchableOpacity>
-      </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function SectionHeader({ title }: { title: string }) {
-  const sectionStyles = useSectionStyles();
-  return <Text style={sectionStyles.title}>{title}</Text>;
+interface FieldEditModalProps {
+  field: FieldDefinition;
+  onSave: (field: FieldDefinition) => void;
+  onClose: () => void;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  const fieldStyles = useFieldStyles();
-  return <View style={fieldStyles.wrapper}><Text style={fieldStyles.label}>{label}</Text>{children}</View>;
-}
-
-function ToggleRow({ label, desc, value, onChange }: { label: string; desc: string; value: boolean; onChange: (v: boolean) => void }) {
+function FieldEditModal({ field, onSave, onClose }: FieldEditModalProps) {
   const { palette } = useTheme();
-  const toggleStyles = useToggleStyles();
-  return (
-    <View style={toggleStyles.row}>
-      <View style={toggleStyles.text}><Text style={toggleStyles.label}>{label}</Text><Text style={toggleStyles.desc}>{desc}</Text></View>
-      <AppleSwitch
-        value={value}
-        onValueChange={onChange}
-        activeColor={palette.primary || '#34C759'}
-        accessibilityLabel={label}
-      />
-    </View>
-  );
-}
-
-function FieldRow({ field, onEdit, onRemove }: { field: FieldDefinition; onEdit: () => void; onRemove: () => void }) {
-  const fieldRowStyles = useFieldRowStyles();
-  return (
-    <View style={fieldRowStyles.row}>
-      <TouchableOpacity style={fieldRowStyles.main} onPress={onEdit} accessibilityRole="button" accessibilityLabel={`Edit field ${field.label}`}>
-        <View style={fieldRowStyles.info}>
-          <Text style={fieldRowStyles.label}>{field.label}</Text>
-          <Text style={fieldRowStyles.type}>{DATA_TYPE_LABELS[field.dataType] ?? field.dataType}{field.unit ? ` · ${field.unit}` : ''}{field.required ? ' · Required' : ''}</Text>
-        </View>
-        <Text style={fieldRowStyles.edit}>Edit</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={fieldRowStyles.remove} onPress={onRemove} accessibilityLabel={`Remove field ${field.label}`}>
-        <Text style={fieldRowStyles.removeText}>✕</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function InlineFieldEditor({ field, onSave, onClose }: { field: FieldDefinition; onSave: (patch: Partial<FieldDefinition>) => void; onClose: () => void }) {
-  const { palette } = useTheme();
-  const inlineStyles = useInlineStyles();
-  const [label,    setLabel]    = useState(field.label);
-  const [key,      setKey]      = useState(field.key);
-  const [unit,     setUnit]     = useState(field.unit ?? '');
+  const styles = useStyles();
+  const [label, setLabel] = useState(field.label);
+  const [unit, setUnit] = useState(field.unit ?? '');
   const [required, setRequired] = useState(field.required ?? false);
-  const [helpText, setHelpText] = useState(field.helpText ?? '');
-  const [enumValues, setEnumValues] = useState<EnumValue[]>(field.enumValues ? [...field.enumValues] : []);
-  const [newChoiceText, setNewChoiceText] = useState('');
 
-  const addChoice = () => {
-    const trimmed = newChoiceText.trim();
-    if (!trimmed) return;
-    const valKey = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `opt_${Date.now()}`;
-    if (enumValues.some(e => e.value === valKey)) {
-      Alert.alert('Duplicate choice', 'This choice option already exists.');
+  const save = () => {
+    if (!label.trim()) {
+      Alert.alert('Label Required');
       return;
     }
-    setEnumValues(prev => [...prev, { value: valKey, label: trimmed }]);
-    setNewChoiceText('');
-  };
-
-  const removeChoice = (indexToRemove: number) => {
-    setEnumValues(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    onSave({ ...field, label: label.trim(), unit: unit.trim() || undefined, required });
   };
 
   return (
-    <Modal transparent animationType="slide" visible>
-      <View style={inlineStyles.backdrop}>
-        <Pressable style={inlineStyles.backdropTouch} onPress={onClose} />
-        <View style={inlineStyles.sheet}>
-          <View style={inlineStyles.header}>
-            <Text style={inlineStyles.title}>Edit field</Text>
-            <TouchableOpacity onPress={onClose}><Text style={inlineStyles.cancel}>Cancel</Text></TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={inlineStyles.body} keyboardShouldPersistTaps="handled">
-            <InlineField label="Label">
-              <TextInput style={inlineStyles.input} value={label} onChangeText={setLabel} placeholder="Field label" placeholderTextColor={palette.placeholder} />
-            </InlineField>
-            <InlineField label="Key (internal, no spaces)">
-              <TextInput style={inlineStyles.input} value={key} onChangeText={t => setKey(t.replace(/\s/g, '_').toLowerCase())} placeholder="e.g. severity, amount, type" placeholderTextColor={palette.placeholder} autoCapitalize="none" />
-            </InlineField>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View style={[styles.sheetCard, { backgroundColor: palette.background }]}>
+          <ScreenTopBar
+            title={`Edit ${field.label}`}
+            backLabel="Cancel"
+            backIcon="close"
+            onBack={onClose}
+            sheet
+            right={<HeaderTextButton label="Done" prominent onPress={save} />}
+          />
+          <View style={{ paddingTop: 16, gap: 16 }}>
+            <InsetGroup>
+              <View style={styles.fieldRow}>
+                <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Field Label</Text>
+                <TextInput
+                  style={[styles.fieldInput, { color: palette.text }]}
+                  value={label}
+                  onChangeText={setLabel}
+                />
+              </View>
+              <View style={styles.fieldRow}>
+                <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>Unit (optional)</Text>
+                <TextInput
+                  style={[styles.fieldInput, { color: palette.text }]}
+                  value={unit}
+                  onChangeText={setUnit}
+                  placeholder="e.g. ml, mg, /10"
+                  placeholderTextColor={palette.placeholder}
+                />
+              </View>
+            </InsetGroup>
 
-            {field.dataType === 'enum' && (
-              <InlineField label={`Choices / Chips (${enumValues.length})`}>
-                <View style={inlineStyles.chipsWrap}>
-                  {enumValues.map((item, idx) => (
-                    <View key={item.value + idx} style={inlineStyles.chipPill}>
-                      <Text style={inlineStyles.chipPillText}>{item.label}</Text>
-                      <TouchableOpacity
-                        onPress={() => removeChoice(idx)}
-                        style={inlineStyles.chipDeleteBtn}
-                        accessibilityLabel={`Remove ${item.label}`}
-                      >
-                        <Text style={inlineStyles.chipDeleteText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-
-                <View style={inlineStyles.addChoiceRow}>
-                  <TextInput
-                    style={[inlineStyles.input, { flex: 1 }]}
-                    value={newChoiceText}
-                    onChangeText={setNewChoiceText}
-                    placeholder="e.g. Nausea, Bloating, Cramps"
-                    placeholderTextColor={palette.placeholder}
-                    onSubmitEditing={addChoice}
-                    returnKeyType="done"
-                  />
-                  <TouchableOpacity
-                    style={inlineStyles.addChoiceBtn}
-                    onPress={addChoice}
-                    disabled={!newChoiceText.trim()}
-                  >
-                    <Text style={inlineStyles.addChoiceBtnText}>＋ Add</Text>
-                  </TouchableOpacity>
-                </View>
-              </InlineField>
-            )}
-
-            {field.dataType !== 'enum' && (
-              <InlineField label="Unit (optional)">
-                <TextInput style={inlineStyles.input} value={unit} onChangeText={setUnit} placeholder="e.g. ml, °C, km, bpm" placeholderTextColor={palette.placeholder} />
-              </InlineField>
-            )}
-
-            <InlineField label="Help text (optional)">
-              <TextInput style={inlineStyles.input} value={helpText} onChangeText={setHelpText} placeholder="Shown under the field" placeholderTextColor={palette.placeholder} />
-            </InlineField>
-            <View style={inlineStyles.toggleRow}>
-              <Text style={inlineStyles.toggleLabel}>Required</Text>
-              <AppleSwitch
-                value={required}
-                onValueChange={setRequired}
-                activeColor={palette.primary || '#34C759'}
-                accessibilityLabel="Required field"
+            <InsetGroup>
+              <GroupedRow
+                label="Required Field"
+                toggle
+                toggled={required}
+                onToggle={setRequired}
               />
-            </View>
-            <Text style={inlineStyles.typeNote}>Type: {DATA_TYPE_LABELS[field.dataType] ?? field.dataType} (cannot change type after creation)</Text>
-          </ScrollView>
-          <View style={inlineStyles.footer}>
-            <TouchableOpacity
-              style={inlineStyles.saveBtn}
-              onPress={() => onSave({
-                label: label.trim(),
-                key: key.trim(),
-                unit: unit.trim() || undefined,
-                required,
-                helpText: helpText.trim() || undefined,
-                ...(field.dataType === 'enum' ? { enumValues } : {}),
-              })}
-            >
-              <Text style={inlineStyles.saveBtnText}>Save field</Text>
-            </TouchableOpacity>
+            </InsetGroup>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-function InlineField({ label, children }: { label: string; children: React.ReactNode }) {
-  const fieldStyles = useFieldStyles();
-  return <View style={{ gap: 4, marginBottom: 12 }}><Text style={fieldStyles.label}>{label}</Text>{children}</View>;
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const useSectionStyles = createThemedStyles((palette) => ({ title: { ...typography.h4, color: palette.text, marginTop: 8 } }));
-const useFieldStyles   = createThemedStyles((palette) => ({ wrapper: { gap: 6 }, label: { ...typography.smallBold, color: palette.textSecondary } }));
-const useToggleStyles  = createThemedStyles((palette) => ({
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
-  text: { flex: 1 },
-  label: { ...typography.body, color: palette.text },
-  desc: { ...typography.small, color: palette.textSecondary, marginTop: 2 },
-}));
-const useFieldRowStyles = createThemedStyles((palette) => ({
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
-  main: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
-  info: { flex: 1 },
-  label: { ...typography.bodyBold, color: palette.text },
-  type: { ...typography.small, color: palette.textSecondary, marginTop: 1 },
-  edit: { ...typography.small, color: palette.primaryText },
-  remove: { paddingHorizontal: 16, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: palette.border, backgroundColor: palette.surfaceAlt },
-  removeText: { ...typography.body, color: palette.errorText },
-}));
-const useInlineStyles = createThemedStyles((palette) => ({
-  backdrop: { flex: 1, justifyContent: 'flex-end' },
-  backdropTouch: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: { backgroundColor: palette.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.border },
-  title: { ...typography.h4, color: palette.text },
-  cancel: { ...typography.bodyBold, color: palette.primaryText },
-  body: { padding: 16 },
-  input: { backgroundColor: palette.surfaceAlt, borderWidth: 1, borderColor: palette.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, ...typography.body, color: palette.text },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  toggleLabel: { ...typography.body, color: palette.text },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  chipPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  chipPillText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  chipDeleteBtn: {
-    padding: 2,
-  },
-  chipDeleteText: {
-    fontSize: 11,
-    color: palette.textSecondary,
-    fontWeight: '700',
-  },
-  addChoiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  addChoiceBtn: {
-    backgroundColor: palette.primary + '18',
-    borderColor: palette.primary + '40',
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addChoiceBtnText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: palette.primaryText,
-  },
-  typeNote: { ...typography.small, color: palette.textDisabled, marginTop: 8 },
-  footer: { padding: 16, paddingBottom: 28, borderTopWidth: 1, borderTopColor: palette.border },
-  saveBtn: { backgroundColor: palette.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  saveBtnText: { ...typography.button, color: palette.white },
-}));
-
 const useStyles = createThemedStyles((palette) => ({
-  screen: { flex: 1, backgroundColor: palette.background },
-  scroll: { padding: 16, gap: 14, paddingBottom: 100 },
-  input: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, ...typography.body, color: palette.text, minHeight: 52 },
-  radioRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1.5, borderColor: palette.border, padding: 12 },
-  radioRowActive: { borderColor: palette.primary, backgroundColor: palette.primary + '08' },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: palette.border, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  radioActive: { borderColor: palette.primary },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.primary },
-  radioText: { flex: 1 },
-  radioLabel: { ...typography.bodyBold, color: palette.text },
-  radioDesc: { ...typography.small, color: palette.textSecondary, marginTop: 1 },
-  archivedNotice: {
-    backgroundColor: palette.warning + '18',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.warning + '40',
+  safe: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
+  scroll: {
+    paddingTop: 8,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  previewContainer: {
+    marginHorizontal: 16,
+  },
+  fieldRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  fieldLabel: {
+    ...typography.caption1,
+    fontWeight: '500',
+  },
+  fieldInput: {
+    ...typography.bodyLarge,
+    fontSize: 17,
+    padding: 0,
+  },
+  iconRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  iconPreviewWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  colorWrap: {
+    padding: 16,
+  },
+  presetSection: {
     padding: 14,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
   },
-  archivedNoticeText: { ...typography.small, color: palette.warningText, lineHeight: 18 },
-  actionSection: { gap: 10, marginTop: 12 },
-  unarchiveBtn: {
-    backgroundColor: palette.secondary + '18', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.secondary + '60',
-    paddingVertical: 14, alignItems: 'center',
+  presetTitle: {
+    ...typography.caption1,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  unarchiveBtnText: { ...typography.bodyBold, color: palette.secondaryText },
-  archiveBtn: {
-    backgroundColor: palette.warning + '12', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.warning + '40',
-    paddingVertical: 14, alignItems: 'center',
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
-  archiveBtnText: { ...typography.bodyBold, color: palette.warningText },
-  deleteBtn: {
-    backgroundColor: palette.error + '12', borderRadius: 12,
-    borderWidth: 1, borderColor: palette.error + '40',
-    paddingVertical: 14, alignItems: 'center',
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  deleteBtnText: { ...typography.bodyBold, color: palette.errorText },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 28, backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.border },
-  saveBtn: { backgroundColor: palette.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', minHeight: 54 },
-  disabled: { opacity: 0.6 },
-  saveBtnText: { ...typography.button, color: palette.white },
+  sheetCard: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 36,
+    overflow: 'hidden',
+  },
 }));

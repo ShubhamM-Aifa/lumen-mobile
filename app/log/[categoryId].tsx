@@ -119,17 +119,6 @@ export default function QuestionSheet() {
       .sort((a, b) => a.order - b.order);
   }
 
-  // Meal slot support for questions with frequency: 'per_meal'
-  const hasPerMealQuestions = useMemo(() => questions.some(q => q.frequency === 'per_meal'), [questions]);
-  const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>(() => {
-    const h = new Date().getHours();
-    if (h >= 4 && h < 11) return 'breakfast';
-    if (h >= 11 && h < 16) return 'lunch';
-    if (h >= 16 && h < 18) return 'snack';
-    if (h >= 18 && h < 23) return 'dinner';
-    return 'snack';
-  });
-
   // All current answers flat — used for conditionalDisplay evaluation
   const allAnswers = Object.values(answersByQuestion).flat();
 
@@ -303,11 +292,7 @@ export default function QuestionSheet() {
         logLocationService.getFastLocationSnapshot().catch(() => null),
       ]);
 
-      const mealMap: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
-      const mealPrefix = hasPerMealQuestions ? `[${mealMap[selectedMeal]}]` : '';
-      const finalNote = note.trim()
-        ? (mealPrefix ? `${mealPrefix} ${note.trim()}` : note.trim())
-        : (mealPrefix || undefined);
+      const finalNote = note.trim() || undefined;
 
       const primaryAnsweredQuestion = questions.find(q => (answersByQuestion[q._id] ?? []).length > 0) ?? questions[0];
       const cleanCategoryId = Array.isArray(categoryId) ? categoryId[0] : categoryId;
@@ -378,7 +363,7 @@ export default function QuestionSheet() {
   if (!category) {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ title: 'Log' }} />
+        <Stack.Screen options={{ headerShown: false }} />
         <Text style={styles.errorText}>Category not found.</Text>
       </View>
     );
@@ -427,44 +412,6 @@ export default function QuestionSheet() {
           </View>
         )}
 
-        {/* Meal Slot Selector for per_meal questions */}
-        {hasPerMealQuestions && (
-          <View style={styles.mealCard}>
-            <Text style={styles.mealCardLabel}>Meal Slot</Text>
-            <View style={styles.mealPillsRow}>
-              {[
-                { id: 'breakfast', label: 'Breakfast', emoji: '🍳' },
-                { id: 'lunch',     label: 'Lunch',     emoji: '🥗' },
-                { id: 'dinner',    label: 'Dinner',    emoji: '🍲' },
-                { id: 'snack',     label: 'Snack',     emoji: '🍎' },
-              ].map(m => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[
-                    styles.mealPill,
-                    selectedMeal === m.id && styles.mealPillActive,
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedMeal(m.id as any);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: selectedMeal === m.id }}
-                >
-                  <Text style={styles.mealPillEmoji}>{m.emoji}</Text>
-                  <Text
-                    style={[
-                      styles.mealPillText,
-                      selectedMeal === m.id && styles.mealPillTextActive,
-                    ]}
-                  >
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
 
         {/* Smart Copy Previous / Same as Yesterday Card */}
         {previousLog && (
@@ -738,34 +685,6 @@ const useStyles = createThemedStyles(palette => ({
   previousLogActionTextApplied: {
     color: '#FFFFFF',
   },
-  mealCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 26,
-    padding: 14,
-    gap: 10,
-  },
-  mealCardLabel: { ...typography.sectionLabel, color: palette.textSecondary },
-  mealPillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  mealPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    minHeight: 44,
-    paddingHorizontal: 4,
-    borderRadius: 22,
-    backgroundColor: palette.surfaceAlt,
-  },
-  mealPillActive: { backgroundColor: palette.primary },
-  mealPillEmoji: {
-    fontSize: 13,
-  },
-  mealPillText: { ...typography.subhead, color: palette.text },
-  mealPillTextActive: { color: '#FFFFFF', fontWeight: '600' },
   questionsToolbar: {
     flexDirection: 'row',
     alignItems: 'center',

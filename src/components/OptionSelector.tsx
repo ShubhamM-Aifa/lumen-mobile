@@ -170,9 +170,8 @@ export function OptionSelector({
         const isLastRow = index === options.length - 1 && !allowOther;
         const hasFields = option.fields && option.fields.length > 0;
         const hasExplicitTimeField = hasFields && option.fields.some(f => f.dataType === 'time' || f.key === 'time');
-        const showUserPickTime = option.captureTime === 'user_picks' && !hasExplicitTimeField;
-        const showAutoNowTime = option.captureTime === 'auto_now' && !hasExplicitTimeField;
-        const shouldExpand = selected && (hasFields || option.allowComment || showUserPickTime || showAutoNowTime);
+        const showUserPickTime = (option.captureTime === 'user_picks' || option.captureTime === 'auto_now') && !hasExplicitTimeField;
+        const shouldExpand = selected && (hasFields || option.allowComment || showUserPickTime);
 
         return (
           <View key={option._id} style={!isLastRow ? styles.separated : undefined}>
@@ -233,19 +232,6 @@ export function OptionSelector({
                       updateFieldValue(option._id, option.label, 'time', partial, 'time')
                     }
                   />
-                )}
-
-                {/* Auto Now Time badge (when option captureTime is 'auto_now') */}
-                {showAutoNowTime && (
-                  <View style={styles.autoTimeBadge}>
-                    <Text style={styles.autoTimeIcon}>🕐</Text>
-                    <Text style={styles.autoTimeText}>
-                      Recorded at {fmt12((() => {
-                        const fv = answer?.values.find(v => v.fieldKey === 'time');
-                        return typeof fv?.value === 'string' && fv.value ? fv.value : getNowHHmm();
-                      })())}
-                    </Text>
-                  </View>
                 )}
 
                 {/* Comment input */}

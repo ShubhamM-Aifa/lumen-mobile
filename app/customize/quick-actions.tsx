@@ -14,6 +14,7 @@ import { api } from '../../src/api/client';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { QuickActionIcon } from '../../src/components/QuickActionIcon';
+import { reorderItems } from '../../src/utils/reorderHelper';
 
 const MODE_LABEL: Record<string, string> = {
   counter: 'Counter', timer: 'Timer', toggle: 'Toggle',
@@ -66,8 +67,15 @@ export default function QuickActionsScreen() {
     else if (dir === 'down' && idx < visible.length - 1) [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
     else return;
     setReordering(true);
-    try { await api.patch('/quick-actions/reorder', { ids }); invalidate(); await fetchConfig(); }
-    finally { setReordering(false); }
+    try {
+      await reorderItems('quick-actions', ids);
+      invalidate();
+      await fetchConfig();
+    } catch (err: any) {
+      Alert.alert('Reorder failed', err?.message || 'Could not reorder quick actions');
+    } finally {
+      setReordering(false);
+    }
   };
 
   const renderRow = ({ item, index }: { item: IQuickAction; index: number }) => (

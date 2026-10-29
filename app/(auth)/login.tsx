@@ -143,6 +143,17 @@ export default function LoginScreen() {
           )}
         </View>
 
+        <TouchableOpacity
+          style={styles.registerLink}
+          onPress={() => router.push('/(auth)/register')}
+          accessibilityRole="link"
+          accessibilityLabel="Create an Account"
+        >
+          <Text style={styles.registerLinkText}>
+            Don't have an account? <Text style={styles.registerLinkBold}>Create an Account</Text>
+          </Text>
+        </TouchableOpacity>
+
         <Text style={styles.disclaimer}>
           Lumen is a personal tracking tool, not a medical diagnostic device.{'\n'}
           Always discuss health decisions with your doctor.
@@ -155,6 +166,9 @@ export default function LoginScreen() {
 const useStyles = createThemedStyles(palette => ({
   container: { flex: 1, backgroundColor: palette.background },
   scroll:    { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 40 },
+  registerLink: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
+  registerLinkText: { ...typography.body, color: palette.textSecondary },
+  registerLinkBold: { ...typography.bodyBold, color: palette.primaryText },
   logoHeader: { alignItems: 'center', marginBottom: 24 },
   logoBadge:  { marginBottom: 12 },
   logo: { ...typography.largeTitle, textAlign: 'center', marginBottom: 4, color: palette.text },

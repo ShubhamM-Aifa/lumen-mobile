@@ -183,7 +183,7 @@ export async function apiRequest<T = unknown>(
     } else if (typeof json.errors === 'string') {
       errorDetails = `: ${json.errors}`;
     }
-    const fullMessage = (json.message ?? 'Request failed') + errorDetails;
+    const fullMessage = (json.message ?? (json as any).error ?? 'Request failed') + errorDetails;
     console.error(`[API Error ${resp.status}] ${path}:`, fullMessage, json.errors);
     throw new ApiError(resp.status, fullMessage, json.errors);
   }

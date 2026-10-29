@@ -35,7 +35,7 @@ interface TaskState {
   suggestions: TaskSuggestions | null;
 
   // Actions
-  fetchTasks: () => Promise<void>;
+  fetchTasks: (boundaryHour?: number) => Promise<void>;
   fetchLists: () => Promise<void>;
   fetchSuggestions: (boundaryHour?: number) => Promise<TaskSuggestions | null>;
   pruneDayBoundary: (boundaryHour?: number) => void;
@@ -82,23 +82,31 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   error: null,
   suggestions: null,
 
-  fetchTasks: async () => {
+  fetchTasks: async (boundaryHour = 4) => {
     set({ isLoading: true, error: null });
+    const todayStr = getTrackingDayDateString(new Date(), boundaryHour);
 
     // 1. Fast cache hydration
     try {
       const cached = await AsyncStorage.getItem(TASKS_CACHE_KEY);
       if (cached) {
-        set({ tasks: JSON.parse(cached) });
+        const parsed: ITask[] = JSON.parse(cached);
+        const cleaned = parsed.map((t) =>
+          t.inMyDay && t.myDayDate && t.myDayDate !== todayStr ? { ...t, inMyDay: false } : t
+        );
+        set({ tasks: cleaned });
       }
     } catch {}
 
-    // 2. Network fetch
+    // 2. Network fetch with today tracking day
     try {
-      const res = await api.get<ITask[]>('/tasks?includeCompleted=true');
+      const res = await api.get<ITask[]>(`/tasks?includeCompleted=true&today=${todayStr}`);
       if (res && Array.isArray(res)) {
-        set({ tasks: res });
-        await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(res));
+        const cleaned = res.map((t) =>
+          t.inMyDay && t.myDayDate && t.myDayDate !== todayStr ? { ...t, inMyDay: false } : t
+        );
+        set({ tasks: cleaned });
+        await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(cleaned));
       }
     } catch (err: any) {
       // Keep cached data
@@ -139,9 +147,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   pruneDayBoundary: (boundaryHour = 4) => {
     const currentTrackingDay = getTrackingDayDateString(new Date(), boundaryHour);
+    const staleIds: string[] = [];
     const updated = get().tasks.map((task) => {
       // If task was in My Day on a previous tracking day, unpin it to give a clean daily slate
       if (task.inMyDay && task.myDayDate && task.myDayDate !== currentTrackingDay) {
+        staleIds.push(task._id);
         return {
           ...task,
           inMyDay: false,
@@ -152,6 +162,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     set({ tasks: updated });
     AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+    if (staleIds.length > 0) {
+      Promise.all(staleIds.map((id) => api.patch(`/tasks/${id}`, { inMyDay: false }))).catch(() => {});
+    }
   },
 
   setActiveFilter: (filter: TaskFilterType) => {

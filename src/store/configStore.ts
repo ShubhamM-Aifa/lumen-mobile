@@ -25,7 +25,14 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     set({ isLoading: true });
     try {
       const data = await api.get<UserConfig>('/config');
-      set({ config: data, lastFetchedAt: Date.now() });
+      const normalizedData: UserConfig = data ? {
+        ...data,
+        options: (data.options ?? []).map(o => ({
+          ...o,
+          captureTime: (o.captureTime === 'auto_now' || (o.captureTime as any) === 'auto') ? 'user_picks' : o.captureTime,
+        })),
+      } : data;
+      set({ config: normalizedData, lastFetchedAt: Date.now() });
     } catch (err: any) {
       // 401 = not logged in yet; silently skip
       if (err?.statusCode !== 401) throw err;

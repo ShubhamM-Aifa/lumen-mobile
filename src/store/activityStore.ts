@@ -11,7 +11,11 @@ import { IActivitySession, IActivityPoint, ActivityType } from '@lumen/shared';
 import { api } from '../api/client';
 import { queryClient } from '../api/queryClient';
 import { locationService } from '../services/locationService';
-import { sendPacingAlertNotification } from '../services/notifications';
+import {
+  sendPacingAlertNotification,
+  showWalkLiveNotification,
+  dismissWalkLiveNotification,
+} from '../services/notifications';
 import { getStepSource } from '../services/activity/stepSource';
 import { getDayBoundaryWindow } from '../utils/dayBoundary';
 import { getActiveBoundaryHour } from './quickLogStore';
@@ -176,11 +180,30 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       console.warn('[activityStore] Hardware location tracking unavailable.');
     }
 
-    // Start elapsed active time ticker (updates UI every 1s while active)
+    // Show initial live lock-screen notification (Samsung / Android / iOS)
+    showWalkLiveNotification({
+      title,
+      activeSeconds: 0,
+      distanceMeters: 0,
+      steps: 0,
+      isPaused: false,
+    }).catch(() => {});
+
+    // Start elapsed active time ticker (updates UI and live notification)
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       if (!get().isPaused && get().isTracking) {
-        get().recalculateActiveTime();
+        const sec = get().recalculateActiveTime();
+        if (sec % 3 === 0) {
+          showWalkLiveNotification({
+            title: get().activeSession?.title,
+            activeSeconds: sec,
+            distanceMeters: get().distanceMeters,
+            steps: get().steps,
+            averagePaceMinPerKm: get().averagePaceMinPerKm,
+            isPaused: false,
+          }).catch(() => {});
+        }
       }
     }, 1000);
 
@@ -217,6 +240,14 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       activeSeconds: newSeconds,
     });
 
+    showWalkLiveNotification({
+      title: get().activeSession?.title,
+      activeSeconds: newSeconds,
+      distanceMeters: get().distanceMeters,
+      steps: get().steps,
+      isPaused: true,
+    }).catch(() => {});
+
     await locationService.pauseTracking();
 
     const session = get().activeSession;
@@ -238,6 +269,14 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       lastResumeMs: now,
     });
     get().recalculateActiveTime();
+
+    showWalkLiveNotification({
+      title: get().activeSession?.title,
+      activeSeconds: get().activeSeconds,
+      distanceMeters: get().distanceMeters,
+      steps: get().steps,
+      isPaused: false,
+    }).catch(() => {});
 
     await locationService.resumeTracking(
       (point, totalDistanceMeters, currentSpeedKmh) => {
@@ -261,6 +300,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   stopWalking: async (notes?: string) => {
+    dismissWalkLiveNotification().catch(() => {});
+
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
@@ -355,6 +396,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   discardWalking: async () => {
+    dismissWalkLiveNotification().catch(() => {});
+
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;

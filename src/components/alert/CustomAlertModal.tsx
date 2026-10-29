@@ -3,32 +3,31 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Animated,
-  Dimensions,
   TouchableWithoutFeedback,
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import {
-  LogOut,
-  Trash2,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  HelpCircle,
-  Info,
-} from 'lucide-react-native';
-import { useAlertStore, AlertButtonConfig, AlertIconType } from './alertStore';
+import { useAlertStore, AlertButtonConfig } from './alertStore';
 import { useTheme } from '../../theme/ThemeContext';
-import { typography } from '../../theme/typography';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
+/**
+ * Authentic Apple iOS `UIAlertController` dialog.
+ * 
+ * Implements Apple HIG specification:
+ * - 270pt width with continuous 14pt rounded corners
+ * - Translucent frosted acrylic surface with backdrop blur
+ * - Standard 0.5pt hairline dividers
+ * - Flat translucent tap targets with subtle press highlight (no pill buttons)
+ * - Precise typography: 17pt headline title, 13pt body message
+ * - iOS system blue (#0A84FF / #007AFF) and destructive red (#FF453A / #FF3B30)
+ * - No Android/Bootstrap-style top icon badges
+ */
 export function CustomAlertModal() {
   const { currentAlert, hideAlert } = useAlertStore();
-  const { palette, colorScheme } = useTheme();
+  const { colorScheme } = useTheme();
 
   const isDark = colorScheme === 'dark';
   const animValue = useRef(new Animated.Value(0)).current;
@@ -38,15 +37,15 @@ export function CustomAlertModal() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       Animated.spring(animValue, {
         toValue: 1,
-        damping: 18,
-        stiffness: 220,
+        damping: 24,
+        stiffness: 260,
         mass: 0.8,
         useNativeDriver: true,
       }).start();
     } else {
       Animated.timing(animValue, {
         toValue: 0,
-        duration: 160,
+        duration: 140,
         useNativeDriver: true,
       }).start();
     }
@@ -86,8 +85,7 @@ export function CustomAlertModal() {
     if (!currentAlert.buttons || currentAlert.buttons.length === 0) {
       return [{ text: 'OK', style: 'default' }];
     }
-    // If exactly 2 buttons and the first isn't cancel but the second is,
-    // reorder so Cancel is always on the left for standard UX
+    // In iOS 2-button alerts, Cancel is always on the left, primary/destructive on the right
     if (
       currentAlert.buttons.length === 2 &&
       currentAlert.buttons[0].style !== 'cancel' &&
@@ -95,14 +93,22 @@ export function CustomAlertModal() {
     ) {
       return [currentAlert.buttons[1], currentAlert.buttons[0]];
     }
+    // In 3+ button alerts, Cancel is conventionally at the bottom
+    if (currentAlert.buttons.length > 2) {
+      const cancelIdx = currentAlert.buttons.findIndex((b) => b.style === 'cancel');
+      if (cancelIdx >= 0 && cancelIdx < currentAlert.buttons.length - 1) {
+        const copy = [...currentAlert.buttons];
+        const [cancelBtn] = copy.splice(cancelIdx, 1);
+        copy.push(cancelBtn);
+        return copy;
+      }
+    }
     return currentAlert.buttons;
   }, [currentAlert]);
 
   if (!currentAlert) return null;
 
-  const { title, message, icon } = currentAlert;
-
-  const iconDetails = getIconConfig(icon || 'info', palette);
+  const { title, message } = currentAlert;
 
   const backdropOpacity = animValue.interpolate({
     inputRange: [0, 1],
@@ -111,13 +117,26 @@ export function CustomAlertModal() {
 
   const modalScale = animValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.88, 1],
+    outputRange: [1.08, 1],
   });
 
   const modalOpacity = animValue.interpolate({
     inputRange: [0, 0.4, 1],
     outputRange: [0, 0.7, 1],
   });
+
+  // iOS Color Palette Tokens
+  const cardBg = isDark ? 'rgba(37, 37, 38, 0.94)' : 'rgba(242, 242, 244, 0.94)';
+  const cardBorder = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)';
+  const dividerColor = isDark ? 'rgba(84, 84, 88, 0.65)' : 'rgba(60, 60, 67, 0.29)';
+  const titleColor = isDark ? '#FFFFFF' : '#000000';
+  const messageColor = isDark ? 'rgba(235, 235, 245, 0.8)' : 'rgba(60, 60, 67, 0.75)';
+  const systemBlue = isDark ? '#0A84FF' : '#007AFF';
+  const destructiveRed = isDark ? '#FF453A' : '#FF3B30';
+  const pressedBg = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+
+  const isTwoButtons = renderedButtons.length === 2;
+  const isOneButton = renderedButtons.length === 1;
 
   return (
     <Modal
@@ -128,18 +147,18 @@ export function CustomAlertModal() {
       onRequestClose={handleDismiss}
     >
       <View style={styles.overlay}>
-        {/* Dimmed backdrop with tap-to-dismiss */}
+        {/* iOS Dimmed Backdrop (tap-to-dismiss when cancelable) */}
         <TouchableWithoutFeedback onPress={handleDismiss}>
           <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]} />
         </TouchableWithoutFeedback>
 
-        {/* Floating Centered Card */}
+        {/* Authentic iOS UIAlertController Card */}
         <Animated.View
           style={[
             styles.card,
             {
-              backgroundColor: isDark ? '#23201C' : '#FFFFFF',
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+              backgroundColor: cardBg,
+              borderColor: cardBorder,
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
             },
@@ -147,137 +166,113 @@ export function CustomAlertModal() {
           accessibilityViewIsModal
           accessibilityRole="alert"
         >
-          {/* Glowing Top Icon Badge */}
-          <View
-            style={[
-              styles.iconBadge,
-              {
-                backgroundColor: iconDetails.bg,
-                borderColor: iconDetails.border,
-              },
-            ]}
-          >
-            {iconDetails.element}
+          {/* Content Area: Title & Body Message */}
+          <View style={styles.contentArea}>
+            <Text style={[styles.title, { color: titleColor }]}>{title}</Text>
+            {!!message && (
+              <Text style={[styles.message, { color: messageColor }]}>
+                {message}
+              </Text>
+            )}
           </View>
 
-          {/* Alert Title */}
-          <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
+          {/* Top Hairline Separator above buttons */}
+          <View style={[styles.horizontalDivider, { backgroundColor: dividerColor }]} />
 
-          {/* Alert Message */}
-          {!!message && (
-            <Text style={[styles.message, { color: palette.textSecondary }]}>
-              {message}
-            </Text>
+          {/* Action Buttons */}
+          {isTwoButtons ? (
+            /* Standard 2-button horizontal layout: [Cancel] | [Confirm/Destructive] */
+            <View style={styles.twoButtonsRow}>
+              {renderedButtons.map((btn, index) => {
+                const isCancel = btn.style === 'cancel';
+                const isDestructive = btn.style === 'destructive';
+                const textColor = isDestructive ? destructiveRed : systemBlue;
+                const isBold = isCancel || (!isDestructive && index === 1);
+
+                return (
+                  <React.Fragment key={`alert-btn-${index}`}>
+                    {index === 1 && (
+                      <View style={[styles.verticalDivider, { backgroundColor: dividerColor }]} />
+                    )}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.halfButton,
+                        pressed && { backgroundColor: pressedBg },
+                      ]}
+                      onPress={() => handleButtonPress(btn)}
+                      accessibilityRole="button"
+                      accessibilityLabel={btn.text || 'Action'}
+                    >
+                      <Text
+                        style={[
+                          styles.buttonText,
+                          { color: textColor, fontWeight: isBold ? '600' : '400' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {btn.text || 'OK'}
+                      </Text>
+                    </Pressable>
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          ) : isOneButton ? (
+            /* Single full-width button (e.g. [OK]) */
+            <Pressable
+              style={({ pressed }) => [
+                styles.fullButton,
+                pressed && { backgroundColor: pressedBg },
+              ]}
+              onPress={() => handleButtonPress(renderedButtons[0])}
+              accessibilityRole="button"
+              accessibilityLabel={renderedButtons[0]?.text || 'OK'}
+            >
+              <Text style={[styles.buttonText, { color: systemBlue, fontWeight: '600' }]}>
+                {renderedButtons[0]?.text || 'OK'}
+              </Text>
+            </Pressable>
+          ) : (
+            /* 3+ buttons stacked vertically */
+            <View style={styles.multiButtonsColumn}>
+              {renderedButtons.map((btn, index) => {
+                const isCancel = btn.style === 'cancel';
+                const isDestructive = btn.style === 'destructive';
+                const textColor = isDestructive ? destructiveRed : systemBlue;
+
+                return (
+                  <React.Fragment key={`alert-btn-${index}`}>
+                    {index > 0 && (
+                      <View style={[styles.horizontalDivider, { backgroundColor: dividerColor }]} />
+                    )}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.fullButton,
+                        pressed && { backgroundColor: pressedBg },
+                      ]}
+                      onPress={() => handleButtonPress(btn)}
+                      accessibilityRole="button"
+                      accessibilityLabel={btn.text || 'Action'}
+                    >
+                      <Text
+                        style={[
+                          styles.buttonText,
+                          { color: textColor, fontWeight: isCancel ? '600' : '400' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {btn.text || 'Action'}
+                      </Text>
+                    </Pressable>
+                  </React.Fragment>
+                );
+              })}
+            </View>
           )}
-
-          {/* Buttons Layout */}
-          <View
-            style={[
-              styles.buttonsContainer,
-              renderedButtons.length === 2 ? styles.buttonsRow : styles.buttonsColumn,
-            ]}
-          >
-            {renderedButtons.map((btn, index) => {
-              const isCancel = btn.style === 'cancel';
-              const isDestructive = btn.style === 'destructive';
-
-              let btnBg = palette.primary;
-              let textColor = '#FFFFFF';
-              let btnBorder: string | undefined = undefined;
-
-              if (isDestructive) {
-                btnBg = '#EF4444';
-                textColor = '#FFFFFF';
-              } else if (isCancel) {
-                btnBg = isDark ? '#2E2A24' : '#F4EEE6';
-                btnBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-                textColor = palette.text;
-              }
-
-              return (
-                <TouchableOpacity
-                  key={`alert-btn-${index}`}
-                  style={[
-                    styles.button,
-                    renderedButtons.length === 2 && styles.buttonHalf,
-                    {
-                      backgroundColor: btnBg,
-                      borderColor: btnBorder || 'transparent',
-                      borderWidth: btnBorder ? 1 : 0,
-                    },
-                  ]}
-                  onPress={() => handleButtonPress(btn)}
-                  activeOpacity={0.82}
-                  accessibilityRole="button"
-                  accessibilityLabel={btn.text || 'Button'}
-                >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      { color: textColor },
-                      isDestructive && styles.buttonTextDestructive,
-                      isCancel && styles.buttonTextCancel,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {btn.text || 'OK'}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </Animated.View>
       </View>
     </Modal>
   );
-}
-
-function getIconConfig(type: AlertIconType, palette: any) {
-  switch (type) {
-    case 'logout':
-      return {
-        bg: 'rgba(255, 125, 77, 0.12)',
-        border: 'rgba(255, 125, 77, 0.28)',
-        element: <LogOut size={26} color="#FF7D4D" strokeWidth={2.2} />,
-      };
-    case 'delete':
-      return {
-        bg: 'rgba(239, 68, 68, 0.12)',
-        border: 'rgba(239, 68, 68, 0.28)',
-        element: <Trash2 size={26} color="#EF4444" strokeWidth={2.2} />,
-      };
-    case 'warning':
-      return {
-        bg: 'rgba(245, 158, 11, 0.12)',
-        border: 'rgba(245, 158, 11, 0.28)',
-        element: <AlertTriangle size={26} color="#F59E0B" strokeWidth={2.2} />,
-      };
-    case 'error':
-      return {
-        bg: 'rgba(239, 68, 68, 0.12)',
-        border: 'rgba(239, 68, 68, 0.28)',
-        element: <AlertCircle size={26} color="#EF4444" strokeWidth={2.2} />,
-      };
-    case 'success':
-      return {
-        bg: 'rgba(16, 185, 129, 0.12)',
-        border: 'rgba(16, 185, 129, 0.28)',
-        element: <CheckCircle2 size={26} color="#10B981" strokeWidth={2.2} />,
-      };
-    case 'help':
-      return {
-        bg: 'rgba(255, 107, 53, 0.12)',
-        border: 'rgba(255, 107, 53, 0.28)',
-        element: <HelpCircle size={26} color={palette.primaryText} strokeWidth={2.2} />,
-      };
-    case 'info':
-    default:
-      return {
-        bg: 'rgba(59, 130, 246, 0.12)',
-        border: 'rgba(59, 130, 246, 0.28)',
-        element: <Info size={26} color="#3B82F6" strokeWidth={2.2} />,
-      };
-  }
 }
 
 const styles = StyleSheet.create({
@@ -285,89 +280,90 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   card: {
-    width: Math.min(SCREEN_WIDTH - 44, 380),
-    borderRadius: 26,
-    borderWidth: 1,
-    paddingTop: 28,
-    paddingBottom: 22,
-    paddingHorizontal: 22,
-    alignItems: 'center',
+    width: 270,
+    maxWidth: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.35,
         shadowRadius: 28,
       },
       android: {
         elevation: 20,
       },
+      web: {
+        backdropFilter: 'blur(30px) saturate(190%)',
+        WebkitBackdropFilter: 'blur(30px) saturate(190%)',
+        boxShadow: '0 20px 48px rgba(0, 0, 0, 0.45)',
+      } as any,
       default: {},
     }),
   },
-  iconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 1.5,
-    justifyContent: 'center',
+  contentArea: {
+    paddingTop: 20,
+    paddingBottom: 19,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginBottom: 16,
   },
   title: {
-    fontSize: 19,
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: -0.3,
-    marginBottom: 8,
-    paddingHorizontal: 8,
-  },
-  message: {
-    fontSize: 14.5,
+    fontSize: 17,
+    fontWeight: '600',
     lineHeight: 22,
     textAlign: 'center',
-    letterSpacing: -0.15,
-    marginBottom: 20,
-    paddingHorizontal: 6,
+    letterSpacing: -0.4,
   },
-  buttonsContainer: {
-    width: '100%',
+  message: {
     marginTop: 4,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+    textAlign: 'center',
+    letterSpacing: -0.1,
   },
-  buttonsRow: {
+  horizontalDivider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+  },
+  verticalDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 44,
+  },
+  twoButtonsRow: {
     flexDirection: 'row',
-    gap: 12,
+    height: 44,
+    width: '100%',
   },
-  buttonsColumn: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  button: {
-    height: 48,
-    borderRadius: 15,
+  halfButton: {
+    flex: 1,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
   },
-  buttonHalf: {
-    flex: 1,
+  fullButton: {
+    width: '100%',
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  multiButtonsColumn: {
+    width: '100%',
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  buttonTextCancel: {
-    fontWeight: '600',
-  },
-  buttonTextDestructive: {
-    fontWeight: '700',
+    fontSize: 17,
+    letterSpacing: -0.4,
+    textAlign: 'center',
   },
 });

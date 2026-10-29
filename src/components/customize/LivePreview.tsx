@@ -53,16 +53,10 @@ export function LivePreview({ label, icon, color, fields, captureTime, allowComm
       {/* Field / Time / Comment previews */}
       {hasExpandedContent && (
         <View style={[styles.fieldsArea, { borderColor: accentColor + '33' }]}>
-          {captureTime === 'user_picks' && (
+          {(captureTime === 'user_picks' || captureTime === 'auto_now') && (
             <View style={styles.fieldPreviewRow}>
               <Text style={styles.fieldPreviewLabel}>Time it happened</Text>
               <Text style={styles.fieldPreviewWidget}>🕒 12:00 PM</Text>
-            </View>
-          )}
-          {captureTime === 'auto_now' && (
-            <View style={styles.fieldPreviewRow}>
-              <Text style={styles.fieldPreviewLabel}>Auto-timestamp</Text>
-              <Text style={styles.fieldPreviewWidget}>⚡ Recorded at log time</Text>
             </View>
           )}
           {fields.map((f, i) => (

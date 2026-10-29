@@ -89,7 +89,7 @@ export default function TodoHubScreen() {
   const [newListName, setNewListName] = useState('');
 
   useEffect(() => {
-    fetchTasks();
+    fetchTasks(boundaryHour);
     fetchLists();
     pruneDayBoundary(boundaryHour);
   }, [fetchTasks, fetchLists, pruneDayBoundary, boundaryHour]);
