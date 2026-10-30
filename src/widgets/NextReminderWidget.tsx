@@ -15,7 +15,7 @@ export function NextReminderWidget({ data }: Props) {
       style={{
         height: 'match_parent',
         width: 'match_parent',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2C2C2E',
         borderRadius: 26,
         padding: 16,
         flexDirection: 'column',
@@ -31,7 +31,7 @@ export function NextReminderWidget({ data }: Props) {
           width: 38,
           height: 38,
           borderRadius: 10,
-          backgroundColor: '#FF3B30',
+          backgroundColor: '#FF453A',
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -71,7 +71,7 @@ export function NextReminderWidget({ data }: Props) {
           style={{
             fontSize: 18,
             fontWeight: 'bold',
-            color: '#000000',
+            color: '#FFFFFF',
             marginBottom: 2,
           }}
         />
@@ -88,4 +88,3 @@ export function NextReminderWidget({ data }: Props) {
     </FlexWidget>
   );
 }
-

@@ -18,7 +18,7 @@ export function WaterGoalWidget({ data }: Props) {
       style={{
         height: 'match_parent',
         width: 'match_parent',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2C2C2E',
         borderRadius: 26,
         padding: 16,
         flexDirection: 'column',
@@ -34,7 +34,7 @@ export function WaterGoalWidget({ data }: Props) {
           width: 38,
           height: 38,
           borderRadius: 10,
-          backgroundColor: '#007AFF',
+          backgroundColor: '#0A84FF',
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -73,7 +73,7 @@ export function WaterGoalWidget({ data }: Props) {
           style={{
             fontSize: 24,
             fontWeight: 'bold',
-            color: '#000000',
+            color: '#FFFFFF',
             marginBottom: 10,
           }}
         />
@@ -83,7 +83,7 @@ export function WaterGoalWidget({ data }: Props) {
           style={{
             width: 'match_parent',
             height: 5,
-            backgroundColor: '#E5E5EA',
+            backgroundColor: '#3A3A3C',
             borderRadius: 3,
             flexDirection: 'row',
             overflow: 'hidden',
@@ -93,7 +93,7 @@ export function WaterGoalWidget({ data }: Props) {
             style={{
               flex: fillFlex,
               height: 'match_parent',
-              backgroundColor: '#007AFF',
+              backgroundColor: '#0A84FF',
               borderRadius: 3,
             }}
           />
@@ -110,4 +110,3 @@ export function WaterGoalWidget({ data }: Props) {
     </FlexWidget>
   );
 }
-

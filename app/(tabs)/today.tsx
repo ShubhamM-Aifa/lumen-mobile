@@ -191,15 +191,8 @@ export default function TodayScreen() {
   );
 
   useEffect(() => {
-    saveWidgetSnapshot({
-      waterCount,
-      waterGoal,
-      distanceKm: todayDistanceKm.toFixed(1),
-      stepsToday: phoneStepsToday ?? 0,
-      activeMinutes: totalActiveMinutes,
-      activeGoal: activeGoalMinutes,
-    });
-  }, [waterCount, waterGoal, todayDistanceKm, phoneStepsToday, totalActiveMinutes, activeGoalMinutes]);
+    syncLiveWidgetsFromStores();
+  }, [todayTaps, config, reminders, todayDistanceKm, phoneStepsToday, totalActiveMinutes, activeGoalMinutes]);
 
   const inboxEntries = useNotificationInboxStore(st => st.entries);
   useEffect(() => {

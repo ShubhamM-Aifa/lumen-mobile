@@ -7,6 +7,15 @@ import { getTrackingDayDateString } from '../utils/dayBoundary';
 const TASKS_CACHE_KEY = 'lumen:tasks:cache_v1';
 const TASK_LISTS_CACHE_KEY = 'lumen:task_lists:cache_v1';
 
+function triggerWidgetSync(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { syncLiveWidgetsFromStores } = require('../widgets/widgetSync');
+    syncLiveWidgetsFromStores();
+  } catch {}
+}
+
+
 export type TaskFilterType =
   | 'my-day'
   | 'important'
@@ -106,6 +115,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           t.inMyDay && t.myDayDate && t.myDayDate !== todayStr ? { ...t, inMyDay: false } : t
         );
         set({ tasks: cleaned });
+        triggerWidgetSync();
         await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(cleaned));
       }
     } catch (err: any) {
@@ -202,6 +212,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const previousTasks = get().tasks;
     const updated = [newTask, ...previousTasks];
     set({ tasks: updated });
+    triggerWidgetSync();
     await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(updated));
 
     try {
@@ -237,6 +248,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const previous = get().tasks;
     const updated = previous.map((t) => (t._id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t));
     set({ tasks: updated });
+    triggerWidgetSync();
     await AsyncStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(updated));
 
     try {
@@ -287,6 +299,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const previous = get().tasks;
     const updated = previous.filter((t) => t._id !== id);
     set({ tasks: updated });
+    triggerWidgetSync();
     if (get().selectedTaskId === id) {
       set({ selectedTaskId: null });
     }

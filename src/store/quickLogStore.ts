@@ -16,6 +16,14 @@ import {
 
 const STORAGE_KEY = 'lumen:quick_log:today_taps_v1';
 
+function triggerWidgetSync(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { syncLiveWidgetsFromStores } = require('../widgets/widgetSync');
+    syncLiveWidgetsFromStores();
+  } catch {}
+}
+
 export function getActiveBoundaryHour(overrideHour?: number): number {
   if (typeof overrideHour === 'number' && !isNaN(overrideHour)) {
     return overrideHour;
@@ -101,6 +109,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
       undoEntry: entry,
     });
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextTaps)).catch(() => {});
+    triggerWidgetSync();
 
     // Set undo timer
     const timer = get().undoTimer;
@@ -158,6 +167,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
         todayTaps: nextTaps,
       });
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextTaps)).catch(() => {});
+      triggerWidgetSync();
     }
 
     // Soft-delete on server if we have the serverId
@@ -179,6 +189,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
   resetToday: () => {
     set({ todayTaps: {}, undoEntry: null });
     AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    triggerWidgetSync();
   },
 
   loadTodayTaps: (quickActionId, count, lastAt, boundaryHour) => {
@@ -199,6 +210,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
     };
     set({ todayTaps: nextTaps });
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextTaps)).catch(() => {});
+    triggerWidgetSync();
   },
 
   pruneStaleTaps: (boundaryHour?: number) => {
@@ -219,6 +231,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
     if (hasChanges) {
       set({ todayTaps: validTaps });
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(validTaps)).catch(() => {});
+      triggerWidgetSync();
     }
   },
 
@@ -266,6 +279,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
       }
       set({ todayTaps: tapsMap });
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tapsMap)).catch(() => {});
+      triggerWidgetSync();
     } catch (err) {
       console.warn('[quickLog] fetchTodayTaps failed, using cached state:', err);
     }
@@ -286,6 +300,7 @@ AsyncStorage.getItem(STORAGE_KEY).then(cached => {
         }
       }
       useQuickLogStore.setState({ todayTaps: validTaps });
+      triggerWidgetSync();
     } catch {}
   }
 }).catch(() => {});

@@ -1,6 +1,17 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserConfig } from '@lumen/shared';
 import { api } from '../api/client';
+
+const CONFIG_CACHE_KEY = 'lumen:config:cache_v1';
+
+function triggerWidgetSync(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { syncLiveWidgetsFromStores } = require('../widgets/widgetSync');
+    syncLiveWidgetsFromStores();
+  } catch {}
+}
 
 interface ConfigState {
   config: UserConfig | null;
@@ -33,6 +44,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
         })),
       } : data;
       set({ config: normalizedData, lastFetchedAt: Date.now() });
+      if (normalizedData) {
+        AsyncStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(normalizedData)).catch(() => {});
+        triggerWidgetSync();
+      }
     } catch (err: any) {
       // 401 = not logged in yet; silently skip
       if (err?.statusCode !== 401) throw err;
@@ -54,3 +69,16 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     });
   },
 }));
+
+// Rehydrate cached config from AsyncStorage for instant offline/startup access
+AsyncStorage.getItem(CONFIG_CACHE_KEY).then(cached => {
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed && !useConfigStore.getState().config) {
+        useConfigStore.setState({ config: parsed });
+        triggerWidgetSync();
+      }
+    } catch {}
+  }
+}).catch(() => {});

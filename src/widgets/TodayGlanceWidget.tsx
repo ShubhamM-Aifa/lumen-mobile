@@ -11,14 +11,14 @@ export function TodayGlanceWidget({ data }: Props) {
   const total = Math.max(1, data.totalTasks ?? 19);
   const left = data.tasksLeft ?? Math.max(0, total - completed);
 
-  const water = data.waterCount ?? 1;
-  const stoodUp = data.stoodUpCount ?? 2;
+  const water = data.waterCount ?? 0;
+  const stoodUp = data.stoodUpCount ?? 0;
   const meds = data.medsCount ?? 0;
   const flare = data.flareCount ?? 0;
 
-  // Circle dimensions
-  const radius = 33;
-  const circumference = 2 * Math.PI * radius; // ~207.35
+  // Donut ring dimensions
+  const radius = 27;
+  const circumference = 2 * Math.PI * radius; // ~169.65
   const ratio = Math.min(1, Math.max(0, completed / total));
   const strokeDashoffset = circumference * (1 - ratio);
 
@@ -27,25 +27,27 @@ export function TodayGlanceWidget({ data }: Props) {
       style={{
         height: 'match_parent',
         width: 'match_parent',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2C2C2E',
         borderRadius: 26,
-        padding: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
       }}
-      clickAction="OPEN_APP"
       accessibilityLabel="Lumen Today Widget"
     >
-      {/* Left Column: Header + Donut Progress Ring + Tasks Left */}
+      {/* Left Column: Header + Donut Progress Ring + Tasks Left (Tapping opens app) */}
       <FlexWidget
         style={{
-          width: 120,
+          width: 96,
           height: 'match_parent',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}
+        clickAction="OPEN_APP"
+        accessibilityLabel="Open Lumen Today"
       >
         {/* Header: Sparkle Badge + "Today" */}
         <FlexWidget
@@ -58,19 +60,19 @@ export function TodayGlanceWidget({ data }: Props) {
         >
           <FlexWidget
             style={{
-              width: 22,
-              height: 22,
+              width: 19,
+              height: 19,
               borderRadius: 6,
-              backgroundColor: '#007AFF',
+              backgroundColor: '#0A84FF',
               alignItems: 'center',
               justifyContent: 'center',
               marginRight: 6,
             }}
           >
             <SvgWidget
-              style={{ width: 13, height: 13 }}
+              style={{ width: 11, height: 11 }}
               svg={`
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="#FFFFFF">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#FFFFFF">
                   <path d="M12 0L14.7 9.3L24 12L14.7 14.7L12 24L9.3 14.7L0 12L9.3 9.3L12 0Z"/>
                 </svg>
               `}
@@ -80,9 +82,9 @@ export function TodayGlanceWidget({ data }: Props) {
           <TextWidget
             text="Today"
             style={{
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 'bold',
-              color: '#000000',
+              color: '#FFFFFF',
             }}
           />
         </FlexWidget>
@@ -90,32 +92,32 @@ export function TodayGlanceWidget({ data }: Props) {
         {/* Circular Donut Ring with Completed / Total in Center */}
         <OverlapWidget
           style={{
-            width: 84,
-            height: 84,
+            width: 68,
+            height: 68,
           }}
         >
           <SvgWidget
-            style={{ width: 84, height: 84 }}
+            style={{ width: 68, height: 68 }}
             svg={`
-              <svg width="84" height="84" viewBox="0 0 84 84">
+              <svg width="68" height="68" viewBox="0 0 68 68">
                 <circle
-                  cx="42"
-                  cy="42"
+                  cx="34"
+                  cy="34"
                   r="${radius}"
-                  stroke="#E5E5EA"
-                  stroke-width="7"
+                  stroke="#3A3A3C"
+                  stroke-width="6"
                   fill="none"
                 />
                 <circle
-                  cx="42"
-                  cy="42"
+                  cx="34"
+                  cy="34"
                   r="${radius}"
-                  stroke="#007AFF"
-                  stroke-width="7"
+                  stroke="#0A84FF"
+                  stroke-width="6"
                   stroke-linecap="round"
                   stroke-dasharray="${circumference.toFixed(2)}"
                   stroke-dashoffset="${strokeDashoffset.toFixed(2)}"
-                  transform="rotate(-90 42 42)"
+                  transform="rotate(-90 34 34)"
                   fill="none"
                 />
               </svg>
@@ -124,8 +126,8 @@ export function TodayGlanceWidget({ data }: Props) {
 
           <FlexWidget
             style={{
-              width: 84,
-              height: 84,
+              width: 68,
+              height: 68,
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -133,9 +135,9 @@ export function TodayGlanceWidget({ data }: Props) {
             <TextWidget
               text={`${completed}/${total}`}
               style={{
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: 'bold',
-                color: '#000000',
+                color: '#FFFFFF',
               }}
             />
           </FlexWidget>
@@ -145,7 +147,7 @@ export function TodayGlanceWidget({ data }: Props) {
         <TextWidget
           text={`${left} left`}
           style={{
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: '600',
             color: '#8E8E93',
             textAlign: 'center',
@@ -153,14 +155,14 @@ export function TodayGlanceWidget({ data }: Props) {
         />
       </FlexWidget>
 
-      {/* Right Column: 2x2 Grid of Actions & Metrics */}
+      {/* Right Column: 2x2 Grid of Styled Card Tiles */}
       <FlexWidget
         style={{
           flex: 1,
           height: 'match_parent',
           flexDirection: 'column',
           justifyContent: 'space-around',
-          paddingLeft: 12,
+          marginLeft: 6,
         }}
       >
         {/* Row 1: Water & Stood Up */}
@@ -168,33 +170,40 @@ export function TodayGlanceWidget({ data }: Props) {
           style={{
             width: 'match_parent',
             flexDirection: 'row',
-            justifyContent: 'space-around',
+            justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
-          {/* Water */}
+          {/* Water Tile */}
           <FlexWidget
             style={{
+              flex: 1,
+              backgroundColor: '#1C1C1E',
+              borderRadius: 14,
+              paddingVertical: 6,
+              paddingHorizontal: 4,
+              marginRight: 4,
               alignItems: 'center',
               justifyContent: 'center',
-              width: 78,
             }}
+            clickAction="LOG_WATER"
+            accessibilityLabel={`Log water, currently ${water}`}
           >
             <FlexWidget
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: '#007AFF',
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: '#0A84FF',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 4,
+                marginBottom: 3,
               }}
             >
               <SvgWidget
-                style={{ width: 18, height: 18 }}
+                style={{ width: 15, height: 15 }}
                 svg={`
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFFFFF">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#FFFFFF">
                     <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
                   </svg>
                 `}
@@ -203,37 +212,44 @@ export function TodayGlanceWidget({ data }: Props) {
             <TextWidget
               text={`Water · ${water}`}
               style={{
-                fontSize: 12,
+                fontSize: 10.5,
                 fontWeight: '600',
-                color: '#000000',
+                color: '#FFFFFF',
                 textAlign: 'center',
               }}
             />
           </FlexWidget>
 
-          {/* Stood Up */}
+          {/* Stood Up Tile */}
           <FlexWidget
             style={{
+              flex: 1,
+              backgroundColor: '#1C1C1E',
+              borderRadius: 14,
+              paddingVertical: 6,
+              paddingHorizontal: 4,
+              marginLeft: 4,
               alignItems: 'center',
               justifyContent: 'center',
-              width: 78,
             }}
+            clickAction="LOG_STAND"
+            accessibilityLabel={`Log stand up, currently ${stoodUp}`}
           >
             <FlexWidget
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: '#34C759',
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: '#30D158',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 4,
+                marginBottom: 3,
               }}
             >
               <SvgWidget
-                style={{ width: 18, height: 18 }}
+                style={{ width: 15, height: 15 }}
                 svg={`
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFFFFF">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#FFFFFF">
                     <circle cx="12" cy="4" r="2.5"/>
                     <path d="M9 22l1-7 2 2 2-2 1 7h2l-2-9-1.5-3.5a2 2 0 0 0-3 0L9 13l-2 9h2z"/>
                   </svg>
@@ -243,9 +259,9 @@ export function TodayGlanceWidget({ data }: Props) {
             <TextWidget
               text={`Stood Up · ${stoodUp}`}
               style={{
-                fontSize: 12,
+                fontSize: 10.5,
                 fontWeight: '600',
-                color: '#000000',
+                color: '#FFFFFF',
                 textAlign: 'center',
               }}
             />
@@ -257,33 +273,40 @@ export function TodayGlanceWidget({ data }: Props) {
           style={{
             width: 'match_parent',
             flexDirection: 'row',
-            justifyContent: 'space-around',
+            justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
-          {/* Meds */}
+          {/* Meds Tile */}
           <FlexWidget
             style={{
+              flex: 1,
+              backgroundColor: '#1C1C1E',
+              borderRadius: 14,
+              paddingVertical: 6,
+              paddingHorizontal: 4,
+              marginRight: 4,
               alignItems: 'center',
               justifyContent: 'center',
-              width: 78,
             }}
+            clickAction="LOG_MEDS"
+            accessibilityLabel={`Log medication, currently ${meds}`}
           >
             <FlexWidget
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: '#AF52DE',
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: '#BF5AF2',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 4,
+                marginBottom: 3,
               }}
             >
               <SvgWidget
-                style={{ width: 18, height: 18 }}
+                style={{ width: 15, height: 15 }}
                 svg={`
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/>
                     <path d="m8.5 8.5 7 7"/>
                   </svg>
@@ -293,37 +316,44 @@ export function TodayGlanceWidget({ data }: Props) {
             <TextWidget
               text={`Meds · ${meds}`}
               style={{
-                fontSize: 12,
+                fontSize: 10.5,
                 fontWeight: '600',
-                color: '#000000',
+                color: '#FFFFFF',
                 textAlign: 'center',
               }}
             />
           </FlexWidget>
 
-          {/* Flare */}
+          {/* Flare Tile */}
           <FlexWidget
             style={{
+              flex: 1,
+              backgroundColor: '#1C1C1E',
+              borderRadius: 14,
+              paddingVertical: 6,
+              paddingHorizontal: 4,
+              marginLeft: 4,
               alignItems: 'center',
               justifyContent: 'center',
-              width: 78,
             }}
+            clickAction="LOG_FLARE"
+            accessibilityLabel={`Log flare symptom, currently ${flare}`}
           >
             <FlexWidget
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: '#FF3B30',
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: '#FF453A',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 4,
+                marginBottom: 3,
               }}
             >
               <SvgWidget
-                style={{ width: 18, height: 18 }}
+                style={{ width: 15, height: 15 }}
                 svg={`
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFFFFF">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#FFFFFF">
                     <path d="M12 2c-.5 2.5-3 5-3 8a6 6 0 0 0 11.5 2.5c.3-.8.5-1.7.5-2.5 0-3.5-3-6-3-6s-.5 2-2 3c-1-3-4-5-4-5z"/>
                   </svg>
                 `}
@@ -332,9 +362,9 @@ export function TodayGlanceWidget({ data }: Props) {
             <TextWidget
               text={`Flare · ${flare}`}
               style={{
-                fontSize: 12,
+                fontSize: 10.5,
                 fontWeight: '600',
-                color: '#000000',
+                color: '#FFFFFF',
                 textAlign: 'center',
               }}
             />

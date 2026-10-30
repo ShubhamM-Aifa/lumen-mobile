@@ -17,6 +17,15 @@ import {
 
 const REMINDERS_CACHE_KEY = 'lumen:reminders:cache_v1';
 
+function triggerWidgetSync(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { syncLiveWidgetsFromStores } = require('../widgets/widgetSync');
+    syncLiveWidgetsFromStores();
+  } catch {}
+}
+
+
 export interface CreateReminderInput {
   name: string;
   description?: string;
@@ -82,6 +91,7 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
       const res = await api.get<IReminder[]>('/reminders?includeArchived=true');
       if (Array.isArray(res)) {
         set({ reminders: res, isLoading: false });
+        triggerWidgetSync();
         await AsyncStorage.setItem(REMINDERS_CACHE_KEY, JSON.stringify(res));
 
         // Bulletproof resync: cancels any ghost/orphan notifications and native alarms
@@ -124,6 +134,7 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
     // Optimistic local update
     const updated = [newReminder, ...get().reminders];
     set({ reminders: updated });
+    triggerWidgetSync();
     await AsyncStorage.setItem(REMINDERS_CACHE_KEY, JSON.stringify(updated));
 
     // Schedule locally immediately
@@ -160,6 +171,7 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
 
     const nextList = current.map(r => (r._id === id || r.clientId === id) ? merged : r);
     set({ reminders: nextList });
+    triggerWidgetSync();
     await AsyncStorage.setItem(REMINDERS_CACHE_KEY, JSON.stringify(nextList));
 
     if (merged.enabled) {
@@ -208,6 +220,7 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
     cancelReminder(id).catch(() => {});
     const filtered = get().reminders.filter(r => r._id !== id && r.clientId !== id);
     set({ reminders: filtered });
+    triggerWidgetSync();
     await AsyncStorage.setItem(REMINDERS_CACHE_KEY, JSON.stringify(filtered));
 
     api.delete(`/reminders/${id}?permanent=true`).catch(() => {});

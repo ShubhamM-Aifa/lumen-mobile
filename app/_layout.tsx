@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -40,6 +40,20 @@ if (Platform.OS === 'web') {
 }
 
 function AppBootstrap() {
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      try {
+        const { syncLiveWidgetsFromStores } = require('../src/widgets/widgetSync');
+        syncLiveWidgetsFromStores();
+        const sub = AppState.addEventListener('change', (next) => {
+          if (next === 'active') {
+            syncLiveWidgetsFromStores();
+          }
+        });
+        return () => sub.remove();
+      } catch {}
+    }
+  }, []);
   useNotificationSync();
   useAppLock();
   const { palette, colorScheme } = useTheme();
