@@ -175,10 +175,18 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
   });
 
   describe('2. Interactive Action Categories', () => {
-    it('registers all 7 actionable notification categories', async () => {
+    it('registers all 8 actionable notification categories', async () => {
       await setupNotificationCategories();
 
-      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledTimes(7);
+      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledTimes(8);
+
+      // Task reminders can be completed from the notification
+      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledWith(
+        NOTIF_CATEGORIES.TASK,
+        expect.arrayContaining([
+          expect.objectContaining({ identifier: NOTIF_ACTIONS.COMPLETE_TASK, options: { opensAppToForeground: false } }),
+        ])
+      );
 
       // Flare Alert Category
       expect(mockSetNotificationCategoryAsync).toHaveBeenCalledWith(

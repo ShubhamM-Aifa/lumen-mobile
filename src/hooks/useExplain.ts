@@ -1,7 +1,7 @@
 /**
- * Phase 6: opt-in plain-language narration on top of a pattern/progress/warning card, and a
- * bounded Q&A box. Both are gated server-side on preferences.aiExplanations (off by default);
- * calling these while it's off returns a 403 the caller should just not show.
+ * Phase 6: opt-in plain-language narration on top of a pattern/progress/warning card. Gated
+ * server-side on preferences.aiExplanations (off by default); calling it while that is off returns
+ * a 403 the caller should just not show. Lumen AI chat lives in useAiChat.ts.
  */
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -19,8 +19,3 @@ export function useExplain() {
   });
 }
 
-export function useAskLumen() {
-  return useMutation({
-    mutationFn: (question: string) => api.post<NarrationResponse>('/insights/ask', { question }),
-  });
-}

@@ -39,32 +39,40 @@ export function MyDaySection({ boundaryHour }: { boundaryHour: number }) {
 
   return (
     <View style={styles.wrap}>
-      <SectionTitle title="My Day" actionLabel="All" onAction={() => router.push('/todo')} />
+      <SectionTitle title="My Day" actionLabel="All" onAction={() => router.push('/todo/list/my-day' as never)} />
       <View style={styles.card}>
         {rows.map(t => (
-          <TouchableOpacity
-            key={t._id}
-            style={styles.row}
-            onPress={() => { Haptics.selectionAsync().catch(() => {}); toggleTaskCompleted(t._id); }}
-            activeOpacity={0.6}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: t.isCompleted }}
-            accessibilityLabel={t.title}
-          >
-            <View style={[styles.check, t.isCompleted ? { backgroundColor: palette.tint, borderColor: palette.tint } : { borderColor: palette.border }]}>
-              {t.isCompleted ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
-            </View>
-            <Text
-              style={[styles.taskText, t.isCompleted && { color: palette.textSecondary, textDecorationLine: 'line-through' }]}
-              numberOfLines={2}
-              maxFontSizeMultiplier={1.4}
+          <View key={t._id} style={styles.row}>
+            <TouchableOpacity
+              onPress={() => { Haptics.selectionAsync().catch(() => {}); toggleTaskCompleted(t._id, boundaryHour); }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: t.isCompleted }}
+              accessibilityLabel={`Complete ${t.title}`}
             >
-              {t.title}
-            </Text>
-          </TouchableOpacity>
+              <View style={[styles.check, t.isCompleted ? { backgroundColor: palette.tint, borderColor: palette.tint } : { borderColor: palette.border }]}>
+                {t.isCompleted ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.textTap}
+              onPress={() => router.push(`/todo/task/${t._id}` as never)}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${t.title}`}
+            >
+              <Text
+                style={[styles.taskText, t.isCompleted && { color: palette.textSecondary, textDecorationLine: 'line-through' }]}
+                numberOfLines={2}
+                maxFontSizeMultiplier={1.4}
+              >
+                {t.title}
+              </Text>
+            </TouchableOpacity>
+          </View>
         ))}
         {hidden > 0 ? (
-          <TouchableOpacity style={styles.row} onPress={() => router.push('/todo')} accessibilityRole="button" accessibilityLabel={`${hidden} more tasks`}>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/todo/list/my-day' as never)} accessibilityRole="button" accessibilityLabel={`${hidden} more tasks`}>
             <Text style={styles.more}>{hidden} more</Text>
           </TouchableOpacity>
         ) : null}
@@ -93,7 +101,8 @@ const useStyles = createThemedStyles(palette => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 16 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   plus: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  taskText: { ...typography.bodyLarge, color: palette.text, flex: 1, paddingVertical: 8 },
+  textTap: { flex: 1, justifyContent: 'center', minHeight: 52 },
+  taskText: { ...typography.bodyLarge, color: palette.text, paddingVertical: 8 },
   more: { ...typography.subhead, color: palette.textSecondary },
   input: { ...typography.bodyLarge, color: palette.text, flex: 1, minHeight: 52 },
 }));

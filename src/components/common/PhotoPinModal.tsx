@@ -20,12 +20,15 @@ import { useAuthStore } from '../../store/authStore';
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  /** Receives the typed PIN on the PIN path (undefined after a biometric unlock). */
+  onSuccess: (pin?: string) => void;
   title?: string;
   subtitle?: string;
+  /** Hide the biometric shortcut: the caller needs the PIN itself (e.g. to send it to the server). */
+  pinOnly?: boolean;
 }
 
-export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: Props) {
+export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle, pinOnly = false }: Props) {
   const { palette } = useTheme();
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
     if (visible) {
       setPin('');
       setErrorMessage(null);
-      if (isPrimaryUser && isBiometricEnabled && hasHardware && isEnrolled) {
+      if (!pinOnly && isPrimaryUser && isBiometricEnabled && hasHardware && isEnrolled) {
         authenticateBiometrics(subtitle || 'Unlock Sensitive Photos').then((ok) => {
           if (ok) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -53,7 +56,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
         });
       }
     }
-  }, [visible, isPrimaryUser, isBiometricEnabled, hasHardware, isEnrolled, subtitle]);
+  }, [visible, isPrimaryUser, isBiometricEnabled, hasHardware, isEnrolled, subtitle, pinOnly]);
 
   const triggerShake = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -81,7 +84,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
       if (isValid) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setPin('');
-        onSuccess();
+        onSuccess(nextPin);
       } else {
         triggerShake();
         setErrorMessage('Incorrect PIN. Please try again.');
@@ -191,7 +194,7 @@ export function PhotoPinModal({ visible, onClose, onSuccess, title, subtitle }: 
 
             {/* Bottom Row: Biometrics (Only for Primary User), 0, Backspace */}
             <View style={styles.keyRow}>
-              {isPrimaryUser && hasHardware && isEnrolled ? (
+              {!pinOnly && isPrimaryUser && hasHardware && isEnrolled ? (
                 <TouchableOpacity
                   style={[styles.keyBtn, styles.actionKeyBtn]}
                   onPress={handleBiometricPress}

@@ -27,13 +27,16 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
-import { useResolvedMediaUrls } from '../../services/mediaService';
+import { useResolvedMediaUrls, isMediaId } from '../../services/mediaService';
+import { router } from 'expo-router';
+import { useAiAccess, useAnalysePhoto } from '../../hooks/useAiChat';
 import { usePhotoVaultStore } from '../../store/photoVaultStore';
 import { useAuthStore } from '../../store/authStore';
 import { PhotoPinModal } from '../common/PhotoPinModal';
@@ -94,6 +97,36 @@ export function LogPhotoGallery({
     : [];
 
   const photoList = resolvedUrls.length > 0 ? resolvedUrls : rawList;
+
+  // Lumen AI: only stored photos (media ids) can be analysed; a local uri has not been uploaded yet.
+  const aiAccess = useAiAccess();
+  const analyse = useAnalysePhoto();
+  const activeMediaId = rawList[activePhotoIndex] && isMediaId(rawList[activePhotoIndex]) ? rawList[activePhotoIndex] : null;
+  const canAnalyse = !!activeMediaId && !!aiAccess.data?.fullAccess;
+
+  const handleAnalysePress = () => {
+    if (!activeMediaId) return;
+    if (!aiAccess.data?.photoAccess) {
+      Alert.alert(
+        'Photos are off for Lumen AI',
+        'Allow “Include photos” in Settings → AI & Insights to let Lumen AI analyse photos.',
+        [{ text: 'Not now', style: 'cancel' }, { text: 'Open Settings', onPress: () => { setActivePhoto(null); router.push('/settings'); } }],
+      );
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    analyse.mutate(activeMediaId, {
+      onSuccess: res => {
+        if (!res.conversation) {
+          Alert.alert('Lumen AI', res.reply);
+          return;
+        }
+        setActivePhoto(null);
+        router.push(`/ai/${res.conversation.id}`);
+      },
+      onError: err => Alert.alert('Lumen AI', err instanceof Error ? err.message : 'Could not analyse this photo.'),
+    });
+  };
 
   // ==========================================
   // Zoom & Pan Animations
@@ -525,6 +558,21 @@ export function LogPhotoGallery({
             </View>
 
             <View style={styles.lightboxHeaderActions}>
+              {canAnalyse ? (
+                <TouchableOpacity
+                  style={styles.lightboxActionBtn}
+                  onPress={handleAnalysePress}
+                  disabled={analyse.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Analyse with AI"
+                >
+                  {analyse.isPending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Sparkles size={20} color="#FFFFFF" strokeWidth={2.2} />
+                  )}
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.lightboxActionBtn}
                 onPress={handleDownloadPress}

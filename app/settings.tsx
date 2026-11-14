@@ -88,6 +88,7 @@ import { ThemeTokens } from '../src/theme/tokens';
 import { LumenLogo } from '../src/components/common/LumenLogo';
 import { DayClockCard } from '../src/components/DayClockCard';
 import { AutoWalkSettingsGroup } from '../src/components/settings/AutoWalkSettingsGroup';
+import { LumenAiSettingsGroup } from '../src/components/settings/LumenAiSettingsGroup';
 import {
   useSleepTrackerStore,
   formatGoalHours,
@@ -1590,6 +1591,8 @@ export default function SettingsScreen() {
             onToggle={handleToggleAiExplanations}
           />
         </InsetGroup>
+
+        <LumenAiSettingsGroup />
 
         <InsetGroup title="Security & Credentials">
           <GroupedRow icon={ScanFace} tile={TILE.green} label="Biometric App Lock" toggle toggled={isAppLockEnabled} onToggle={handleToggleAppLock} />

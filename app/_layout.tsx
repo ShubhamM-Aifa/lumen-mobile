@@ -57,13 +57,26 @@ function AppBootstrap() {
             queryClient.invalidateQueries({ queryKey: ['today-logs'] });
             queryClient.invalidateQueries({ queryKey: ['day-entries'] });
             queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
-            queryClient.invalidateQueries({ queryKey: ['tasks'] });
             syncLiveWidgetsFromStores();
           }
         });
         return () => sub.remove();
       } catch {}
     }
+  }, []);
+  // Send any To Do changes that were waiting (made offline, or from the widget) at launch and on every return.
+  useEffect(() => {
+    const flush = () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        require('../src/services/todo/outbox').flushOutbox().catch(() => {});
+      } catch {}
+    };
+    flush();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') flush();
+    });
+    return () => sub.remove();
   }, []);
   useNotificationSync();
   useAppLock();

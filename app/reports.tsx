@@ -13,6 +13,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useConfigStore } from '../src/store/configStore';
 import { apiDownload } from '../src/api/client';
+import { useAiAccess } from '../src/hooks/useAiChat';
 import { useTheme, createThemedStyles } from '../src/theme/ThemeContext';
 import { typography } from '../src/theme/typography';
 
@@ -37,6 +38,8 @@ export default function ReportsScreen() {
   const [exporting, setExporting] = useState(false);
   const [includeSummary, setIncludeSummary] = useState(true);
   const [notesForDoctor, setNotesForDoctor] = useState('');
+  const [includeAiReviews, setIncludeAiReviews] = useState(false);
+  const aiAccess = useAiAccess();
 
   const categories = (config?.categories ?? []).filter(c => c.isActive);
 
@@ -72,6 +75,7 @@ export default function ReportsScreen() {
         categoryIds: catIds,
         includeSummary: format === 'pdf' ? includeSummary : false,
         notesForDoctor: notesForDoctor.trim() || undefined,
+        includeAiReviews: format === 'pdf' && !!aiAccess.data?.fullAccess && includeAiReviews,
       });
 
       const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv';
@@ -216,6 +220,23 @@ export default function ReportsScreen() {
                 />
               </View>
             )}
+
+            {aiAccess.data?.fullAccess ? (
+              <TouchableOpacity
+                style={styles.summaryToggleRow}
+                onPress={() => setIncludeAiReviews(v => !v)}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: includeAiReviews }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.summaryToggleLabel}>Include Lumen AI weekly reviews</Text>
+                  <Text style={styles.summaryToggleDesc}>Added after the summary, clearly marked as written by AI, not a clinician.</Text>
+                </View>
+                <View style={[styles.switchTrack, includeAiReviews && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, includeAiReviews && styles.switchThumbOn]} />
+                </View>
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
 

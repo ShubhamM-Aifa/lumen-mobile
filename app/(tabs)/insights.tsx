@@ -24,7 +24,7 @@ import { ProgressCard } from '../../src/components/insights/ProgressCard';
 import { WarningCard } from '../../src/components/insights/WarningCard';
 import { ExperimentCard } from '../../src/components/insights/ExperimentCard';
 import { CompareSection } from '../../src/components/insights/CompareSection';
-import { AskLumenBox } from '../../src/components/insights/AskLumenBox';
+import { LumenAiCard } from '../../src/components/insights/LumenAiCard';
 import { progressText } from '../../src/services/insights/insightCopy';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -258,7 +258,7 @@ export default function InsightsScreen() {
 
         {!isLoading && !buildingUp && <CompareSection />}
 
-        {aiExplanationsEnabled && <AskLumenBox />}
+        {!isLoading && <LumenAiCard />}
 
         {!isLoading && (
           <View style={styles.recomputeSection}>

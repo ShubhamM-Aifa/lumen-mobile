@@ -49,10 +49,12 @@ export interface RowProps {
   muted?: boolean;
   /** Lines of sub text to show before cutting it off. */
   subLines?: number;
+  /** Long-press action, e.g. a context menu. */
+  onLongPress?: () => void;
 }
 
 /** One row of an InsetGroup. Min height 52pt, hairline separator inset to the label. */
-export function GroupedRow({ label, sub, value, icon, emoji, tile, progress, progressColor, chevron, toggle, toggled, onToggle, onPress, destructive, accessibilityLabel, trailing, disabled, valueColor, muted, subLines }: RowProps & { isLast?: boolean }) {
+export function GroupedRow({ label, sub, value, icon, emoji, tile, progress, progressColor, chevron, toggle, toggled, onToggle, onPress, destructive, accessibilityLabel, trailing, disabled, valueColor, muted, subLines, onLongPress }: RowProps & { isLast?: boolean }) {
   const styles = useStyles();
   const { palette } = useTheme();
   const interactive = !!onPress && !toggle;
@@ -93,6 +95,7 @@ export function GroupedRow({ label, sub, value, icon, emoji, tile, progress, pro
       <TouchableOpacity
         style={styles.row}
         onPress={onPress}
+        onLongPress={onLongPress}
         activeOpacity={0.6}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? [label, value, sub].filter(Boolean).join(', ')}

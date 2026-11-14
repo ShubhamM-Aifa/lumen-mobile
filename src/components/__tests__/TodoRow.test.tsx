@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { TaskItem } from '../todo/TaskItem';
+import { TaskRow } from '../todo/TaskRow';
 import { FilterChip } from '../ios/FilterChip';
 import { LargeTitleHeader } from '../ios/LargeTitleHeader';
 
@@ -34,20 +34,35 @@ const baseTask = {
   inMyDay: true,
   dueDate: '2026-10-20',
   energyCost: 'gentle',
+  categories: ['Physio'],
+  repeat: { frequency: 'daily' },
+  reminderTime: '2026-10-28T09:00:00.000Z',
+  notes: 'slow and gentle',
   steps: [{ completed: true }, { completed: false }],
 } as never;
 
-describe('TaskItem row', () => {
-  it('shows steps, My Day, overdue state and energy cost in one row', async () => {
+const noop = jest.fn();
+
+describe('TaskRow', () => {
+  it('shows list, steps, My Day, overdue state, category and energy in one row', async () => {
     const tree = await render(
-      <TaskItem task={baseTask} todayStr="2026-10-27" onPress={jest.fn()} onToggleComplete={jest.fn()} onToggleImportant={jest.fn()} />,
+      <TaskRow task={baseTask} todayStr="2026-10-27" listName="Physio list" onPress={noop} onToggleComplete={noop} onToggleImportant={noop} />,
     );
     const t = texts(tree);
     expect(t).toContain('Stretch for ten minutes');
-    expect(t).toContain('1/2');
+    expect(t).toContain('Physio list');
+    expect(t).toContain('1 of 2');
     expect(t).toContain('My Day');
-    expect(t).toContain('Overdue');
-    expect(t.some(x => x.includes('Gentle'))).toBe(true);
+    expect(t.some((x) => x.includes('Overdue'))).toBe(true);
+    expect(t).toContain('Physio');
+    expect(t).toContain('Gentle');
+  });
+
+  it('labels today and tomorrow in words', async () => {
+    const today = { ...(baseTask as object), dueDate: '2026-10-27' } as never;
+    expect(texts(await render(<TaskRow task={today} todayStr="2026-10-27" onPress={noop} onToggleComplete={noop} onToggleImportant={noop} />))).toContain('Due today');
+    const tomorrow = { ...(baseTask as object), dueDate: '2026-10-28' } as never;
+    expect(texts(await render(<TaskRow task={tomorrow} todayStr="2026-10-27" onPress={noop} onToggleComplete={noop} onToggleImportant={noop} />))).toContain('Tomorrow');
   });
 
   it('completes and stars without opening the task', async () => {
@@ -55,7 +70,7 @@ describe('TaskItem row', () => {
     const onToggleComplete = jest.fn();
     const onToggleImportant = jest.fn();
     const tree = await render(
-      <TaskItem task={baseTask} onPress={onPress} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} />,
+      <TaskRow task={baseTask} onPress={onPress} onToggleComplete={onToggleComplete} onToggleImportant={onToggleImportant} />,
     );
     await act(async () => { byLabel(tree, 'Complete Stretch for ten minutes').props.onPress(); });
     await act(async () => { byLabel(tree, 'Mark important').props.onPress(); });
@@ -66,10 +81,17 @@ describe('TaskItem row', () => {
 
   it('exposes completion as a checked checkbox', async () => {
     const done = { ...(baseTask as object), isCompleted: true } as never;
-    const tree = await render(
-      <TaskItem task={done} onPress={jest.fn()} onToggleComplete={jest.fn()} onToggleImportant={jest.fn()} />,
-    );
+    const tree = await render(<TaskRow task={done} onPress={noop} onToggleComplete={noop} onToggleImportant={noop} />);
     expect(byLabel(tree, 'Complete Stretch for ten minutes').props.accessibilityState).toEqual({ checked: true });
+  });
+
+  it('in selection mode the circle selects instead of completing, and the star is hidden', async () => {
+    const tree = await render(
+      <TaskRow task={baseTask} selectionMode selected onPress={noop} onToggleComplete={noop} onToggleImportant={noop} />,
+    );
+    const box = tree.root.findAll((n) => n.props.accessibilityLabel === 'Select Stretch for ten minutes').pop()!;
+    expect(box.props.accessibilityState).toEqual({ checked: true });
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === 'Mark important')).toHaveLength(0);
   });
 });
 

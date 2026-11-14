@@ -82,6 +82,7 @@ export const NOTIF_CATEGORIES = {
   WALK: 'lumen_category_walk',
   STAND: 'lumen_category_stand',
   SLEEP: 'lumen_category_sleep',
+  TASK: 'lumen_category_task',
   DEFAULT: 'lumen_category_default',
 };
 
@@ -100,6 +101,7 @@ export const NOTIF_ACTIONS = {
   SNOOZE_15: 'action_snooze_15',
   SNOOZE_30: 'action_snooze_30',
   DISMISS: 'action_dismiss',
+  COMPLETE_TASK: 'action_complete_task',
 };
 
 /**
@@ -142,6 +144,9 @@ export async function setupNotificationCategories(): Promise<void> {
       createCategorySafe(NOTIF_CATEGORIES.STAND, [
         { identifier: NOTIF_ACTIONS.IM_MOVING, buttonTitle: "I'm Moving", options: { opensAppToForeground: false } },
         { identifier: NOTIF_ACTIONS.SNOOZE_10, buttonTitle: 'Snooze 10m', options: { opensAppToForeground: false } },
+      ]),
+      createCategorySafe(NOTIF_CATEGORIES.TASK, [
+        { identifier: NOTIF_ACTIONS.COMPLETE_TASK, buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
       ]),
       createCategorySafe(NOTIF_CATEGORIES.SLEEP, [
         { identifier: NOTIF_ACTIONS.START_SLEEP, buttonTitle: 'Start Sleep', options: { opensAppToForeground: true } },
@@ -902,6 +907,20 @@ export async function handleNotificationActionResponse(response: any): Promise<v
 
     case NOTIF_ACTIONS.VIEW_WALK:
       router.push('/walking');
+      break;
+
+    case NOTIF_ACTIONS.COMPLETE_TASK:
+      if (data.taskId) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useTaskStore, rehydrateTasks } = require('../store/taskStore');
+          await rehydrateTasks();
+          const task = useTaskStore.getState().tasks.find((t: { _id: string }) => t._id === data.taskId);
+          if (task && !task.isCompleted) await useTaskStore.getState().toggleTaskCompleted(String(data.taskId));
+        } catch (err) {
+          console.warn('[Notifications] Could not complete task from notification:', err);
+        }
+      }
       break;
 
     case NOTIF_ACTIONS.MARK_MED_TAKEN:

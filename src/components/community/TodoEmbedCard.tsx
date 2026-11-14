@@ -26,7 +26,7 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
 }) => {
   const { palette } = useTheme();
   const { user } = useAuthStore();
-  const { lists, setActiveFilter } = useTaskStore();
+  const lists = useTaskStore((s) => s.lists);
   const { cloneTodoToPersonal } = useCommunityStore();
 
   const [savedListId, setSavedListId] = useState<string | null>(null);
@@ -47,8 +47,7 @@ export const TodoEmbedCard: React.FC<TodoEmbedCardProps> = ({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const targetListId = savedListId || existingList?._id || embed.listId;
     if (targetListId) {
-      setActiveFilter(targetListId);
-      router.push({ pathname: '/todo', params: { listId: targetListId } } as any);
+      router.push(`/todo/list/${targetListId}` as any);
     } else {
       router.push('/todo' as any);
     }

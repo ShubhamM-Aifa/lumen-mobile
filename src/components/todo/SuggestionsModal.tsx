@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { X, Plus, Lightbulb, Check, AlertCircle, Calendar, Star } from 'lucide-react-native';
+import { X, Plus, Lightbulb, Check, AlertCircle, Calendar, Star, Sunrise } from 'lucide-react-native';
 import { ITask } from '../../shared/types';
 import { useTaskStore, TaskSuggestions } from '../../store/taskStore';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
@@ -24,7 +24,7 @@ interface SuggestionsModalProps {
 export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
   visible,
   onClose,
-  boundaryHour = 4,
+  boundaryHour,
 }) => {
   const { palette } = useTheme();
   const styles = useStyles();
@@ -44,6 +44,9 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
 
   const handleAddToMyDay = (task: ITask) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // The server suggested it from its own copy; make sure the phone has the task before toggling.
+    const known = useTaskStore.getState().tasks.some((t) => t._id === task._id);
+    if (!known) useTaskStore.setState({ tasks: [task, ...useTaskStore.getState().tasks] });
     toggleTaskMyDay(task._id, boundaryHour);
   };
 
@@ -130,7 +133,8 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
     ((data.overdue && data.overdue.length > 0) ||
       (data.dueToday && data.dueToday.length > 0) ||
       (data.important && data.important.length > 0) ||
-      (data.recent && data.recent.length > 0));
+      (data.recent && data.recent.length > 0) ||
+      (data.yesterday && data.yesterday.length > 0));
 
   return (
     <Modal
@@ -169,6 +173,12 @@ export const SuggestionsModal: React.FC<SuggestionsModalProps> = ({
             </View>
           ) : (
             <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+              {renderSuggestionList(
+                'From yesterday',
+                data?.yesterday || [],
+                <Sunrise size={16} color={palette.tint} />,
+                palette.infoText
+              )}
               {renderSuggestionList(
                 'Overdue',
                 data?.overdue || [],
