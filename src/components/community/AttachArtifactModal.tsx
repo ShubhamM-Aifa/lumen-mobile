@@ -20,6 +20,7 @@ import {
   ITodoEmbedPayload,
   ILogTemplateEmbedPayload,
 } from '../../shared/types';
+import { docSnippet } from '../../shared/notes/docUtils';
 
 interface AttachArtifactModalProps {
   visible: boolean;
@@ -41,16 +42,21 @@ export const AttachArtifactModal: React.FC<AttachArtifactModalProps> = ({
 
   const handleSelectNote = (note: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const snippet = note.plainText ? note.plainText.slice(0, 160) : (note.doc ? docSnippet(note.doc) : '');
+    const blocksPreview = note.blocks && note.blocks.length > 0
+      ? (note.blocks || []).slice(0, 2).map((b: any) => ({
+        type: b.type,
+        content: b.content,
+      }))
+      : [{ type: 'paragraph', content: snippet }];
+
     const payload: INoteEmbedPayload = {
       noteId: note._id,
       title: note.title,
       icon: note.icon || '📝',
       coverGradient: note.coverGradient,
       tags: note.tags || [],
-      blocksPreview: (note.blocks || []).slice(0, 2).map((b: any) => ({
-        type: b.type,
-        content: b.content,
-      })),
+      blocksPreview,
       blocksFull: note.blocks || [],
     };
     onAttach('note', { note: payload });

@@ -288,30 +288,30 @@ export interface IReminder {
   icon: string;                   // Emoji or icon token
   category: ReminderCategory;
   scheduleType: ReminderScheduleType;
-  
+
   // Specific scheduling parameters
   targetTime?: string;            // 'HH:mm' 24-hr format (for ONE_TIME, DAILY, WEEKLY)
   targetDate?: string;            // 'YYYY-MM-DD' (for ONE_TIME)
   daysOfWeek?: WeekDay[];         // e.g. ['MON', 'WED', 'FRI']
-  
+
   // Interval & Window parameters (e.g. 08:00 to 22:00 every 60 min)
   intervalMinutes?: number;       // e.g., 45, 60
   windowStartTime?: string;       // '08:00'
   windowEndTime?: string;         // '22:00'
-  
+
   // Inactivity / Contextual trigger parameters
   inactivityThresholdMinutes?: number; // e.g. 45 min continuous sitting
-  
+
   // Content & Actions
   notificationTitle?: string;
   notificationMessage: string;    // e.g., "Time to hydrate"
   snoozeDurationMinutes: number;  // 5, 10, 15, 30
   sound?: string;                 // 'default' | 'chime' | 'gentle_bell' | 'digital_alarm' | 'zen_gong' | 'radar'
-  
+
   // Linkages to Tracking Engine
   linkedQuickActionId?: string;   // QuickAction ID to trigger on action
   linkedQuestionId?: string;      // Questionnaire ID for deep logging
-  
+
   // Backwards compatibility with legacy fields
   type?: ReminderType;
   schedule?: string;
@@ -326,7 +326,7 @@ export interface IReminder {
   updatedAt: string;
 }
 
-export type NotificationStatus = 
+export type NotificationStatus =
   | 'TRIGGERED'
   | 'COMPLETED'
   | 'SNOOZED'
@@ -377,20 +377,20 @@ export interface IActivitySession {
   activityType: ActivityType;
   title: string;                  // e.g. "Evening Walk", "Desk Sitting"
   status: ActivitySessionStatus;
-  
+
   // Timing
   startTime: string;              // ISO datetime
   endTime?: string;               // ISO datetime
   totalDurationSeconds: number;   // Wall clock duration
   activeDurationSeconds: number;  // Duration excluding pauses
-  
+
   // Physical Metrics (Walking specific)
   distanceMeters: number;         // Accurate accumulated distance
   steps?: number;                 // Hardware pedometer steps
   averageSpeedKmh?: number;       // km/h based on activeDuration
   averagePaceMinPerKm?: number;   // min/km (e.g. 12.35 = 12m 21s)
   estimatedCaloriesBurned?: number;
-  
+
   // Route & Coordinates
   startLatitude?: number;
   startLongitude?: number;
@@ -398,12 +398,12 @@ export interface IActivitySession {
   endLongitude?: number;
   routePoints?: IActivityPoint[]; // Stored if user enabled route logging
   hasRouteData: boolean;
-  
+
   // Linkages
   daySessionId?: string;          // DayClockCard association
   linkedReminderId?: string;      // If triggered by a reminder
   linkedLogEntryId?: string;      // Associated LogEntry for timeline display
-  
+
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -679,12 +679,67 @@ export interface INoteBlock {
   imageUrl?: string;
 }
 
+export type DatabasePropertyType =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'select'
+  | 'multi_select'
+  | 'checkbox'
+  | 'url';
+
+export interface IDatabasePropertyOption {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+export interface IDatabaseProperty {
+  id: string;
+  name: string;
+  type: DatabasePropertyType;
+  options?: IDatabasePropertyOption[];
+}
+
+export type DatabaseViewType = 'table' | 'board';
+
+export interface IDatabaseView {
+  id: string;
+  name: string;
+  type: DatabaseViewType;
+  sortPropId?: string;
+  sortDirection?: 'asc' | 'desc';
+  filterPropId?: string;
+  filterValue?: string | boolean | number;
+  groupByPropId?: string;
+  sort?: { propId: string; direction: 'asc' | 'desc' };
+  filter?: { propId: string; operator: 'equals' | 'contains' | 'is_checked'; value: any };
+  groupBy?: string;
+}
+
+export interface IDatabaseConfig {
+  properties: IDatabaseProperty[];
+  views: IDatabaseView[];
+}
+
 export interface INote {
   _id: string;
   userId: string;
   title: string;
   icon?: string;
   coverGradient?: string;
+  coverMediaId?: string;
+  doc?: Record<string, unknown>;
+  plainText?: string;
+  kind?: 'page' | 'database';
+  sortOrder?: number;
+  isFavorite?: boolean;
+  deletedAt?: string | null;
+  trashRootId?: string | null;
+  linkedNoteIds?: string[];
+  mediaIds?: string[];
+  database?: IDatabaseConfig;
+  rowProps?: Record<string, unknown>;
   blocks: INoteBlock[];
   parentNoteId?: string;
   isPinned: boolean;
@@ -695,6 +750,24 @@ export interface INote {
   linkedLogEntryIds?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface INoteTreeNode {
+  _id: string;
+  title: string;
+  icon?: string;
+  parentNoteId?: string;
+  sortOrder: number;
+  kind: 'page' | 'database';
+  isFavorite: boolean;
+  isPinned: boolean;
+  updatedAt: string;
+}
+
+export interface INoteBreadcrumb {
+  _id: string;
+  title: string;
+  icon?: string;
 }
 
 // ────────── Community Chat & Health Artifact Exchange ──────────

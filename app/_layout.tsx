@@ -51,8 +51,8 @@ function AppBootstrap() {
         const sub = AppState.addEventListener('change', async (next) => {
           if (next === 'active') {
             await Promise.all([
-              rehydrateTodayTaps().catch(() => {}),
-              rehydrateTasks().catch(() => {}),
+              rehydrateTodayTaps().catch(() => { }),
+              rehydrateTasks().catch(() => { }),
             ]);
             queryClient.invalidateQueries({ queryKey: ['today-logs'] });
             queryClient.invalidateQueries({ queryKey: ['day-entries'] });
@@ -61,16 +61,18 @@ function AppBootstrap() {
           }
         });
         return () => sub.remove();
-      } catch {}
+      } catch { }
     }
   }, []);
-  // Send any To Do changes that were waiting (made offline, or from the widget) at launch and on every return.
+  // Send any To Do or Notes changes that were waiting (made offline, or from widget) at launch and on every return.
   useEffect(() => {
     const flush = () => {
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        require('../src/services/todo/outbox').flushOutbox().catch(() => {});
-      } catch {}
+        require('../src/services/todo/outbox').flushOutbox().catch(() => { });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        require('../src/services/notes/outbox').flushNotesOutbox().catch(() => { });
+      } catch { }
     };
     flush();
     const sub = AppState.addEventListener('change', (next) => {

@@ -7,10 +7,10 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { safeGoBack } from '../../src/utils/navigation';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
@@ -20,316 +20,535 @@ import {
   FileText,
   Sparkles,
   X,
-  Stethoscope,
-  Pill,
-  Flame,
+  Trash2,
+  Table,
+  FolderPlus,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useNoteStore, PREBUILT_TEMPLATES } from '../../src/store/noteStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
-import { NoteCard } from '../../src/components/notes/NoteCard';
 import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
-import { FilterChip } from '../../src/components/ios/FilterChip';
-import { INote } from '../../src/shared/types';
+import { safeGoBack } from '../../src/utils/navigation';
+import { PageTree } from '../../src/components/notes/PageTree';
+import { PagePickerSheet } from '../../src/components/notes/PagePickerSheet';
 
 export default function NotesHubScreen() {
+  const router = useRouter();
   const { palette } = useTheme();
   const styles = useStyles();
+
   const {
+    tree,
     notes,
+    trash,
+    searchResults,
+    fetchTree,
     fetchNotes,
+    fetchTrash,
     createNote,
     createFromTemplate,
-    togglePin,
+    updateNote,
+    deleteNote,
+    duplicateNote,
+    moveNote,
+    toggleFavorite,
+    searchNotes,
     isLoading,
   } = useNoteStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchTree();
     fetchNotes();
-  }, [fetchNotes]);
+  fetchTrash();
+}, [fetchTree, fetchNotes, fetchTrash]);
 
-  // Extract all unique tags
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    notes.forEach((n) => (n.tags || []).forEach((t) => set.add(t)));
-    return Array.from(set);
-  }, [notes]);
-
-  // Filter notes
-  const filteredNotes = useMemo(() => {
-    let result = notes;
-
+  // Full-text search trigger
+  useEffect(() => {
     if (searchQuery.trim().length > 0) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (n) =>
-          n.title.toLowerCase().includes(q) ||
-          n.blocks.some((b) => b.content.toLowerCase().includes(q)) ||
-          n.tags.some((t) => t.toLowerCase().includes(q))
-      );
+      searchNotes(searchQuery);
     }
+  }, [searchQuery, searchNotes]);
 
-    if (selectedTag === 'pinned') {
-      result = result.filter((n) => n.isPinned);
-    } else if (selectedTag) {
-      result = result.filter((n) => n.tags.includes(selectedTag));
-    }
+  // Favorite pages (for top quick section)
+  const favoritePages = useMemo(() => {
+    return tree.filter((n) => n.isFavorite || n.isPinned);
+  }, [tree]);
 
-    return result;
-  }, [notes, searchQuery, selectedTag]);
+const handleCreateNewPage = async (parentId?: string) => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const newNote = await createNote({
+    parentNoteId: parentId,
+    kind: 'page',
+    title: 'Untitled',
+    icon: '📄',
+  });
+  router.push(`/notes/${newNote._id}`);
+};
 
-  const pinnedNotes = filteredNotes.filter((n) => n.isPinned);
-  const regularNotes = filteredNotes.filter((n) => !n.isPinned);
-
-  const handleCreateNew = async () => {
+  const handleCreateNewDatabase = async (parentId?: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newNote = await createNote();
-    router.push({
-      pathname: '/notes/[id]',
-      params: { id: newNote._id },
-    });
-  };
+      const newNote = await createNote({
+        parentNoteId: parentId,
+        kind: 'database',
+        title: 'Untitled Database',
+        icon: '📊',
+      });
+      router.push(`/notes/${newNote._id}`);
+    };
 
-  const handleCreateFromTemplate = async (key: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const newNote = await createFromTemplate(key);
-    router.push({
-      pathname: '/notes/[id]',
-      params: { id: newNote._id },
-    });
-  };
+    const handleCreateFromTemplate = async (key: string) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const newNote = await createFromTemplate(key);
+      router.push(`/notes/${newNote._id}`);
+    };
 
-  const handleOpenNote = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({
-      pathname: '/notes/[id]',
-      params: { id },
-    });
-  };
+      const handleOpenPage = (id: string) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        router.push(`/notes/${id}`);
+      };
 
-  const renderRows = (list: INote[]) =>
-    list.map((note, i) => (
-      <View key={note._id} style={i < list.length - 1 ? styles.separated : undefined}>
-        <NoteCard
-          note={note}
-          onPress={() => handleOpenNote(note._id)}
-          onTogglePin={() => togglePin(note._id)}
-        />
-      </View>
-    ));
+      const handleRenamePage = (id: string, currentTitle: string) => {
+        Alert.prompt
+          ? Alert.prompt(
+            'Rename Page',
+            'Enter a new title:',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Save',
+                onPress: (newTitle?: string) => {
+                  if (newTitle && newTitle.trim()) {
+                    updateNote(id, { title: newTitle.trim() });
+                  }
+                },
+              },
+            ],
+            'plain-text',
+            currentTitle
+          )
+          : Alert.alert('Rename', `Edit title inside page.`);
+      };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <LargeTitleHeader
-          title="Notes & Docs"
-          subtitle={notes.length === 0 ? 'Nothing written yet' : `${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
-          leading={
-            <GlassCircleButton accessibilityLabel="Go back" onPress={() => safeGoBack('/(tabs)/today')}>
-              <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
-            </GlassCircleButton>
-          }
-          actions={
+      const handleDeletePage = (id: string, title: string) => {
+        Alert.alert(
+          'Move to Trash',
+          `Are you sure you want to move "${title || 'Untitled'}" and its sub-pages to Trash?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Trash',
+              style: 'destructive',
+              onPress: () => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                deleteNote(id);
+              },
+            },
+          ]
+        );
+      };
+
+      const handleDuplicatePage = async (id: string) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await duplicateNote(id);
+      };
+
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <LargeTitleHeader
+              title="Notes & Docs"
+              subtitle={tree.length === 0 ? 'No documents yet' : `${tree.length} ${tree.length === 1 ? 'doc' : 'docs'}`}
+              leading={
+                <GlassCircleButton accessibilityLabel="Go back" onPress={() => safeGoBack('/(tabs)/today')}>
+                  <ArrowLeft size={22} color={palette.text} strokeWidth={2.2} />
+                </GlassCircleButton>
+              }
+              actions={
             <>
-              <GlassCircleButton
-                accessibilityLabel="Search notes"
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setIsSearching(!isSearching);
-                }}
-              >
-                <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
-              </GlassCircleButton>
-              <GlassCircleButton accessibilityLabel="New note" onPress={handleCreateNew}>
-                <Plus size={22} color={palette.text} strokeWidth={2.2} />
-              </GlassCircleButton>
-            </>
+                  {/* Trash shortcut */}
+                  <GlassCircleButton
+                    accessibilityLabel="Trash"
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push('/notes/trash');
+                    }}
+                  >
+                    <Trash2 size={20} color={trash.length > 0 ? palette.errorText : palette.text} strokeWidth={2} />
+                  </GlassCircleButton>
+
+                  {/* Search Toggle */}
+                  <GlassCircleButton
+                    accessibilityLabel="Search notes"
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setIsSearching(!isSearching);
+                    }}
+                  >
+                    <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
+                  </GlassCircleButton>
+
+                    {/* New Page / Database Menu */}
+                    <GlassCircleButton
+                      accessibilityLabel="New doc"
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        Alert.alert('Create New', 'Choose document kind:', [
+                          { text: 'New Page 📄', onPress: () => handleCreateNewPage() },
+                          { text: 'New Database 📊', onPress: () => handleCreateNewDatabase() },
+                          { text: 'Cancel', style: 'cancel' },
+                        ]);
+                      }}
+                    >
+                      <Plus size={22} color={palette.text} strokeWidth={2.2} />
+                    </GlassCircleButton>
+                  </>
           }
         />
 
-        {isSearching && (
-          <View style={styles.searchBar}>
-            <Search size={16} color={palette.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search notes, clinical checklists, tags..."
-              placeholderTextColor={palette.placeholder}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-              accessibilityLabel="Search notes"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={16} color={palette.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
+                  {/* Search Bar */}
+                  {isSearching && (
+                      <View style={[styles.searchBar, { backgroundColor: palette.surface }]}>
+                        <Search size={16} color={palette.textSecondary} />
+                        <TextInput
+                          style={[styles.searchInput, { color: palette.text }]}
+                          placeholder="Search across all pages and content..."
+                          placeholderTextColor={palette.placeholder}
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                          autoFocus
+                          accessibilityLabel="Search notes"
+                        />
+                        {searchQuery.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => setSearchQuery('')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear search"
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <X size={16} color={palette.textSecondary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
         )}
 
-        {/* Prebuilt clinical templates */}
-        <View style={styles.templatesSection}>
-          <View style={styles.sectionHeader}>
-            <Sparkles size={14} color={palette.warning} />
-            <Text style={styles.sectionTitle} accessibilityRole="header">Clinical Templates</Text>
-          </View>
+                      {/* Search Results Display */}
+                      {isSearching && searchQuery.trim().length > 0 && (
+                        <View style={styles.searchResultsSection}>
+                          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
+                            Search Results ({searchResults.length})
+                          </Text>
+                          {searchResults.length === 0 ? (
+                            <Text style={[styles.noResultsText, { color: palette.textSecondary }]}>
+                              No matches found for "{searchQuery}".
+                            </Text>
+                          ) : (
+                            <View style={[styles.searchCard, { backgroundColor: palette.surface }]}>
+                              {searchResults.map((hit) => (
+                                <TouchableOpacity
+                                  key={hit._id}
+                                  style={[styles.hitRow, { borderBottomColor: palette.border }]}
+                                  onPress={() => handleOpenPage(hit._id)}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={styles.hitEmoji}>{hit.icon || '📄'}</Text>
+                                  <View style={styles.hitTextWrap}>
+                                    <Text style={[styles.hitTitle, { color: palette.text }]} numberOfLines={1}>
+                                      {hit.title || 'Untitled'}
+                                    </Text>
+                                    {hit.snippet && (
+                                      <Text style={[styles.hitSnippet, { color: palette.textSecondary }]} numberOfLines={2}>
+                                        {hit.snippet}
+                                      </Text>
+                                    )}
+                                  </View>
+                                  <ChevronRight size={14} color={palette.textSecondary} />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templatesScroll}>
-            {PREBUILT_TEMPLATES.map((tmpl) => (
-              <TouchableOpacity
-                key={tmpl.key}
-                style={styles.templateCard}
-                onPress={() => handleCreateFromTemplate(tmpl.key)}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={`New note from template: ${tmpl.title}`}
-              >
-                <View style={styles.templateIconWell}>
-                  <Text style={styles.templateEmoji}>{tmpl.icon}</Text>
-                </View>
-                <Text style={styles.templateTitle} numberOfLines={2} maxFontSizeMultiplier={1.3}>{tmpl.title}</Text>
-                <Text style={styles.templateDesc} numberOfLines={2} maxFontSizeMultiplier={1.3}>{tmpl.description}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                      {/* Prebuilt Clinical Templates */}
+                      <View style={styles.templatesSection}>
+                        <View style={styles.sectionHeader}>
+                          <Sparkles size={14} color={palette.warning} />
+                          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
+                            Clinical Templates
+                          </Text>
+                        </View>
 
-        {/* Tag filters */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagFiltersScroll}>
-          <FilterChip label={`All Notes (${notes.length})`} selected={selectedTag === null} onPress={() => setSelectedTag(null)} />
-          <FilterChip
-            label="Pinned"
-            selected={selectedTag === 'pinned'}
-            onPress={() => setSelectedTag(selectedTag === 'pinned' ? null : 'pinned')}
-            icon={<Star size={14} color={selectedTag === 'pinned' ? palette.background : palette.warning} fill={selectedTag === 'pinned' ? palette.background : 'transparent'} />}
-          />
-          {allTags.map((tag) => (
-            <FilterChip
-              key={tag}
-              label={`#${tag}`}
-              selected={selectedTag === tag}
-              onPress={() => setSelectedTag(selectedTag === tag ? null : tag)}
-            />
-          ))}
-        </ScrollView>
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.templatesScroll}
+                          >
+                            {PREBUILT_TEMPLATES.map((tmpl) => (
+                              <TouchableOpacity
+                                key={tmpl.key}
+                                style={[styles.templateCard, { backgroundColor: palette.surface }]}
+                                onPress={() => handleCreateFromTemplate(tmpl.key)}
+                                activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={`New note from template: ${tmpl.title}`}
+                              >
+                                  <View style={[styles.templateIconWell, { backgroundColor: palette.surfaceAlt }]}>
+                                    <Text style={styles.templateEmoji}>{tmpl.icon}</Text>
+                                  </View>
+                                  <Text style={[styles.templateTitle, { color: palette.text }]} numberOfLines={2}>
+                                    {tmpl.title}
+                                  </Text>
+                                  <Text style={[styles.templateDesc, { color: palette.textSecondary }]} numberOfLines={2}>
+                                    {tmpl.description}
+                                  </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                      </View>
 
-        {/* Notes */}
-        {isLoading && notes.length === 0 ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={palette.tint} />
-          </View>
-        ) : filteredNotes.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>📝</Text>
-            <Text style={styles.emptyTitle}>No notes found</Text>
-            <Text style={styles.emptySub}>
-              Capture appointment debriefs, flare protocols, and research takeaways with Notion blocks.
-            </Text>
-            <TouchableOpacity style={styles.emptyCreateBtn} onPress={handleCreateNew} accessibilityRole="button" accessibilityLabel="Create first note">
-              <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.emptyCreateBtnText}>Create first note</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {pinnedNotes.length > 0 && selectedTag !== 'pinned' && (
-              <View style={styles.notesSection}>
-                <View style={styles.sectionHeader}>
-                  <Star size={14} color={palette.warning} fill={palette.warning} />
-                  <Text style={styles.sectionTitle} accessibilityRole="header">Pinned</Text>
-                </View>
-                <View style={styles.card}>{renderRows(pinnedNotes)}</View>
-              </View>
-            )}
+                      {/* Favorites Section */}
+                      {favoritePages.length > 0 && (
+                        <View style={styles.favoritesSection}>
+                          <View style={styles.sectionHeader}>
+                            <Star size={14} color={palette.warning} fill={palette.warning} />
+                            <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>Favorites</Text>
+                          </View>
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.favoritesScroll}
+                          >
+                            {favoritePages.map((fav) => (
+                              <TouchableOpacity
+                                key={fav._id}
+                                style={[styles.favCard, { backgroundColor: palette.surface, borderColor: palette.border }]}
+                                onPress={() => handleOpenPage(fav._id)}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={styles.favEmoji}>{fav.icon || '📄'}</Text>
+                                <Text style={[styles.favTitle, { color: palette.text }]} numberOfLines={1}>
+                                  {fav.title || 'Untitled'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
 
-            {(selectedTag === 'pinned' ? pinnedNotes : regularNotes).length > 0 && (
-              <View style={styles.notesSection}>
-                {pinnedNotes.length > 0 && selectedTag !== 'pinned' && (
-                  <View style={styles.sectionHeader}>
-                    <FileText size={14} color={palette.textSecondary} />
-                    <Text style={styles.sectionTitle} accessibilityRole="header">Notes</Text>
-                  </View>
-                )}
-                <View style={styles.card}>{renderRows(selectedTag === 'pinned' ? pinnedNotes : regularNotes)}</View>
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+                          {/* Notion Workspace Tree */}
+                          <View style={styles.workspaceSection}>
+                            <View style={styles.workspaceHeader}>
+                              <View style={styles.sectionHeader}>
+                                <FileText size={14} color={palette.textSecondary} />
+                                <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>Workspace</Text>
+                              </View>
+
+                              <View style={styles.quickAddBtns}>
+                                <TouchableOpacity
+                                  style={[styles.addBtnPill, { backgroundColor: palette.surfaceAlt }]}
+                                  onPress={() => handleCreateNewPage()}
+                                >
+                                  <Plus size={12} color={palette.primary} />
+                                  <Text style={[styles.addBtnText, { color: palette.text }]}>Page</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[styles.addBtnPill, { backgroundColor: palette.surfaceAlt }]}
+                                  onPress={() => handleCreateNewDatabase()}
+                                >
+                                  <Table size={12} color={palette.primary} />
+                                  <Text style={[styles.addBtnText, { color: palette.text }]}>Database</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+
+                            {tree.length === 0 ? (
+                              <View style={styles.emptyBox}>
+                                <Text style={styles.emptyEmoji}>📝</Text>
+                                <Text style={[styles.emptyTitle, { color: palette.text }]}>No documents yet</Text>
+                                <Text style={[styles.emptySub, { color: palette.textSecondary }]}>
+                                  Create pages, sub-pages, and structured databases with Notion-style nesting.
+                                </Text>
+                                <TouchableOpacity
+                                  style={[styles.emptyCreateBtn, { backgroundColor: palette.primary }]}
+                                  onPress={() => handleCreateNewPage()}
+                                >
+                                  <Plus size={16} color="#FFFFFF" />
+                                  <Text style={styles.emptyCreateBtnText}>Create first page</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <View style={[styles.treeCard, { backgroundColor: palette.surface }]}>
+                                <PageTree
+                                  tree={tree}
+                                  onOpenPage={handleOpenPage}
+                                  onCreateSubPage={(pid) => handleCreateNewPage(pid)}
+                                  onCreateSubDatabase={(pid) => handleCreateNewDatabase(pid)}
+                                  onRenamePage={handleRenamePage}
+                                  onToggleFavorite={(id) => toggleFavorite(id)}
+                                  onMovePage={(id) => setMovingNoteId(id)}
+                                  onDuplicatePage={handleDuplicatePage}
+                                  onDeletePage={handleDeletePage}
+                                />
+                              </View>
+                            )}
+                          </View>
+
+                          <View style={{ height: 60 }} />
+                        </ScrollView>
+
+      {/* Page Move Sheet */}
+                      {movingNoteId && (
+                        <PagePickerSheet
+                          visible={Boolean(movingNoteId)}
+                          onClose={() => setMovingNoteId(null)}
+                          noteIdToMove={movingNoteId}
+                          onSelectParent={(newParentId) => {
+                            if (movingNoteId) {
+                              moveNote(movingNoteId, newParentId);
+                            }
+                          }}
+                        />
+                      )}
+                    </SafeAreaView>
+                  );
 }
 
-const useStyles = createThemedStyles(palette => ({
-  container: { flex: 1, backgroundColor: palette.background },
-  scrollArea: { flex: 1 },
-  scrollContent: { gap: 16, paddingTop: 6, paddingBottom: 48 },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    paddingHorizontal: 14,
-    minHeight: 44,
-    borderRadius: 22,
-    gap: 8,
-    backgroundColor: palette.surface,
+const useStyles = createThemedStyles((palette) => ({
+                    container: {flex: 1, backgroundColor: palette.background },
+                  scrollArea: {flex: 1 },
+                  scrollContent: {gap: 16, paddingTop: 6, paddingBottom: 48 },
+                  searchBar: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  marginHorizontal: 16,
+                  paddingHorizontal: 14,
+                  minHeight: 44,
+                  borderRadius: 22,
+                  gap: 8,
   },
-  searchInput: { flex: 1, ...typography.bodyLarge, color: palette.text, padding: 0 },
-  templatesSection: { gap: 8 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20 },
-  sectionTitle: { ...typography.sectionLabel, color: palette.textSecondary },
-  templatesScroll: { paddingHorizontal: 16, gap: 12 },
-  templateCard: {
-    width: 176,
-    borderRadius: 26,
-    padding: 16,
-    backgroundColor: palette.surface,
+                  searchInput: {flex: 1, ...typography.bodyLarge, padding: 0 },
+                  searchResultsSection: {
+                    paddingHorizontal: 16,
+                  gap: 8,
   },
-  templateIconWell: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: palette.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+                  noResultsText: {
+                    fontSize: 13,
+                  fontStyle: 'italic',
+                  paddingVertical: 10,
   },
-  templateEmoji: { fontSize: 22 },
-  templateTitle: { ...typography.headline, color: palette.text, marginBottom: 4 },
-  templateDesc: { ...typography.footnote, color: palette.textSecondary },
-  tagFiltersScroll: { paddingHorizontal: 16, gap: 8 },
-  card: { marginHorizontal: 16, backgroundColor: palette.surface, borderRadius: 26, overflow: 'hidden' },
-  separated: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border },
-  notesSection: { gap: 7 },
-  loadingBox: { paddingVertical: 60, alignItems: 'center' },
-  emptyBox: { paddingVertical: 48, alignItems: 'center', paddingHorizontal: 32, gap: 6 },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { ...typography.title2, color: palette.text, marginTop: 6 },
-  emptySub: { ...typography.subhead, color: palette.textSecondary, textAlign: 'center' },
-  emptyCreateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 14,
-    paddingHorizontal: 22,
-    minHeight: 48,
-    borderRadius: 24,
-    backgroundColor: palette.primary,
+                  searchCard: {
+                    borderRadius: 16,
+                  overflow: 'hidden',
   },
-  emptyCreateBtnText: { ...typography.headline, color: '#FFFFFF' },
+                  hitRow: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 12,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+                  hitEmoji: {
+                    fontSize: 18,
+  },
+                  hitTextWrap: {
+                    flex: 1,
+  },
+                  hitTitle: {
+                    fontSize: 14,
+                  fontWeight: '600',
+  },
+                  hitSnippet: {
+                    fontSize: 12,
+                  marginTop: 2,
+                  lineHeight: 16,
+  },
+                  templatesSection: {gap: 8 },
+                  sectionHeader: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20 },
+                  sectionTitle: {...typography.sectionLabel},
+                  templatesScroll: {paddingHorizontal: 16, gap: 12 },
+                  templateCard: {
+                    width: 176,
+                  borderRadius: 22,
+                  padding: 14,
+  },
+                  templateIconWell: {
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+  },
+                  templateEmoji: {fontSize: 20 },
+                  templateTitle: {...typography.headline, marginBottom: 4, fontSize: 14 },
+                  templateDesc: {...typography.footnote, fontSize: 11, lineHeight: 15 },
+                  favoritesSection: {gap: 8 },
+                  favoritesScroll: {paddingHorizontal: 16, gap: 8 },
+                  favCard: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  maxWidth: 160,
+  },
+                  favEmoji: {fontSize: 15 },
+                  favTitle: {fontSize: 13, fontWeight: '600', flexShrink: 1 },
+                  workspaceSection: {gap: 8 },
+                  workspaceHeader: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingRight: 16,
+  },
+                  quickAddBtns: {
+                    flexDirection: 'row',
+                  gap: 6,
+  },
+                  addBtnPill: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 8,
+  },
+                  addBtnText: {
+                    fontSize: 11,
+                  fontWeight: '600',
+  },
+                  treeCard: {
+                    marginHorizontal: 16,
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  paddingVertical: 6,
+  },
+                  emptyBox: {paddingVertical: 48, alignItems: 'center', paddingHorizontal: 32, gap: 6 },
+                  emptyEmoji: {fontSize: 40 },
+                  emptyTitle: {...typography.title2, marginTop: 6 },
+                  emptySub: {...typography.subhead, textAlign: 'center' },
+                  emptyCreateBtn: {
+                    flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 14,
+                  paddingHorizontal: 22,
+                  minHeight: 46,
+                  borderRadius: 23,
+  },
+                  emptyCreateBtnText: {...typography.headline, color: '#FFFFFF' },
 }));
