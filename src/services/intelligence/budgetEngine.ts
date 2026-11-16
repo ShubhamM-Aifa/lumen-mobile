@@ -17,14 +17,20 @@ export type NotificationType =
   | 'PACING'
   | 'FLARE_RISK'
   | 'TRIGGER_WATCH'
-  | 'HYGIENE';
+  | 'HYGIENE'
+  /** Written by Lumen AI on the server and pushed there (it applies the same budget); shown in-app here. */
+  | 'AI_NOTE';
 
 export type IntelligenceCapability =
   | 'adaptiveTiming'
   | 'flareRisk'
   | 'triggerWatch'
   | 'pacing'
-  | 'safety';
+  | 'safety'
+  | 'aiBriefing'
+  | 'aiNudge'
+  | 'aiLogReply'
+  | 'aiCheckIn';
 
 export interface Candidate {
   id: string;
@@ -79,6 +85,7 @@ export const CLINICAL_WEIGHT: Record<Exclude<NotificationType, 'SAFETY'>, number
   FLARE_RISK: 0.7,
   TRIGGER_WATCH: 0.5,
   HYGIENE: 0.1,
+  AI_NOTE: 0.6,
 };
 
 const CAPABILITY_FOR_TYPE: Partial<Record<NotificationType, IntelligenceCapability>> = {

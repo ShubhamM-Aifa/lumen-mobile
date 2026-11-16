@@ -176,6 +176,8 @@ interface NoteState {
   setSelectedTag: (tag: string | null) => void;
   setSearchQuery: (query: string) => void;
   setActiveNote: (note: ActiveNoteDetails | null) => void;
+  /** Take the server's copy of a note (after Lumen AI changed it there), keeping breadcrumbs etc. */
+  replaceFromServer: (note: Partial<INote> & { _id: string }) => void;
 
   // Trash actions
   fetchTrash: () => Promise<void>;
@@ -592,6 +594,16 @@ export const useNoteStore = create<NoteState>((set, get) => ({
                     setSelectedTag: (tag) => set({ selectedTag: tag }),
                       setSearchQuery: (query) => set({ searchQuery: query }),
                         setActiveNote: (note) => set({ activeNote: note }),
+
+                        replaceFromServer: (note) => {
+                          const current = get().activeNote;
+                          const merged = (current && current._id === note._id ? { ...current, ...note } : note) as ActiveNoteDetails;
+                          set({
+                            activeNote: current && current._id === note._id ? merged : current,
+                            notes: get().notes.map((n) => (n._id === note._id ? ({ ...n, ...note } as INote) : n)),
+                          });
+                          AsyncStorage.setItem(NOTE_DOC_CACHE_PREFIX + note._id, JSON.stringify(merged)).catch(() => { });
+                        },
 
                           fetchTrash: async () => {
                             try {

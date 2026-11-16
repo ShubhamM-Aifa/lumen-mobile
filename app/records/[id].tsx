@@ -40,6 +40,7 @@ import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
+import { PdfViewerModal } from '../../src/components/records/PdfViewerModal';
 import { useHealthRecordStore } from '../../src/store/healthRecordStore';
 import { IHealthRecord, HealthRecordType, IBiomarker, IPrescribedMedication } from '../../src/shared/types';
 import { safeGoBack } from '../../src/utils/navigation';
@@ -56,6 +57,7 @@ export default function RecordDetailScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<{ uri: string; name?: string } | null>(null);
   const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
@@ -99,12 +101,16 @@ export default function RecordDetailScreen() {
 
       if (fileUri) {
         let localPath = fileUri;
+        const ext = fileUri.includes('.pdf') ? '.pdf' : '.jpg';
+        const target = `${FileSystem.cacheDirectory || ''}Report_${Date.now()}${ext}`;
+
         // If remote URL, download temporarily to cache
         if (fileUri.startsWith('http')) {
-          const ext = fileUri.includes('.pdf') ? '.pdf' : '.jpg';
-          const target = `${FileSystem.cacheDirectory || ''}Report_${Date.now()}${ext}`;
           const res = await FileSystem.downloadAsync(fileUri, target);
           localPath = res.uri;
+        } else if (fileUri.startsWith('content://')) {
+          await FileSystem.copyAsync({ from: fileUri, to: target });
+          localPath = target;
         }
 
         const canShare = await Sharing.isAvailableAsync().catch(() => false);
@@ -321,8 +327,13 @@ export default function RecordDetailScreen() {
                   <TouchableOpacity
                     key={idx}
                     style={[styles.pdfCard, { backgroundColor: palette.surface, borderColor: palette.border }]}
-                    onPress={handleShare}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedPdf({ uri, name: fileName });
+                    }}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View PDF document: ${fileName}`}
                   >
                     <View style={styles.pdfIconBadge}>
                       <Text style={styles.pdfIconText}>PDF</Text>
@@ -332,7 +343,7 @@ export default function RecordDetailScreen() {
                         {fileName}
                       </Text>
                       <Text style={[styles.pdfSub, { color: palette.tint }]}>
-                        Tap to View / Export Document
+                        Tap to View & Open Document
                       </Text>
                     </View>
                     <ExternalLink size={18} color={palette.tint} />
@@ -536,6 +547,14 @@ export default function RecordDetailScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Full Screen PDF Viewer Modal */}
+      <PdfViewerModal
+        visible={!!selectedPdf}
+        fileUri={selectedPdf?.uri || null}
+        fileName={selectedPdf?.name}
+        onClose={() => setSelectedPdf(null)}
+      />
     </SafeAreaView>
   );
 }

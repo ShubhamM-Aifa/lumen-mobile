@@ -36,6 +36,11 @@ export interface NoteEditorProps {
     border: string;
     card: string;
   };
+  actionCommand?: {
+    id: number;
+    type: string;
+    payload?: any;
+  } | null;
   onChange?: (doc: Record<string, unknown>) => void;
   onPickImage?: () => Promise<{ mediaId: string; url: string; name?: string } | null>;
   onPickFile?: () => Promise<{ mediaId: string; name: string; size?: number; mimeType?: string } | null>;
@@ -55,6 +60,7 @@ export default function NoteEditorDom({
   initialDoc,
   placeholder = 'Type / for commands, or @ to link a page...',
   theme,
+  actionCommand,
   onChange,
   onPickImage,
   onPickFile,
@@ -319,6 +325,57 @@ export default function NoteEditorDom({
       },
     };
   }, [editor]);
+
+  // Handle incoming commands from Native Toolbar via DOM component props
+  useEffect(() => {
+    if (!editor || !actionCommand) return;
+    const { type, payload } = actionCommand;
+    switch (type) {
+      case 'toggleBold':
+        editor.chain().focus().toggleBold().run();
+        break;
+      case 'toggleItalic':
+        editor.chain().focus().toggleItalic().run();
+        break;
+      case 'toggleUnderline':
+        editor.chain().focus().toggleUnderline().run();
+        break;
+      case 'toggleStrike':
+        editor.chain().focus().toggleStrike().run();
+        break;
+      case 'toggleTaskList':
+        editor.chain().focus().toggleTaskList().run();
+        break;
+      case 'toggleBulletList':
+        editor.chain().focus().toggleBulletList().run();
+        break;
+      case 'toggleOrderedList':
+        editor.chain().focus().toggleOrderedList().run();
+        break;
+      case 'toggleCallout':
+        editor.chain().focus().toggleCallout().run();
+        break;
+      case 'undo':
+        editor.chain().focus().undo().run();
+        break;
+      case 'redo':
+        editor.chain().focus().redo().run();
+        break;
+      case 'openSlashMenu':
+        editor.chain().focus().insertContent('/').run();
+        break;
+      case 'insertImage':
+        if (payload?.url) {
+          (editor.chain().focus() as any).setImage({ src: payload.url, alt: payload.name || 'image' }).run();
+        }
+        break;
+      case 'insertFile':
+        if (payload?.mediaId) {
+          (editor.chain().focus() as any).insertFileAttachment(payload).run();
+        }
+        break;
+    }
+  }, [actionCommand, editor]);
 
   const selectSlashItem = (item: SlashItem) => {
     if (!editor || !slashRangeRef.current) return;

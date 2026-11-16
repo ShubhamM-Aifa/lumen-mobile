@@ -4,6 +4,8 @@ import { TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import AiChatScreen from '../../../app/ai/[id]';
 import { useAiAccess, useAiConversation, useSendAiMessage } from '../../hooks/useAiChat';
+import { useDictation, type DictationOptions } from '../../services/voice/useDictation';
+import { speakReply } from '../../services/voice/tts';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() }, useLocalSearchParams: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -11,8 +13,13 @@ jest.mock('expo-image-picker', () => ({}));
 jest.mock('../../services/mediaUpload', () => ({ uploadMedia: jest.fn(), getMimeType: () => 'image/jpeg' }));
 jest.mock('../../components/ios/ScreenTopBar', () => ({ ScreenTopBar: () => null }));
 jest.mock('../../components/ai/AiPhotoThumb', () => ({ AiPhotoThumb: () => null }));
+jest.mock('../../services/voice/useDictation', () => ({ useDictation: jest.fn() }));
+jest.mock('../../services/voice/tts', () => ({ speakReply: jest.fn(async () => undefined), stopSpeaking: jest.fn(async () => undefined) }));
+jest.mock('../../services/voice/useSpeechState', () => ({ useSpeechState: () => ({ status: 'idle', id: null }) }));
+const mockSaveNote = jest.fn();
 jest.mock('../../hooks/useAiChat', () => ({
   useAiAccess: jest.fn(), useAiConversation: jest.fn(), useSendAiMessage: jest.fn(),
+  useSaveMessageAsNote: jest.fn(() => ({ mutate: mockSaveNote, isPending: false })),
 }));
 
 const flat = (c: unknown): string | null => {
@@ -27,7 +34,12 @@ const press = async (t: ReactTestRenderer, text: string) => {
 };
 
 const mutate = jest.fn();
-const on = { fullAccess: true, photoAccess: true, configured: true };
+const on = {
+  fullAccess: true, photoAccess: true, configured: true, modelLabel: 'Gemini 3.1 Flash-Lite', chosenModelUnavailable: false,
+  voice: { ttsVoice: 'Puck', natural: true, sttLang: 'hi-IN' },
+};
+let dictationOpts: DictationOptions;
+const dictation = { listening: false, partial: '', level: 0, start: jest.fn(async () => true), stop: jest.fn(), cancel: jest.fn() };
 
 async function render() {
   let tree!: ReactTestRenderer;
@@ -41,6 +53,7 @@ beforeEach(() => {
   (useAiAccess as jest.Mock).mockReturnValue({ data: on });
   (useAiConversation as jest.Mock).mockReturnValue({ data: undefined, isLoading: false });
   (useSendAiMessage as jest.Mock).mockReturnValue({ mutate, isPending: false });
+  (useDictation as jest.Mock).mockImplementation((o: DictationOptions) => { dictationOpts = o; return dictation; });
 });
 
 describe('Lumen AI chat screen', () => {
@@ -93,5 +106,57 @@ describe('Lumen AI chat screen', () => {
     expect(all).toContain('Better this week.');
     expect(all).toContain('7.1 h average');
     expect(all).not.toContain('Ask anything about your data');
+  });
+
+  it('dictates into the message box in the chosen language, without sending', async () => {
+    const t = await render();
+    expect(dictationOpts.lang).toBe('hi-IN');
+    await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Dictate a message' && n.props.onPress)[0].props.onPress(); });
+    expect(dictation.start).toHaveBeenCalled();
+    await act(async () => { dictationOpts.onFinal('meri neend kaisi rahi'); });
+    expect(t.root.findByType(TextInput).props.value).toBe('meri neend kaisi rahi');
+    expect(mutate).not.toHaveBeenCalled();
+    // With text in the box the button becomes Send.
+    expect(t.root.findAll(n => n.props.accessibilityLabel === 'Send' && n.props.onPress).length).toBeGreaterThan(0);
+  });
+
+  it('reads a reply aloud in the chosen voice and shows which model wrote it', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'c2' });
+    (useAiConversation as jest.Mock).mockReturnValue({
+      isLoading: false,
+      data: { id: 'c2', title: 'Sleep', messages: [
+        { id: 'm2', role: 'assistant', text: 'Better this week.', mediaIds: [], createdAt: '', modelLabel: 'Claude Opus 5.5' },
+      ] },
+    });
+    const t = await render();
+    expect(texts(t)).toContain('Claude Opus 5.5');
+    await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Read this reply aloud' && n.props.onPress)[0].props.onPress(); });
+    expect(speakReply).toHaveBeenCalledWith('Better this week.', { voice: 'Puck', natural: true, id: 'm2' });
+  });
+
+  it('shows the current model and opens the model picker', async () => {
+    const t = await render();
+    expect(texts(t).join(' ')).toContain('Gemini 3.1 Flash-Lite');
+    await act(async () => { t.root.findAll(n => typeof n.props.accessibilityLabel === 'string' && n.props.accessibilityLabel.startsWith('Model:') && n.props.onPress)[0].props.onPress(); });
+    expect(router.push).toHaveBeenCalledWith('/ai/model');
+  });
+
+  it('shows note and template cards under a reply, and saves a reply as a note', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'c3' });
+    (useAiConversation as jest.Mock).mockReturnValue({
+      isLoading: false,
+      data: { id: 'c3', title: 'RA', messages: [
+        { id: 'm1', role: 'assistant', text: 'Saved it and drafted a tracker.', mediaIds: [], createdAt: '',
+          artifacts: [{ type: 'note', id: 'n1', title: 'RA plan' }, { type: 'template_draft', id: 'd1', title: 'RA tracking' }] },
+      ] },
+    });
+    const t = await render();
+    expect(texts(t)).toEqual(expect.arrayContaining(['Note saved', 'RA plan', 'Log template draft', 'RA tracking', 'Review']));
+    await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Open note RA plan' && n.props.onPress)[0].props.onPress(); });
+    expect(router.push).toHaveBeenCalledWith('/notes/n1');
+    await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Review template RA tracking' && n.props.onPress)[0].props.onPress(); });
+    expect(router.push).toHaveBeenCalledWith('/ai/template/d1');
+    await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Save as note' && n.props.onPress)[0].props.onPress(); });
+    expect(mockSaveNote).toHaveBeenCalledWith({ conversationId: 'c3', messageId: 'm1' }, expect.anything());
   });
 });

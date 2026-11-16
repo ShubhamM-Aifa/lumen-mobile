@@ -157,7 +157,7 @@ export default function QuickLogScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScreenTopBar
           title="Quick Log"
@@ -172,9 +172,11 @@ export default function QuickLogScreen() {
         />
 
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={[styles.scroll, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           <InsetGroup>
             <GroupedRow

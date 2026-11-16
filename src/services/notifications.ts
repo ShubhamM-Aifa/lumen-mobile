@@ -55,6 +55,8 @@ export const CHANNEL_ID_PACING = 'lumen_pacing_v2';
 export const CHANNEL_ID_SAFETY = 'lumen_safety_v1';        // MAX, alarm audio, bypasses DND
 export const CHANNEL_ID_HEADS_UP = 'lumen_heads_up_v1';    // HIGH, default sound, respects DND
 export const CHANNEL_ID_INSIGHTS = 'lumen_insights_v1';    // LOW, silent
+// Lumen AI notifications (pushed by the server): briefing, nudge, check-in. The server names this id.
+export const CHANNEL_ID_AI = 'lumen_ai_v1';                // DEFAULT, sound, text hidden on the lock screen
 export const CHANNEL_ID_WALK_ACTIVE = 'lumen_walk_active_v2'; // LOW, silent, public lockscreen for live activity
 export const NOTIFICATION_ID_WALK_ACTIVE = 'lumen_active_walk_session';
 export const CHANNEL_ID = CHANNEL_ID_ALARM; // Default high-priority alarm channel
@@ -276,6 +278,16 @@ export async function ensureNotificationChannel(): Promise<void> {
         importance: N.AndroidImportance?.LOW ?? 2,
         sound: null,
         enableVibrate: false,
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
+      }),
+      // 7b. Lumen AI notes, written from all of the member's data: keep the text off the lock screen
+      createChannelSafe(CHANNEL_ID_AI, {
+        name: 'Lumen AI',
+        description: 'Morning briefing, nudges and evening check-ins written by Lumen AI',
+        importance: N.AndroidImportance?.DEFAULT ?? 3,
+        sound: 'default',
+        enableVibrate: true,
+        vibrationPattern: [0, 200],
         lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
       }),
       // 8. Legacy channel alias for backwards compatibility

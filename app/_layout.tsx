@@ -16,6 +16,8 @@ import { flushQueue } from '../src/services/mediaUpload';
 import { useConfigStore } from '../src/store/configStore';
 import { useAuthStore } from '../src/store/authStore';
 import { useIntelligenceStore } from '../src/store/intelligenceStore';
+import { syncAiNotes } from '../src/services/intelligence/aiNotes';
+import { registerPushToken } from '../src/services/pushRegistration';
 import { installGlobalAlert, CustomAlertModal } from '../src/components/alert';
 import { InitialPermissionsModal } from '../src/components/permissions/InitialPermissionsModal';
 import { permissionService } from '../src/services/permissionService';
@@ -106,9 +108,21 @@ function AppBootstrap() {
       intel.hydrate()
         .then(() => intel.fetchPolicy())
         .then(() => intel.evaluateFlareMode())
+        .then(() => syncAiNotes(notes => useIntelligenceStore.getState().addAiNotes(notes)))
         .catch(err => console.warn('[AppBootstrap] intelligence init error:', err));
+      // Lumen AI notifications are pushed by the server to this phone's Expo push token.
+      registerPushToken().catch(() => { });
     }
   }, [isAuthenticated, fetchConfig]);
+
+  // Lumen AI notes pushed (or held back) while the app was closed show up in "For you today".
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') syncAiNotes(notes => useIntelligenceStore.getState().addAiNotes(notes)).catch(() => { });
+    });
+    return () => sub.remove();
+  }, [isAuthenticated]);
 
   return (
     <>

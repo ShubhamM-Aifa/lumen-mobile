@@ -65,11 +65,14 @@ export function ForYouTodayCard() {
         const open = expandedId === candidate.id;
         const route = typeof candidate.data?.route === 'string' ? candidate.data.route : undefined;
         const isWatch = candidate.type === 'TRIGGER_WATCH';
+        // Written by Lumen AI on the server; opens its chat (or the check-in screen) to reply.
+        const isAi = candidate.type === 'AI_NOTE';
+        const linkText = isAi ? (route?.startsWith('/check-in') ? 'Log it' : 'Open chat') : isWatch ? 'See Pattern' : 'See details';
         return (
           <View key={candidate.id} style={[styles.item, (index > 0 || flareActive) && styles.itemSeparated]}>
             <View style={styles.head}>
-              <IconTile icon={Sparkles} color="#5856D6" size={26} />
-              <Text style={styles.label} maxFontSizeMultiplier={1.3}>For you today</Text>
+              <IconTile icon={Sparkles} color={isAi ? '#AF52DE' : '#5856D6'} size={26} />
+              <Text style={styles.label} maxFontSizeMultiplier={1.3}>{isAi ? 'From Lumen AI' : 'For you today'}</Text>
               {waiting.length > 1 ? (
                 <Text style={styles.count} maxFontSizeMultiplier={1.3}>{`1 of ${waiting.length}`}</Text>
               ) : null}
@@ -89,9 +92,9 @@ export function ForYouTodayCard() {
                 style={styles.primaryLink}
                 onPress={() => router.push(route as never)}
                 accessibilityRole="button"
-                accessibilityLabel="See pattern"
+                accessibilityLabel={linkText}
               >
-                <Text style={styles.primaryLinkText} maxFontSizeMultiplier={1.3}>{isWatch ? 'See Pattern' : 'See details'}</Text>
+                <Text style={styles.primaryLinkText} maxFontSizeMultiplier={1.3}>{linkText}</Text>
               </TouchableOpacity>
             ) : null}
 

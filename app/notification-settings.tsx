@@ -11,6 +11,7 @@ import { GlassCircleButton } from '../src/components/ios/GlassCircleButton';
 import { InsetGroup, GroupedRow } from '../src/components/ios/InsetGroup';
 import { useIntelligenceStore, PolicyPatch } from '../src/store/intelligenceStore';
 import { parseHHMM } from '../src/services/intelligence/budgetEngine';
+import { AiNotificationsGroup } from '../src/components/settings/AiNotificationsGroup';
 
 const CAPABILITIES: Array<{
   key: 'adaptiveTiming' | 'triggerWatch' | 'flareRisk' | 'pacing';
@@ -154,6 +155,24 @@ export default function NotificationSettingsScreen() {
             ))}
           </InsetGroup>
         </View>
+
+        <AiNotificationsGroup
+          policy={policy}
+          off={off}
+          patch={patch}
+          shiftTime={shiftTime}
+          formatTime={formatTime}
+          renderTimeStepper={o => stepper({
+            value: o.value,
+            minusDisabled: o.disabled,
+            plusDisabled: o.disabled,
+            onMinus: o.onMinus,
+            onPlus: o.onPlus,
+            minusLabel: `${o.label} 30 minutes earlier`,
+            plusLabel: `${o.label} 30 minutes later`,
+            valueLabel: `${o.label} at ${o.value}`,
+          })}
+        />
 
         <View style={off && styles.dimmed}>
           <InsetGroup title="How often" footer={'Extra observations wait for you in the \u201cFor you today\u201d card.'}>

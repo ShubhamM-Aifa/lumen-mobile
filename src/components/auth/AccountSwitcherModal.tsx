@@ -201,7 +201,7 @@ export function AccountSwitcherModal({ visible, onClose, onSwitched }: Props) {
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
         <TouchableOpacity

@@ -16,6 +16,7 @@ import {
   Alert,
   StyleSheet,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Clock, Check, X, Sparkles, MapPin, AlertCircle, FileText } from 'lucide-react-native';
@@ -193,8 +194,12 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          {/* Header */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardWrap}
+        >
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={[styles.actionIconBadge, { backgroundColor: accentColor + '26' }]}>
@@ -229,7 +234,9 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
             style={styles.body}
             contentContainerStyle={styles.bodyContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           >
             {/* Timestamp selector pill */}
             <View style={styles.timeCard}>
@@ -364,12 +371,23 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
             </TouchableOpacity>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );
 }
 
 const useStyles = createThemedStyles((palette) => ({
+  keyboardWrap: {
+    width: '100%',
+    justifyContent: 'flex-end',
+    ...(Platform.OS === 'web'
+      ? {
+          maxWidth: 480,
+          alignItems: 'center',
+        }
+      : null),
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',

@@ -14,6 +14,24 @@ import {
 } from '../services/notifications';
 import { getPendingAlarm } from '../services/alarmScheduler';
 import { recordNotification } from '../services/notificationInbox';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const HANDLED_KEY = 'lumen:notif:last_handled_tap_v1';
+let lastHandled: string | null = null;
+
+/**
+ * A tap is routed once. getLastNotificationResponseAsync keeps returning the launch tap, and the
+ * response listener can report the same tap too, so remember which one was handled.
+ */
+export async function claimTap(response: any): Promise<boolean> {
+  const id = `${response?.notification?.request?.identifier ?? ''}:${response?.actionIdentifier ?? ''}:${response?.notification?.date ?? ''}`;
+  if (!id || id === '::') return true;
+  if (lastHandled === null) lastHandled = await AsyncStorage.getItem(HANDLED_KEY).catch(() => null);
+  if (lastHandled === id) return false;
+  lastHandled = id;
+  AsyncStorage.setItem(HANDLED_KEY, id).catch(() => {});
+  return true;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let N: any = null;
@@ -43,11 +61,11 @@ export function useNotificationSync() {
         // Handle tap on notification that launched the app from killed/background state
         if (N && typeof N.getLastNotificationResponseAsync === 'function') {
           const lastResponse = await N.getLastNotificationResponseAsync();
-          if (lastResponse) {
-            const reminderId = lastResponse.notification?.request?.content?.data?.reminderId;
-            if (reminderId) {
-              router.push(`/alarm/${reminderId}`);
-            }
+          if (lastResponse && (await claimTap(lastResponse))) {
+            const data = lastResponse.notification?.request?.content?.data;
+            // A route (e.g. a Lumen AI notification opening its chat) wins over an alarm id.
+            if (data?.route) router.push(data.route);
+            else if (data?.reminderId) router.push(`/alarm/${data.reminderId}`);
           }
         }
       } catch (err) {
@@ -94,7 +112,7 @@ export function useNotificationSync() {
           // Default tap (no action button)
           if (response.actionIdentifier === N.DEFAULT_ACTION_IDENTIFIER) {
             if (targetRoute) {
-              router.push(targetRoute as any);
+              claimTap(response).then(fresh => { if (fresh) router.push(targetRoute as any); }).catch(() => {});
               return;
             }
             if (reminderId) {

@@ -2,10 +2,12 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { LumenAiSettingsGroup } from '../settings/LumenAiSettingsGroup';
+import { router } from 'expo-router';
 import { useAiAccess, useSetAiAccess } from '../../hooks/useAiChat';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
-jest.mock('../../hooks/useAiChat', () => ({ useAiAccess: jest.fn(), useSetAiAccess: jest.fn() }));
+const mockUpdateSettings = jest.fn();
+jest.mock('../../hooks/useAiChat', () => ({ useAiAccess: jest.fn(), useSetAiAccess: jest.fn(), useUpdateAiSettings: jest.fn(() => ({ mutate: mockUpdateSettings, isPending: false })) }));
 const mockPinModal = jest.fn();
 jest.mock('../common/PhotoPinModal', () => ({
   PhotoPinModal: (props: Record<string, unknown>) => { mockPinModal(props); return null; },
@@ -81,5 +83,30 @@ describe('LumenAiSettingsGroup', () => {
     (useAiAccess as jest.Mock).mockReturnValue({ data: access({ configured: false }) });
     const tree = await render();
     expect(row(tree, 'Lumen AI full access').props.disabled).toBe(true);
+  });
+
+  it('shows the current model and voice, and opens their screens', async () => {
+    (useAiAccess as jest.Mock).mockReturnValue({ data: access({
+      fullAccess: true, freeTierAcknowledged: true, provider: 'claude', modelLabel: 'Claude Sonnet 5.5',
+      voice: { ttsVoice: 'Puck', natural: true, sttLang: 'hi-IN' },
+    }) });
+    const tree = await render();
+    const model = tree.root.findAll(n => n.props.label === 'AI model' && n.props.onPress)[0];
+    const voice = tree.root.findAll(n => n.props.label === 'Voice' && n.props.onPress)[0];
+    expect(model.props.value).toBe('Claude Sonnet 5.5');
+    expect(voice.props.value).toBe('Puck · Hindi');
+    await act(async () => { model.props.onPress(); });
+    await act(async () => { voice.props.onPress(); });
+    expect(router.push).toHaveBeenCalledWith('/ai/model');
+    expect(router.push).toHaveBeenCalledWith('/ai/voice-settings');
+  });
+
+  it('turns the daily health journal off and on', async () => {
+    (useAiAccess as jest.Mock).mockReturnValue({ data: access({ fullAccess: true, freeTierAcknowledged: true, journal: true, voice: { ttsVoice: 'Kore', natural: true, sttLang: 'en-IN' } }) });
+    const tree = await render();
+    const journal = tree.root.findAll(n => n.props.label === 'Daily health journal' && n.props.onToggle)[0];
+    expect(journal.props.toggled).toBe(true);
+    await act(async () => { journal.props.onToggle(false); });
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ journal: false }, expect.anything());
   });
 });

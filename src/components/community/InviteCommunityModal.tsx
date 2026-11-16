@@ -33,7 +33,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
     const message = `Join my chronic illness community "${server.name}" on Lumen! 🌿\n\nInvite Code: ${code}\n\nTo join:\n1. Open Lumen app\n2. Go to the Community tab\n3. Tap '+' (Join Community) and enter code: ${code}`;
     try {
       await Share.share({ message });
-    } catch {}
+    } catch { }
   };
 
   const handleCopyCode = async () => {
@@ -48,7 +48,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
@@ -101,7 +101,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
             {/* Step-by-Step Instructions */}
             <View style={[styles.instructionsCard, { backgroundColor: 'rgba(128, 128, 128, 0.12)' }]}>
               <Text style={[styles.instructionsTitle, { color: palette.text }]}>How Your Friends Can Join:</Text>
-              
+
               <View style={styles.stepRow}>
                 <View style={[styles.stepNum, { backgroundColor: `${palette.primary}33` }]}>
                   <Text style={[styles.stepNumText, { color: palette.primaryText }]}>1</Text>

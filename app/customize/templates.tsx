@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { AppleSwitch } from '../../src/components/common/AppleSwitch';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../src/api/client';
 import { useConfigStore } from '../../src/store/configStore';
@@ -536,6 +536,20 @@ export default function TemplatesScreen() {
                   <Text style={styles.headerSub}>
                     Ready-made categories vetted for chronic illness logging. Everything is fully customizable after adding.
                   </Text>
+
+                  {/* Lumen AI builds a template for a disease or symptoms, or improves the current setup from the logs. */}
+                  <TouchableOpacity
+                    style={styles.bundleCard}
+                    onPress={() => router.push('/ai/template/new')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create a template with Lumen AI"
+                  >
+                    <Text style={styles.bundleIcon}>✨</Text>
+                    <View style={styles.cardText}>
+                      <Text style={styles.bundleName}>Create with Lumen AI</Text>
+                      <Text style={styles.cardDesc}>Name a disease or symptoms — or let Lumen AI use what it knows about you. You review it before it’s added.</Text>
+                    </View>
+                  </TouchableOpacity>
 
                   {curatedTemplates.filter((t) => t.isBundle).length > 0 && (
                     <>

@@ -65,7 +65,7 @@ describe('ForYouTodayCard', () => {
   it('opens the Insights tab from See Pattern', async () => {
     useIntelligenceStore.setState({ inbox: [item()] });
     const t = await render();
-    await act(async () => { press(t, 'See pattern').props.onPress(); });
+    await act(async () => { press(t, 'See Pattern').props.onPress(); });
     expect(mockPush).toHaveBeenCalledWith('/(tabs)/insights');
   });
 

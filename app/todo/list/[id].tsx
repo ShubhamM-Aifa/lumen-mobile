@@ -255,7 +255,7 @@ export default function TodoListScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.flex}
           contentContainerStyle={styles.content}
@@ -263,6 +263,7 @@ export default function TodoListScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           scrollEnabled={!dragging}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           <LargeTitleHeader
             title={selectionMode ? (selected.size > 0 ? `${selected.size} selected` : 'Select tasks') : title}

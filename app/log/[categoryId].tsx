@@ -3,7 +3,7 @@
  * Renders all active questions via QuestionCard, manages answer state,
  * supports backdating and "Same as yesterday" shortcut, then submits.
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Platform, Modal, Pressable, KeyboardAvoidingView,
@@ -78,6 +78,7 @@ export default function QuestionSheet() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     setOccurredAt(initialOccurredAt);
@@ -373,7 +374,7 @@ export default function QuestionSheet() {
     <View style={styles.screen}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Stack.Screen options={{ headerShown: false }} />
 
@@ -398,9 +399,12 @@ export default function QuestionSheet() {
         />
 
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.scroll, { paddingBottom: isKeyboardVisible ? 120 : 20 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
         {/* Past Date Context Banner */}
         {formattedTargetDate && (
@@ -559,10 +563,15 @@ export default function QuestionSheet() {
             multiline
             maxLength={1000}
             accessibilityLabel="Optional note"
+            onFocus={() => {
+              setTimeout(() => {
+                scrollRef.current?.scrollToEnd({ animated: true });
+              }, 120);
+            }}
           />
         </View>
 
-        <View style={{ height: 96 + Math.max(insets.bottom, 20) }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Submit button pinned to bottom */}
@@ -736,8 +745,9 @@ const useStyles = createThemedStyles(palette => ({
   datePillText: { ...typography.subheadBold, color: palette.primaryText },
   spacer: { height: 100 },
   footer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    backgroundColor: palette.background,
   },
   submitBtn: {
     backgroundColor: palette.primary,

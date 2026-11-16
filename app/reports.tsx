@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import AppDateTimePicker from '../src/components/common/AppDateTimePicker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useConfigStore } from '../src/store/configStore';
 import { apiDownload } from '../src/api/client';

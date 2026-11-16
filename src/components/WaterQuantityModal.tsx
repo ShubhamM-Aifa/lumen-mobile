@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useTheme, createThemedStyles } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
@@ -57,10 +59,14 @@ export function WaterQuantityModal({ visible, onClose, quickActionId, onLogged }
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={styles.card}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.card}>
               <View style={styles.header}>
                 <Text style={styles.emoji}>💧</Text>
                 <Text style={styles.title}>Log Water Intake</Text>
@@ -121,6 +127,7 @@ export function WaterQuantityModal({ visible, onClose, quickActionId, onLogged }
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

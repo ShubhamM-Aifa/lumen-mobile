@@ -17,6 +17,11 @@ import {
   countsAgainstBudget,
 } from '../services/intelligence/budgetEngine';
 import {
+  candidateFromNote,
+  countsAgainstBudget as countsAgainstAiBudget,
+  type AiNoteDto,
+} from '../services/intelligence/aiNotes';
+import {
   scheduleIntelligentNotification,
   CHANNEL_ID_SAFETY,
   CHANNEL_ID_HEADS_UP,
@@ -37,6 +42,8 @@ export interface ServerPolicy {
   quietHours: { enabled: boolean; start: string; end: string };
   flareMode: { active: boolean; auto: boolean; source?: 'auto' | 'manual'; activatedAt?: string };
   capabilities: Record<IntelligenceCapability, boolean>;
+  /** Local times (HH:mm, quarter hours) for the Lumen AI briefing, midday nudge and evening check-in. */
+  aiTimes: { briefing: string; nudge: string; checkIn: string };
   mutedUntil: string | null;
   suppressedTypes: NotificationType[];
   careTeamPhone: string | null;
@@ -48,6 +55,7 @@ export type PolicyPatch = Partial<{
   dailyBudget: number;
   quietHours: Partial<ServerPolicy['quietHours']>;
   capabilities: Partial<Record<IntelligenceCapability, boolean>>;
+  aiTimes: Partial<ServerPolicy['aiTimes']>;
   flareAutoDetect: boolean;
   mutedUntil: string | null;
   suppressedTypes: NotificationType[];
@@ -64,12 +72,26 @@ export const DEFAULT_POLICY: ServerPolicy = {
   dailyBudget: 2,
   quietHours: { enabled: true, start: '22:00', end: '07:00' },
   flareMode: { active: false, auto: true },
-  capabilities: { adaptiveTiming: true, flareRisk: true, triggerWatch: true, pacing: true, safety: false },
+  capabilities: {
+    adaptiveTiming: true, flareRisk: true, triggerWatch: true, pacing: true, safety: false,
+    aiBriefing: true, aiNudge: true, aiLogReply: true, aiCheckIn: true,
+  },
+  aiTimes: { briefing: '08:00', nudge: '13:30', checkIn: '20:30' },
   mutedUntil: null,
   suppressedTypes: [],
   careTeamPhone: null,
   safetyConsentAt: null,
 };
+
+/** Older caches and servers don't have every field (e.g. the Lumen AI ones); fill them from the defaults. */
+export function normalizePolicy(p: Partial<ServerPolicy> | null | undefined): ServerPolicy {
+  return {
+    ...DEFAULT_POLICY,
+    ...(p ?? {}),
+    capabilities: { ...DEFAULT_POLICY.capabilities, ...(p?.capabilities ?? {}) },
+    aiTimes: { ...DEFAULT_POLICY.aiTimes, ...(p?.aiTimes ?? {}) },
+  } as ServerPolicy;
+}
 
 export function toSnapshot(p: ServerPolicy): PolicySnapshot {
   return {
@@ -113,6 +135,8 @@ interface IntelligenceState {
   evaluateFlareMode: () => Promise<void>;
   submit: (candidates: Candidate[], now?: number) => Promise<void>;
   dismissInboxItem: (candidateId: string, feedback?: 'helpful' | 'not_useful') => Promise<void>;
+  /** Lumen AI notes from the server (already pushed or held back there): show them, count today's pushes. */
+  addAiNotes: (notes: AiNoteDto[], now?: number) => void;
 }
 
 function recordEvent(body: Record<string, unknown>): void {
@@ -135,7 +159,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
         AsyncStorage.getItem(INBOX_KEY),
       ]);
       set(s => ({
-        policy: p ? { ...DEFAULT_POLICY, ...JSON.parse(p) } : s.policy,
+        policy: p ? normalizePolicy(JSON.parse(p)) : s.policy,
         sentToday: l ? JSON.parse(l) : s.sentToday,
         inbox: i ? JSON.parse(i) : s.inbox,
       }));
@@ -146,7 +170,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
 
   fetchPolicy: async () => {
     try {
-      const res = await api.get<ServerPolicy>('/notification-policy');
+      const res = normalizePolicy(await api.get<ServerPolicy>('/notification-policy'));
       set({ policy: res, loaded: true, error: null });
       AsyncStorage.setItem(POLICY_KEY, JSON.stringify(res)).catch(() => {});
     } catch (err: any) {
@@ -165,13 +189,14 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
       ...(patch.suppressedTypes !== undefined ? { suppressedTypes: patch.suppressedTypes } : {}),
       quietHours: { ...previous.quietHours, ...patch.quietHours },
       capabilities: { ...previous.capabilities, ...patch.capabilities },
+      aiTimes: { ...previous.aiTimes, ...patch.aiTimes },
       flareMode: patch.flareAutoDetect !== undefined
         ? { ...previous.flareMode, auto: patch.flareAutoDetect }
         : previous.flareMode,
     };
     set({ policy: optimistic, saving: true, error: null });
     try {
-      const saved = await api.put<ServerPolicy>('/notification-policy', patch);
+      const saved = normalizePolicy(await api.put<ServerPolicy>('/notification-policy', patch));
       set({ policy: saved, saving: false });
       AsyncStorage.setItem(POLICY_KEY, JSON.stringify(saved)).catch(() => {});
     } catch (err: any) {
@@ -194,7 +219,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
       error: null,
     });
     try {
-      const saved = await api.post<ServerPolicy>('/notification-policy/flare-mode', { active });
+      const saved = normalizePolicy(await api.post<ServerPolicy>('/notification-policy/flare-mode', { active }));
       set({ policy: saved });
       AsyncStorage.setItem(POLICY_KEY, JSON.stringify(saved)).catch(() => {});
     } catch (err: any) {
@@ -206,8 +231,9 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
     try {
       const res = await api.post<{ changed: boolean; policy: ServerPolicy }>('/notification-policy/flare-mode/evaluate', {});
       if (res?.policy) {
-        set({ policy: res.policy });
-        AsyncStorage.setItem(POLICY_KEY, JSON.stringify(res.policy)).catch(() => {});
+        const policy = normalizePolicy(res.policy);
+        set({ policy });
+        AsyncStorage.setItem(POLICY_KEY, JSON.stringify(policy)).catch(() => {});
       }
     } catch {
       // Detection is best-effort; the manual toggle still works offline.
@@ -271,6 +297,38 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
 
     const sentToday = { date: today, count: sent + spent };
     set({ sentToday, inbox });
+    AsyncStorage.multiSet([[LEDGER_KEY, JSON.stringify(sentToday)], [INBOX_KEY, JSON.stringify(inbox)]]).catch(() => {});
+  },
+
+  addAiNotes: (notes, now = Date.now()) => {
+    if (notes.length === 0) return;
+    const state = get();
+    const today = localDateKey(now);
+    const sent = state.sentToday.date === today ? state.sentToday.count : 0;
+    // The server already counted these against the shared budget; keep this phone's count in step.
+    const pushedToday = notes.filter(n => n.pushed && countsAgainstAiBudget(n.kind) && localDateKey(Date.parse(n.createdAt)) === today).length;
+
+    useNotificationInboxStore.getState().add(
+      notes
+        .map(n => entryFromNotification({
+          title: n.title,
+          body: n.body,
+          data: { type: 'INTEL_AI_NOTE', aiNotificationId: n.id, route: n.route },
+          at: Date.parse(n.createdAt) || now,
+        }))
+        .filter((e): e is NonNullable<typeof e> => e !== null),
+    ).catch(() => {});
+
+    const known = new Set(state.inbox.map(i => i.candidate.id));
+    const additions: InboxItem[] = notes
+      .map(candidateFromNote)
+      .filter(c => !known.has(c.id) && (c.expiresAt === undefined || c.expiresAt > now))
+      .map(candidate => ({ candidate, reason: 'watch' as InAppReason, addedAt: now }));
+    const inbox = [...additions, ...state.inbox]
+      .filter(i => i.candidate.expiresAt === undefined || i.candidate.expiresAt > now)
+      .slice(0, MAX_INBOX);
+    const sentToday = { date: today, count: sent + pushedToday };
+    set({ inbox, sentToday });
     AsyncStorage.multiSet([[LEDGER_KEY, JSON.stringify(sentToday)], [INBOX_KEY, JSON.stringify(inbox)]]).catch(() => {});
   },
 

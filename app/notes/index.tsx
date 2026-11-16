@@ -33,9 +33,25 @@ import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { safeGoBack } from '../../src/utils/navigation';
 import { PageTree } from '../../src/components/notes/PageTree';
 import { PagePickerSheet } from '../../src/components/notes/PagePickerSheet';
+import { useAiAccess, useDoctorVisitNote } from '../../src/hooks/useAiChat';
 
 export default function NotesHubScreen() {
   const router = useRouter();
+  // Lumen AI writes a doctor-visit prep note from the last 4 weeks of data.
+  const aiAccess = useAiAccess();
+  const doctorVisit = useDoctorVisitNote();
+  const onDoctorVisit = () =>
+    doctorVisit.mutate(4, {
+      onSuccess: res => {
+        if (res.noteId) {
+          useNoteStore.getState().fetchTree().catch(() => { });
+          router.push(`/notes/${res.noteId}`);
+        } else {
+          Alert.alert('Could not write the note', 'Lumen AI could not finish it just now. Please try again in a moment.');
+        }
+      },
+      onError: err => Alert.alert('Could not write the note', err instanceof Error ? err.message : ''),
+    });
   const { palette } = useTheme();
   const styles = useStyles();
 
@@ -294,6 +310,26 @@ const handleCreateNewPage = async (parentId?: string) => {
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={styles.templatesScroll}
                           >
+                            {aiAccess.data?.fullAccess ? (
+                              <TouchableOpacity
+                                style={[styles.templateCard, { backgroundColor: palette.surface }]}
+                                onPress={onDoctorVisit}
+                                disabled={doctorVisit.isPending}
+                                activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel="Doctor visit prep written by Lumen AI"
+                              >
+                                <View style={[styles.templateIconWell, { backgroundColor: palette.surfaceAlt }]}>
+                                  {doctorVisit.isPending ? <ActivityIndicator color={palette.primaryText} /> : <Text style={styles.templateEmoji}>🩺</Text>}
+                                </View>
+                                <Text style={[styles.templateTitle, { color: palette.text }]} numberOfLines={2}>
+                                  {doctorVisit.isPending ? 'Lumen AI is writing…' : 'Doctor visit prep'}
+                                </Text>
+                                <Text style={[styles.templateDesc, { color: palette.textSecondary }]} numberOfLines={2}>
+                                  Lumen AI fills it from your last 4 weeks
+                                </Text>
+                              </TouchableOpacity>
+                            ) : null}
                             {PREBUILT_TEMPLATES.map((tmpl) => (
                               <TouchableOpacity
                                 key={tmpl.key}

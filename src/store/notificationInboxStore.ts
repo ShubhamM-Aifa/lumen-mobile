@@ -137,6 +137,13 @@ export function entryFromNotification(
   const type = typeof data.type === 'string' ? data.type : '';
   const base = { title: title || body, body: title ? body : '', at: n.at, read: false };
 
+  // Lumen AI notes are pushed by the server and also synced from /ai/notifications: one id for both.
+  if (type === 'INTEL_AI_NOTE' && typeof data.aiNotificationId === 'string') {
+    return {
+      id: `intel:ai:${data.aiNotificationId}`, kind: 'Insights', icon: 'sparkles', tone: 'purple',
+      route: typeof data.route === 'string' ? data.route : '/ai', ...base,
+    };
+  }
   if (type.startsWith('INTEL_') && typeof data.candidateId === 'string') {
     const style = INTEL_STYLE[type.slice(6)] ?? { kind: 'Insights', icon: 'sparkles', tone: 'purple', route: '/(tabs)/insights' };
     return { id: `intel:${data.candidateId}`, ...style, ...base };

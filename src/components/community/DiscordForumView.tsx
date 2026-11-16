@@ -214,7 +214,7 @@ export const DiscordForumView: React.FC<Props> = ({
       <Modal visible={createModalVisible} animationType="slide" transparent onRequestClose={() => setCreateModalVisible(false)}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[styles.modalContent, { backgroundColor: palette.surface }]}>
             <View style={[styles.modalHeader, { borderBottomColor: palette.border }]}>

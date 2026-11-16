@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput,
-  Modal, Pressable, KeyboardAvoidingView, Platform,
+  Modal, Pressable, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -108,7 +108,7 @@ export default function UnitsScreen() {
 
       {editing && (
         <Modal visible animationType="slide" transparent>
-          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>
@@ -116,7 +116,12 @@ export default function UnitsScreen() {
                 <Text style={styles.sheetTitle}>{editing._id ? 'Edit unit' : 'New unit'}</Text>
                 <TouchableOpacity onPress={save} disabled={saving}><Text style={[styles.done, saving && styles.dim]}>Save</Text></TouchableOpacity>
               </View>
-              <View style={styles.sheetBody}>
+              <ScrollView
+                style={{ maxHeight: 420 }}
+                contentContainerStyle={styles.sheetBody}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+              >
                 <Text style={styles.fieldLabel}>Symbol *</Text>
                 <TextInput style={styles.input} value={editing.symbol ?? ''} onChangeText={v => setEditing(e => ({ ...e!, symbol: v }))} placeholder="bowl, tablet, slice, packet" placeholderTextColor={palette.textDisabled} autoFocus autoCapitalize="none" />
                 <Text style={styles.fieldLabel}>Full name (optional)</Text>
@@ -126,7 +131,7 @@ export default function UnitsScreen() {
                 <Text style={styles.fieldLabel}>Conversion to base unit (optional)</Text>
                 <TextInput style={styles.input} value={editing.factorToBase != null ? String(editing.factorToBase) : ''} onChangeText={v => setEditing(e => ({ ...e!, factorToBase: v !== '' ? Number(v) : undefined }))} keyboardType="numeric" placeholder="e.g. 250 (for a 250 ml bowl)" placeholderTextColor={palette.textDisabled} />
                 <Text style={styles.conversionHint}>If 1 bowl = 250 ml, enter 250 here. Leave blank if no conversion is needed.</Text>
-              </View>
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </Modal>

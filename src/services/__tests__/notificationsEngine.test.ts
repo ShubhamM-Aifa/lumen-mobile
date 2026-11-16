@@ -90,7 +90,13 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
     it('creates all specialized notification channels on Android', async () => {
       await ensureNotificationChannel();
 
-      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(9);
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(10);
+
+      // Lumen AI notes (pushed by the server): audible, but their text stays off the lock screen.
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        'lumen_ai_v1',
+        expect.objectContaining({ importance: 3, sound: 'default', lockscreenVisibility: 0 }),
+      );
 
       // Intelligent-notification channels: only safety may bypass Do Not Disturb,
       // and the insights channel must stay silent.

@@ -5,11 +5,12 @@
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Alert, Platform,
+  View, Text, ScrollView, Alert, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { uuidv4 } from '../src/utils/uuid';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { safeGoBack } from '../src/utils/navigation';
+import { useKeyboard } from '../src/hooks/useKeyboard';
 import { IQuestion, IOption, Answer, QuestionFrequency } from '@lumen/shared';
 import { useConfigStore } from '../src/store/configStore';
 import { useDaySessionStore } from '../src/store/daySessionStore';
@@ -46,6 +47,7 @@ const WHEN_OPTIONS = [
 
 export default function CheckInModal() {
   const styles = useStyles();
+  const { isKeyboardVisible } = useKeyboard();
   const { type = 'morning', date } = useLocalSearchParams<{ type: string; date?: string }>();
   const { config } = useConfigStore();
   const { todaySession } = useDaySessionStore();
@@ -195,67 +197,80 @@ export default function CheckInModal() {
     <View style={styles.screen}>
       <Stack.Screen options={{ presentation: 'modal', headerShown: false }} />
 
-      <ScreenTopBar
-        sheet={Platform.OS === 'ios'}
-        backIcon="close"
-        backLabel="Close"
-        onBack={handleSkip}
-        right={<HeaderTextButton label="Skip" accessibilityLabel="Skip check-in" onPress={handleSkip} />}
-      />
-
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <IosSegmented options={WHEN_OPTIONS} value={type === 'evening' ? 'evening' : 'morning'} onChange={handleSwitchWhen} />
+        <ScreenTopBar
+          sheet={Platform.OS === 'ios'}
+          backIcon="close"
+          backLabel="Close"
+          onBack={handleSkip}
+          right={<HeaderTextButton label="Skip" accessibilityLabel="Skip check-in" onPress={handleSkip} />}
+        />
 
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle} accessibilityRole="header" maxFontSizeMultiplier={1.3}>{meta.title}</Text>
-          <Text style={styles.heroSubtitle}>{meta.subtitle}</Text>
-        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.scroll, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
+          <IosSegmented options={WHEN_OPTIONS} value={type === 'evening' ? 'evening' : 'morning'} onChange={handleSwitchWhen} />
 
-        <View style={styles.gutter}>
-          {/* Sleep recovery banner (morning check-in only) */}
-          {type === 'morning' && (
-            <MorningSleepCheckinBanner
-              selectedQuality={sleepQuality}
-              onQualityChange={handleQualityChange}
-            />
-          )}
+          <View style={styles.hero}>
+            <Text style={styles.heroTitle} accessibilityRole="header" maxFontSizeMultiplier={1.3}>{meta.title}</Text>
+            <Text style={styles.heroSubtitle}>{meta.subtitle}</Text>
+          </View>
 
-          {/* Check-in questions */}
-          {displayQuestions.length === 0 && type !== 'morning' ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No check-in questions configured yet.</Text>
-              <Text style={styles.emptyHint}>
-                Go to Customize → Questions and set frequency to "{freq}" on any question.
-              </Text>
-            </View>
-          ) : (
-            displayQuestions.map((q) => (
-              <QuestionCard
-                key={q._id}
-                question={q}
-                options={optionsByQuestion[q._id] ?? []}
-                answers={answersByQuestion[q._id] ?? []}
-                sessionAnswers={allAnswers}
-                onChange={(ans) => setQAnswers(q._id, ans)}
-                tempPrefUnit={tempPrefUnit}
-                todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
-                onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
-                onEditLog={(logId) =>
-                  router.push({
-                    pathname: `/log/edit/${logId}`,
-                    params: { questionId: q._id },
-                  })
-                }
+          <View style={styles.gutter}>
+            {/* Sleep recovery banner (morning check-in only) */}
+            {type === 'morning' && (
+              <MorningSleepCheckinBanner
+                selectedQuality={sleepQuality}
+                onQualityChange={handleQualityChange}
               />
-            ))
-          )}
-        </View>
-      </ScrollView>
+            )}
 
-      <FloatingCta label="Save check-in" onPress={handleSubmit} loading={isSubmitting} />
+            {/* Check-in questions */}
+            {displayQuestions.length === 0 && type !== 'morning' ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No check-in questions configured yet.</Text>
+                <Text style={styles.emptyHint}>
+                  Go to Customize → Questions and set frequency to "{freq}" on any question.
+                </Text>
+              </View>
+            ) : (
+              displayQuestions.map((q) => (
+                <QuestionCard
+                  key={q._id}
+                  question={q}
+                  options={optionsByQuestion[q._id] ?? []}
+                  answers={answersByQuestion[q._id] ?? []}
+                  sessionAnswers={allAnswers}
+                  onChange={(ans) => setQAnswers(q._id, ans)}
+                  tempPrefUnit={tempPrefUnit}
+                  todayHistory={getQuestionTodayHistory(q._id, optionsByQuestion[q._id] ?? [])}
+                  onReuseAnswers={(ans) => setQAnswers(q._id, ans)}
+                  onEditLog={(logId) =>
+                    router.push({
+                      pathname: `/log/edit/${logId}`,
+                      params: { questionId: q._id },
+                    })
+                  }
+                />
+              ))
+            )}
+          </View>
+        </ScrollView>
+
+        <FloatingCta
+          label="Save check-in"
+          onPress={handleSubmit}
+          loading={isSubmitting}
+          keyboardVisible={isKeyboardVisible}
+        />
+      </KeyboardAvoidingView>
     </View>
   );
 }

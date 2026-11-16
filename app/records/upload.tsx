@@ -40,6 +40,7 @@ import { ScreenTopBar, HeaderTextButton } from '../../src/components/ios/ScreenT
 import { InsetGroup } from '../../src/components/ios/InsetGroup';
 import { IosSegmented } from '../../src/components/ios/IosSegmented';
 import { AppleSwitch } from '../../src/components/common/AppleSwitch';
+import { PdfViewerModal } from '../../src/components/records/PdfViewerModal';
 import {
   useHealthRecordStore,
   LAB_PANEL_PRESETS,
@@ -82,7 +83,7 @@ async function convertUriToBase64(uri: string): Promise<string> {
   } catch (blobErr) {
     if (Platform.OS !== 'web') {
       try {
-        const FileSystem = await import('expo-file-system');
+        const FileSystem = await import('expo-file-system/legacy');
         const base64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
@@ -111,6 +112,7 @@ export default function RecordUploadScreen() {
   const [notes, setNotes] = useState('');
   const [isSensitive, setIsSensitive] = useState(false);
   const [syncToMedTracker, setSyncToMedTracker] = useState(true);
+  const [previewPdf, setPreviewPdf] = useState<{ uri: string; name?: string } | null>(null);
 
   // Attachments
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
@@ -547,6 +549,8 @@ export default function RecordUploadScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           {/* Record Type Selector */}
           <View style={styles.sectionWrap}>
@@ -624,23 +628,37 @@ export default function RecordUploadScreen() {
                     key={idx}
                     style={[styles.fileItemCard, { backgroundColor: palette.surface, borderColor: palette.border }]}
                   >
-                    {file.mimeType.includes('pdf') ? (
-                      <View style={styles.pdfBadgeIcon}>
-                        <Text style={styles.pdfBadgeText}>PDF</Text>
-                      </View>
-                    ) : (
-                      <Image source={{ uri: file.uri }} style={styles.imageThumb} />
-                    )}
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}
+                      onPress={() => {
+                        if (file.mimeType.includes('pdf')) {
+                          Haptics.selectionAsync();
+                          setPreviewPdf({ uri: file.uri, name: file.name });
+                        }
+                      }}
+                      activeOpacity={file.mimeType.includes('pdf') ? 0.7 : 1}
+                      accessibilityRole={file.mimeType.includes('pdf') ? 'button' : undefined}
+                      accessibilityLabel={`View ${file.name}`}
+                    >
+                      {file.mimeType.includes('pdf') ? (
+                        <View style={styles.pdfBadgeIcon}>
+                          <Text style={styles.pdfBadgeText}>PDF</Text>
+                        </View>
+                      ) : (
+                        <Image source={{ uri: file.uri }} style={styles.imageThumb} />
+                      )}
 
-                    <View style={styles.fileMeta}>
-                      <Text style={[styles.fileName, { color: palette.text }]} numberOfLines={1}>
-                        {file.name}
-                      </Text>
-                      <Text style={[styles.fileSize, { color: palette.textSecondary }]}>
-                        {file.mimeType}
-                        {file.size ? ` • ${(file.size / 1024).toFixed(0)} KB` : ''}
-                      </Text>
-                    </View>
+                      <View style={styles.fileMeta}>
+                        <Text style={[styles.fileName, { color: palette.text }]} numberOfLines={1}>
+                          {file.name}
+                        </Text>
+                        <Text style={[styles.fileSize, { color: palette.textSecondary }]}>
+                          {file.mimeType.includes('pdf') ? 'Tap to view PDF • ' : ''}
+                          {file.mimeType}
+                          {file.size ? ` • ${(file.size / 1024).toFixed(0)} KB` : ''}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
                     {/* Quick AI extraction for this file */}
                     <TouchableOpacity
@@ -1141,6 +1159,14 @@ export default function RecordUploadScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Full Screen PDF Viewer Modal */}
+      <PdfViewerModal
+        visible={!!previewPdf}
+        fileUri={previewPdf?.uri || null}
+        fileName={previewPdf?.name}
+        onClose={() => setPreviewPdf(null)}
+      />
     </SafeAreaView>
   );
 }

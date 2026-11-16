@@ -1,4 +1,12 @@
 // app.config.js — Expo dynamic config
+const fs = require('fs');
+const path = require('path');
+
+// Firebase config for push (Lumen AI notifications). From an EAS file secret (GOOGLE_SERVICES_JSON)
+// or ./google-services.json; without it the build still works, just without push.
+const googleServicesFile = process.env.GOOGLE_SERVICES_JSON
+  || (fs.existsSync(path.join(__dirname, 'google-services.json')) ? './google-services.json' : undefined);
+
 module.exports = ({ config }) => ({
   ...config,
   name: 'Lumen',
@@ -30,6 +38,7 @@ module.exports = ({ config }) => ({
       backgroundColor: '#FFF8F0',
     },
     package: 'com.lumen.health',
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     permissions: [
       'CAMERA',
       'READ_MEDIA_IMAGES',
@@ -75,6 +84,15 @@ module.exports = ({ config }) => ({
     'expo-background-task',
     // Native clock-style alarms (full-screen over the lock screen, alarm-volume ringing)
     './plugins/withLumenAlarm',
+    // Lumen AI voice chat: on-device listening (adds RECORD_AUDIO + Google recognizer visibility)
+    [
+      'expo-speech-recognition',
+      {
+        microphonePermission: 'Lumen uses the microphone so you can talk to Lumen AI.',
+        speechRecognitionPermission: 'Lumen turns your speech into text for Lumen AI.',
+        androidSpeechServicePackages: ['com.google.android.googlequicksearchbox', 'com.google.android.as'],
+      },
+    ],
     [
       'expo-build-properties',
       {

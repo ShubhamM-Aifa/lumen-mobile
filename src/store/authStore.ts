@@ -22,6 +22,7 @@ import { useReminderStore } from './reminderStore';
 import { useSleepTrackerStore } from './sleepTrackerStore';
 import { useSecurityStore } from './securityStore';
 import { useWeatherStore } from './weatherStore';
+import { unregisterPushToken } from '../services/pushRegistration';
 
 const USER_CACHE_KEY = 'lumen:auth:user_v1';
 const SAVED_ACCOUNTS_KEY = 'lumen:auth:saved_accounts_v1';
@@ -509,6 +510,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const { user, savedAccounts } = get();
+    // Stop Lumen AI pushes for this account on this phone (needs the session, so before logging out).
+    await unregisterPushToken().catch(() => {});
     try {
       await api.post('/auth/logout', {}).catch(() => {});
     } catch {}

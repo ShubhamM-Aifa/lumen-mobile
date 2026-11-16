@@ -15,6 +15,12 @@ export interface NoteEditorWrapperProps {
   doc: Record<string, unknown> | null;
   placeholder?: string;
   onChange: (doc: Record<string, unknown>) => void;
+  actionCommand?: {
+    id: number;
+    type: string;
+    payload?: any;
+  } | null;
+  hideToolbar?: boolean;
 }
 
 export function NoteEditorWrapper({
@@ -22,6 +28,8 @@ export function NoteEditorWrapper({
   doc,
   placeholder,
   onChange,
+  actionCommand,
+  hideToolbar = false,
 }: NoteEditorWrapperProps) {
   const router = useRouter();
   const { palette, colorScheme } = useTheme();
@@ -151,6 +159,7 @@ export function NoteEditorWrapper({
           initialDoc={doc}
           placeholder={placeholder}
           theme={themeTokens}
+          actionCommand={actionCommand}
           onChange={onChange}
           onPickImage={handlePickImage}
           onPickFile={handlePickFile}
@@ -161,28 +170,30 @@ export function NoteEditorWrapper({
         />
       </View>
 
-      <NoteEditorNativeToolbar
-        onSlashPress={() => runEditorCommand('openSlashMenu')}
-        onBoldPress={() => runEditorCommand('toggleBold')}
-        onItalicPress={() => runEditorCommand('toggleItalic')}
-        onTodoPress={() => runEditorCommand('toggleTaskList')}
-        onBulletPress={() => runEditorCommand('toggleBulletList')}
-        onCalloutPress={() => runEditorCommand('toggleCallout')}
-        onUndoPress={() => runEditorCommand('undo')}
-        onRedoPress={() => runEditorCommand('redo')}
-        onImagePress={async () => {
-          const res = await handlePickImage();
-          if (res?.url && typeof window !== 'undefined' && (window as any).__lumenEditor?.insertImage) {
-            (window as any).__lumenEditor.insertImage(res.url, res.name);
-          }
-        }}
-        onFilePress={async () => {
-          const res = await handlePickFile();
-          if (res?.mediaId && typeof window !== 'undefined' && (window as any).__lumenEditor?.insertFile) {
-            (window as any).__lumenEditor.insertFile(res);
-          }
-        }}
-      />
+      {!hideToolbar && (
+        <NoteEditorNativeToolbar
+          onSlashPress={() => runEditorCommand('openSlashMenu')}
+          onBoldPress={() => runEditorCommand('toggleBold')}
+          onItalicPress={() => runEditorCommand('toggleItalic')}
+          onTodoPress={() => runEditorCommand('toggleTaskList')}
+          onBulletPress={() => runEditorCommand('toggleBulletList')}
+          onCalloutPress={() => runEditorCommand('toggleCallout')}
+          onUndoPress={() => runEditorCommand('undo')}
+          onRedoPress={() => runEditorCommand('redo')}
+          onImagePress={async () => {
+            const res = await handlePickImage();
+            if (res?.url && typeof window !== 'undefined' && (window as any).__lumenEditor?.insertImage) {
+              (window as any).__lumenEditor.insertImage(res.url, res.name);
+            }
+          }}
+          onFilePress={async () => {
+            const res = await handlePickFile();
+            if (res?.mediaId && typeof window !== 'undefined' && (window as any).__lumenEditor?.insertFile) {
+              (window as any).__lumenEditor.insertFile(res);
+            }
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

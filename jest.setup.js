@@ -27,3 +27,23 @@ jest.mock('react-native-webview', () => {
     default: MockWebView,
   };
 });
+
+// Lumen AI voice: native speech modules. Tests that drive them override these per file.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
+    isRecognitionAvailable: jest.fn(() => true),
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+  },
+  useSpeechRecognitionEvent: jest.fn(),
+}));
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(async () => undefined),
+}));
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn(), remove: jest.fn(), addListener: jest.fn(() => ({ remove: jest.fn() })) })),
+  setAudioModeAsync: jest.fn(async () => undefined),
+}));

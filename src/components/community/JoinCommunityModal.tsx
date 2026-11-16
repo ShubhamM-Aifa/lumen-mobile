@@ -67,7 +67,7 @@ export const JoinCommunityModal: React.FC<Props> = ({ visible, onClose, onJoined
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}

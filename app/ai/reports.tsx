@@ -4,7 +4,8 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } fr
 import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 import { AiSetupNotice } from '../../src/components/ai/AiSetupNotice';
 import { AiMessageText } from '../../src/components/ai/AiMessageText';
-import { useAiAccess, useAiWeeklyReports, useGenerateWeeklyReport, weekLabel } from '../../src/hooks/useAiChat';
+import { router } from 'expo-router';
+import { useAiAccess, useAiWeeklyReports, useGenerateWeeklyReport, useSaveReviewAsNote, weekLabel } from '../../src/hooks/useAiChat';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 
@@ -15,6 +16,7 @@ export default function AiWeeklyReportsScreen() {
   const enabled = !!access.data?.fullAccess;
   const reports = useAiWeeklyReports(enabled);
   const generate = useGenerateWeeklyReport();
+  const saveReview = useSaveReviewAsNote();
   const [open, setOpen] = useState<string | null>(null);
 
   if (access.data && !enabled) {
@@ -63,9 +65,27 @@ export default function AiWeeklyReportsScreen() {
               accessibilityState={{ expanded }}
             >
               <Text style={styles.week} maxFontSizeMultiplier={1.3}>Week of {weekLabel(r.weekStart, r.weekEnd)}</Text>
+              {r.modelLabel ? <Text style={styles.model} maxFontSizeMultiplier={1.2}>Written by {r.modelLabel}</Text> : null}
               {expanded
                 ? <AiMessageText text={r.text} style={styles.text} />
                 : <Text style={styles.preview} numberOfLines={3} maxFontSizeMultiplier={1.3}>{r.text.replace(/[*#]/g, '').replace(/\s+/g, ' ').trim()}</Text>}
+              {expanded ? (
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={() => saveReview.mutate(r.id, {
+                    onSuccess: res => Alert.alert('Saved to Notes', `“${res.title}”`, [
+                      { text: 'OK', style: 'cancel' },
+                      { text: 'Open note', onPress: () => router.push(`/notes/${res.noteId}`) },
+                    ]),
+                    onError: err => Alert.alert('Could not save', err instanceof Error ? err.message : ''),
+                  })}
+                  disabled={saveReview.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save this review as a note"
+                >
+                  <Text style={styles.saveText}>{saveReview.isPending ? 'Saving…' : 'Save to Notes'}</Text>
+                </TouchableOpacity>
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -83,6 +103,9 @@ const useStyles = createThemedStyles(palette => ({
   empty: { ...typography.body, color: palette.textSecondary },
   card: { backgroundColor: palette.surface, borderRadius: 22, padding: 16, gap: 8 },
   week: { ...typography.headline, color: palette.text },
+  model: { ...typography.caption, color: palette.textSecondary, marginTop: -6 },
+  saveBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  saveText: { ...typography.bodyBold, color: palette.primaryText },
   preview: { ...typography.body, color: palette.textSecondary, lineHeight: 22 },
   text: { ...typography.body, color: palette.text, lineHeight: 22 },
 }));
