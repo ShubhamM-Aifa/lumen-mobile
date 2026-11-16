@@ -69,6 +69,7 @@ function iosMotionSource(): StepSource {
 
 const READ_STEPS = { accessType: 'read', recordType: 'Steps' } as const;
 const READ_IN_BACKGROUND = { accessType: 'read', recordType: 'BackgroundAccessPermission' } as const;
+const READ_SLEEP = { accessType: 'read', recordType: 'SleepSession' } as const;
 
 function healthConnectSource(): StepSource {
   const HC = require('react-native-health-connect') as typeof import('react-native-health-connect');
@@ -104,7 +105,7 @@ function healthConnectSource(): StepSource {
     requestAccess: async () => {
       if (!(await init())) return false;
       try {
-        const granted = await HC.requestPermission([READ_STEPS, READ_IN_BACKGROUND]);
+        const granted = await HC.requestPermission([READ_STEPS, READ_IN_BACKGROUND, READ_SLEEP]);
         return granted.some(p => p.recordType === 'Steps');
       } catch {
         return false;
