@@ -80,3 +80,4 @@ describe('syncHealthConnectSleep', () => {
     expect(mockReadRecords).not.toHaveBeenCalled();
   });
 });
+
