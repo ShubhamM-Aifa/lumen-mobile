@@ -48,7 +48,7 @@ export const InviteCommunityModal: React.FC<Props> = ({ visible, server, onClose
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}

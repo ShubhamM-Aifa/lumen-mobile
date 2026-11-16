@@ -20,11 +20,13 @@ import {
 import { api } from '../api/client';
 import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
+import { communitySocket } from '../services/communitySocket';
 
 const SERVERS_CACHE_KEY = 'lumen:community:servers_v1';
 const CHANNELS_CACHE_KEY = 'lumen:community:channels_v1';
 const MESSAGES_CACHE_KEY = 'lumen:community:messages_v1';
 const FORUM_CACHE_KEY = 'lumen:community:forum_posts_v1';
+const DMS_CACHE_KEY = 'lumen:community:dms_v1';
 
 interface CommunityState {
   servers: ICommunityServer[];
@@ -48,6 +50,12 @@ interface CommunityState {
   activeThreadParent: ICommunityMessage | null;
   activeThreadReplies: ICommunityMessage[];
 
+  // Discord Real-time, Pins, DMs, & Read State
+  pinnedMessages: Record<string, ICommunityMessage[]>;
+  typingUsers: Record<string, string[]>;
+  readStates: Record<string, string>;
+  dmChannels: ICommunityChannel[];
+
   // Server Actions
   fetchServers: () => Promise<void>;
   setActiveServer: (server: ICommunityServer) => void;
@@ -66,14 +74,34 @@ interface CommunityState {
     channelId: string,
     content: string,
     embedType?: CommunityEmbedType,
-    embedData?: any
+    embedData?: any,
+    audioUrl?: string,
+    audioDurationSeconds?: number,
+    mentions?: string[]
   ) => Promise<ICommunityMessage>;
+  editMessage: (channelId: string, messageId: string, content: string) => Promise<void>;
+  deleteMessage: (channelId: string, messageId: string) => Promise<void>;
+  togglePinMessage: (channelId: string, messageId: string) => Promise<void>;
+  fetchPinnedMessages: (channelId: string) => Promise<void>;
+  markChannelAsRead: (channelId: string, lastReadMessageId?: string) => Promise<void>;
+  fetchReadState: (channelId: string) => Promise<string | undefined>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   toggleAnonymous: () => void;
   setReplyingTo: (
     reply: { messageId: string; senderDisplayName: string; snippet: string } | null
   ) => void;
   toggleCategoryCollapsed: (categoryName: string) => void;
+
+  // Direct Messages & Moderation
+  fetchDms: () => Promise<void>;
+  createOrGetDm: (targetUserId: string) => Promise<ICommunityChannel>;
+  timeoutMember: (
+    serverId: string,
+    userId: string,
+    durationMinutes?: number,
+    reason?: string
+  ) => Promise<void>;
+  setupSocketListeners: () => () => void;
 
   // Discord Profile & Threads
   fetchUserPopout: (userId: string) => Promise<IDiscordUserProfile | null>;
@@ -118,13 +146,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Discord State defaults
   replyingTo: null,
   collapsedCategories: {},
   popoutUser: null,
   forumPosts: [],
   activeThreadParent: null,
   activeThreadReplies: [],
+
+  pinnedMessages: {},
+  typingUsers: {},
+  readStates: {},
+  dmChannels: [],
+
 
   fetchServers: async () => {
     set({ isLoading: true, error: null });
@@ -344,7 +377,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
-  sendMessage: async (channelId, content, embedType, embedData) => {
+  sendMessage: async (channelId, content, embedType, embedData, audioUrl, audioDurationSeconds, mentions) => {
     const tempId = `temp_msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const isAnonymous = get().isAnonymous;
     const replyingTo = get().replyingTo;
@@ -359,6 +392,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       senderRoleBadges: isAnonymous ? ['Anonymous Spoonie'] : ['Community Member'],
       isAnonymous,
       content,
+      mentions: mentions || [],
+      audioUrl,
+      audioDurationSeconds,
       replyTo: replyingTo ? { ...replyingTo } : undefined,
       threadMeta: { replyCount: 0 },
       embedType,
@@ -391,6 +427,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           senderAvatarEmoji: isAnonymous ? '🥄' : '🌟',
           senderRoleColor: isAnonymous ? '#94A3B8' : '#38BDF8',
           senderRoleBadges: isAnonymous ? ['Anonymous Spoonie'] : ['Community Member'],
+          mentions,
+          audioUrl,
+          audioDurationSeconds,
           replyTo: replyingTo ? { ...replyingTo } : undefined,
           embedType,
           embedData,
@@ -411,6 +450,211 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch {}
 
     return optimisticMsg;
+  },
+
+  editMessage: async (channelId: string, messageId: string, content: string) => {
+    // Optimistic update
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m._id === messageId ? { ...m, content, isEdited: true, editedAt: new Date().toISOString() } : m
+      ),
+    }));
+
+    try {
+      const res = await api.patch<ICommunityMessage>(
+        `/community/channels/${channelId}/messages/${messageId}`,
+        { content }
+      );
+      if (res && res._id) {
+        set((state) => ({
+          messages: state.messages.map((m) => (m._id === messageId ? res : m)),
+        }));
+      }
+    } catch (err: any) {
+      get().fetchMessages(channelId);
+      throw err;
+    }
+  },
+
+  deleteMessage: async (channelId: string, messageId: string) => {
+    set((state) => ({
+      messages: state.messages.filter((m) => m._id !== messageId),
+      pinnedMessages: {
+        ...state.pinnedMessages,
+        [channelId]: (state.pinnedMessages[channelId] || []).filter((p) => p._id !== messageId),
+      },
+    }));
+
+    try {
+      await api.delete(`/community/channels/${channelId}/messages/${messageId}`);
+    } catch (err: any) {
+      get().fetchMessages(channelId);
+      throw err;
+    }
+  },
+
+  togglePinMessage: async (channelId: string, messageId: string) => {
+    try {
+      const res = await api.post<ICommunityMessage>(
+        `/community/channels/${channelId}/messages/${messageId}/pin`,
+        {}
+      );
+      if (res && res._id) {
+        set((state) => {
+          const updatedMessages = state.messages.map((m) => (m._id === messageId ? res : m));
+          const currentPins = state.pinnedMessages[channelId] || [];
+          const updatedPins = res.isPinned
+            ? [res, ...currentPins.filter((p) => p._id !== messageId)]
+            : currentPins.filter((p) => p._id !== messageId);
+          return {
+            messages: updatedMessages,
+            pinnedMessages: { ...state.pinnedMessages, [channelId]: updatedPins },
+          };
+        });
+      }
+    } catch {}
+  },
+
+  fetchPinnedMessages: async (channelId: string) => {
+    try {
+      const res = await api.get<ICommunityMessage[]>(`/community/channels/${channelId}/pins`);
+      if (res && Array.isArray(res)) {
+        set((state) => ({
+          pinnedMessages: { ...state.pinnedMessages, [channelId]: res },
+        }));
+      }
+    } catch {}
+  },
+
+  markChannelAsRead: async (channelId: string, lastReadMessageId?: string) => {
+    set((state) => ({
+      readStates: {
+        ...state.readStates,
+        [channelId]: lastReadMessageId || '',
+      },
+    }));
+    try {
+      await api.post(`/community/channels/${channelId}/read`, { lastReadMessageId });
+    } catch {}
+  },
+
+  fetchReadState: async (channelId: string) => {
+    try {
+      const res = await api.get<{ lastReadMessageId?: string }>(`/community/channels/${channelId}/read`);
+      if (res && res.lastReadMessageId) {
+        set((state) => ({
+          readStates: { ...state.readStates, [channelId]: res.lastReadMessageId! },
+        }));
+        return res.lastReadMessageId;
+      }
+    } catch {}
+    return undefined;
+  },
+
+  fetchDms: async () => {
+    try {
+      const cached = await AsyncStorage.getItem(DMS_CACHE_KEY);
+      if (cached) set({ dmChannels: JSON.parse(cached) });
+    } catch {}
+    try {
+      const res = await api.get<ICommunityChannel[]>('/community/dms');
+      if (res && Array.isArray(res)) {
+        set({ dmChannels: res });
+        await AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(res));
+      }
+    } catch {}
+  },
+
+  createOrGetDm: async (targetUserId: string) => {
+    const res = await api.post<ICommunityChannel>('/community/dms', { targetUserId });
+    if (res && res._id) {
+      set((state) => {
+        const exists = state.dmChannels.some((c) => c._id === res._id);
+        const updated = exists
+          ? state.dmChannels.map((c) => (c._id === res._id ? res : c))
+          : [res, ...state.dmChannels];
+        AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+        return { dmChannels: updated };
+      });
+      return res;
+    }
+    throw new Error('Failed to create DM channel');
+  },
+
+  timeoutMember: async (serverId: string, userId: string, durationMinutes = 60, reason?: string) => {
+    await api.post(`/community/servers/${serverId}/timeout`, { userId, durationMinutes, reason });
+  },
+
+  setupSocketListeners: () => {
+    const unsubCreated = communitySocket.onMessageCreated(({ channelId, message }) => {
+      const activeCh = get().activeChannel;
+      if (activeCh && (activeCh._id === channelId || activeCh.slug === channelId)) {
+        set((state) => {
+          const exists = state.messages.some((m) => m._id === message._id);
+          if (exists) return state;
+          return { messages: [...state.messages, message] };
+        });
+      }
+    });
+
+    const unsubUpdated = communitySocket.onMessageUpdated(({ channelId, message }) => {
+      set((state) => ({
+        messages: state.messages.map((m) => (m._id === message._id ? { ...m, ...message } : m)),
+        pinnedMessages: {
+          ...state.pinnedMessages,
+          [channelId]: (state.pinnedMessages[channelId] || []).map((p) =>
+            p._id === message._id ? { ...p, ...message } : p
+          ),
+        },
+      }));
+    });
+
+    const unsubDeleted = communitySocket.onMessageDeleted(({ channelId, messageId }) => {
+      set((state) => ({
+        messages: state.messages.filter((m) => m._id !== messageId),
+        pinnedMessages: {
+          ...state.pinnedMessages,
+          [channelId]: (state.pinnedMessages[channelId] || []).filter((p) => p._id !== messageId),
+        },
+      }));
+    });
+
+    const unsubReaction = communitySocket.onReactionUpdated(({ channelId, messageId, reactions, userReactions }) => {
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m._id === messageId
+            ? { ...m, reactions, ...(userReactions ? { userReactions } : {}) }
+            : m
+        ),
+      }));
+    });
+
+    const unsubTyping = communitySocket.onUserTyping(({ channelId, displayName, isTyping }) => {
+      set((state) => {
+        const currentList = state.typingUsers[channelId] || [];
+        const name = displayName || 'Someone';
+        let updatedList: string[];
+        if (isTyping) {
+          updatedList = currentList.includes(name) ? currentList : [...currentList, name];
+        } else {
+          updatedList = currentList.filter((n) => n !== name);
+        }
+        return {
+          typingUsers: {
+            ...state.typingUsers,
+            [channelId]: updatedList,
+          },
+        };
+      });
+    });
+
+    return () => {
+      unsubCreated();
+      unsubUpdated();
+      unsubDeleted();
+      unsubReaction();
+      unsubTyping();
+    };
   },
 
   toggleReaction: async (messageId: string, emoji: string) => {

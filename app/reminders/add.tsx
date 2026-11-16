@@ -142,7 +142,7 @@ export default function AddReminderScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScreenTopBar
           title="Add Reminder"

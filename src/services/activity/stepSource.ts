@@ -115,10 +115,76 @@ function healthConnectSource(): StepSource {
       const r = await HC.aggregateRecord({ recordType: 'Steps', timeRangeFilter: between(from, to) });
       return r?.COUNT_TOTAL ?? 0;
     },
-    // Health Connect merges overlapping sources (phone + watch) when it aggregates.
+    // Health Connect: reads detailed Steps records so continuous walks are accurately measured.
+    // aggregateGroupByDuration does not interpolate intervals and dumps multi-minute intervals into minute 0.
     minuteSteps: async (from, to) => {
       if (!(await init())) throw new Error('Health Connect is not available');
       const out: MinuteSteps[] = [];
+
+      // 1. Primary: read actual StepsRecord intervals
+      try {
+        const records: any[] = [];
+        let pageToken: string | undefined = undefined;
+        for (let page = 0; page < 20; page++) {
+          const res: any = await HC.readRecords('Steps', {
+            timeRangeFilter: between(from, to),
+            pageSize: 1000,
+            pageToken,
+          });
+          if (Array.isArray(res?.records)) {
+            records.push(...res.records);
+          }
+          if (!res?.pageToken) break;
+          pageToken = res.pageToken;
+        }
+
+        if (records.length > 0) {
+          // Group by dataOrigin to merge overlapping sources (e.g. watch + phone) by taking max per minute
+          const originMinuteMap = new Map<string, Map<number, number>>();
+          for (const rec of records) {
+            const startMs = new Date(rec.startTime).getTime();
+            const endMs = new Date(rec.endTime).getTime();
+            const count = Number(rec.count) || 0;
+            if (count <= 0 || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+              continue;
+            }
+            const origin = rec.metadata?.dataOrigin || 'default';
+            if (!originMinuteMap.has(origin)) {
+              originMinuteMap.set(origin, new Map());
+            }
+            const minMap = originMinuteMap.get(origin)!;
+            const durationMins = Math.max(1, Math.round((endMs - startMs) / MINUTE));
+            const rate = count / durationMins;
+            const startBucket = Math.floor(startMs / MINUTE) * MINUTE;
+            for (let m = 0; m < durationMins; m++) {
+              const bucketTime = startBucket + m * MINUTE;
+              if (bucketTime >= from.getTime() && bucketTime < to.getTime()) {
+                minMap.set(bucketTime, (minMap.get(bucketTime) ?? 0) + rate);
+              }
+            }
+          }
+
+          const mergedMinutes = new Map<number, number>();
+          for (const minMap of originMinuteMap.values()) {
+            for (const [minute, steps] of minMap.entries()) {
+              mergedMinutes.set(minute, Math.max(mergedMinutes.get(minute) ?? 0, Math.round(steps)));
+            }
+          }
+
+          for (const [start, steps] of mergedMinutes.entries()) {
+            if (steps > 0) {
+              out.push({ start, steps });
+            }
+          }
+
+          out.sort((a, b) => a.start - b.start);
+          return out;
+        }
+      } catch (err) {
+        console.warn('[stepSource] readRecords fallback to aggregateGroupByDuration:', err);
+      }
+
+      // 2. Fallback: aggregateGroupByDuration with timezone-safe parsing
       const DAY = 24 * HOUR;
       for (let s = from.getTime(); s < to.getTime(); s += DAY) {
         const e = Math.min(s + DAY, to.getTime());
@@ -129,7 +195,13 @@ function healthConnectSource(): StepSource {
         });
         for (const g of groups) {
           const steps = g.result?.COUNT_TOTAL ?? 0;
-          if (steps > 0) out.push({ start: new Date(g.startTime).getTime(), steps });
+          if (steps > 0) {
+            const rawG = g as unknown as { startTime: string; zoneOffset?: string };
+            const timeStr = (rawG.zoneOffset && !rawG.startTime.includes('+') && !rawG.startTime.includes('Z'))
+              ? `${rawG.startTime}${rawG.zoneOffset}`
+              : rawG.startTime;
+            out.push({ start: new Date(timeStr).getTime(), steps });
+          }
         }
       }
       return out;

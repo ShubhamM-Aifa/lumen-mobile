@@ -8,18 +8,35 @@
  */
 import { Answer } from '@lumen/shared';
 import { uploadMedia, getMimeType } from '../services/mediaUpload';
+import { useAuthStore } from '../store/authStore';
 
 export async function uploadAnswerImages(answers: Answer[]): Promise<Answer[]> {
+  const user = useAuthStore.getState().user;
+  const hasPhotoPin = Boolean(user?.hasPhotoPin);
   const result: Answer[] = [];
   for (const ans of answers) {
+    const optLabel = (ans.optionLabelSnapshot || '').toLowerCase();
     const values = await Promise.all(
       (ans.values ?? []).map(async v => {
         if (v.dataType !== 'image') return v;
+        const fieldKey = (v.fieldKey || '').toLowerCase();
+        const isSensitive =
+          hasPhotoPin ||
+          optLabel.includes('stool') ||
+          optLabel.includes('flare') ||
+          optLabel.includes('skin') ||
+          optLabel.includes('wound') ||
+          optLabel.includes('sensitive') ||
+          fieldKey.includes('stool') ||
+          fieldKey.includes('skin') ||
+          fieldKey.includes('flare') ||
+          fieldKey.includes('sensitive');
+
         const uris: string[] = Array.isArray(v.value)
           ? v.value.map(String)
           : typeof v.value === 'string' && v.value.trim().length > 0
-          ? [v.value.trim()]
-          : [];
+            ? [v.value.trim()]
+            : [];
         const mediaIds: string[] = [];
 
         for (const uri of uris) {
@@ -42,7 +59,7 @@ export async function uploadAnswerImages(answers: Answer[]): Promise<Answer[]> {
           // Local file (file://, content://, ph://, blob:, etc.) -> upload
           try {
             const mime = getMimeType(trimmed);
-            const res = await uploadMedia(trimmed, mime);
+            const res = await uploadMedia(trimmed, mime, isSensitive);
             mediaIds.push(res.mediaId);
           } catch (err) {
             console.warn('[uploadAnswerImages] upload failed for URI:', trimmed, err);

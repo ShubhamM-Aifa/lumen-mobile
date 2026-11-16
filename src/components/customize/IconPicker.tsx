@@ -194,7 +194,7 @@ export function IconPicker({ value, onChange, label = 'Icon' }: Props) {
         onRequestClose={() => setOpen(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.backdrop}
         >
           <Pressable style={styles.backdropTouch} onPress={() => setOpen(false)} />

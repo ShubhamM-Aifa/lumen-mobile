@@ -44,7 +44,7 @@ export function ListEditorModal({ visible, title, initial, onClose, onSave }: Pr
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
         <SafeAreaView edges={['bottom']} style={styles.sheet}>
           <View style={styles.header}>

@@ -42,6 +42,7 @@ interface SleepTrackerState {
   adjustTimes: (bedtime: Date, wakeTime: Date, quality?: SleepQuality) => Promise<void>;
   getLiveElapsedMinutes: () => number;
   setTargetGoalMinutes: (minutes: number) => Promise<void>;
+  setLastSleepRecordFromSync: (record: { date: string; durationMinutes: number; bedtime: string; wakeTime: string }) => void;
 }
 
 const STORAGE_KEY_ACTIVE_SLEEP = 'lumen:sleep_active_start_v1';
@@ -231,6 +232,51 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
       } catch {
         // Ignore if already recorded on server
       }
+
+      // Automatically create Sleep LogEntry in Timeline
+      try {
+        const hours = Math.floor(durationMinutes / 60);
+        const mins = durationMinutes % 60;
+        const bedtimeStr = new Date(bedtimeIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const wakeStr = wakeDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const note = `Sleep: ${hours}h ${mins}m (${bedtimeStr} – ${wakeStr})`;
+
+        await api.post('/logs', {
+          clientId: `sleep:${todayStr}`,
+          source: 'sleep',
+          occurredAt: wakeTimeIso,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          note,
+          answers: [
+            {
+              optionId: 'sleep_summary',
+              optionLabelSnapshot: `${hours}h ${mins}m sleep`,
+              values: [
+                {
+                  fieldKey: 'sleep_duration_minutes',
+                  dataType: 'number',
+                  value: durationMinutes,
+                  unit: 'minutes',
+                },
+                {
+                  fieldKey: 'bedtime',
+                  dataType: 'string',
+                  value: bedtimeIso,
+                },
+                {
+                  fieldKey: 'wake_time',
+                  dataType: 'string',
+                  value: wakeTimeIso,
+                },
+              ],
+            },
+          ],
+        });
+        queryClient.invalidateQueries({ queryKey: ['day-entries'] });
+        queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
+      } catch {
+        // Local state already saved
+      }
     } catch (e) {
       console.warn('[SleepTrackerStore] wakeUp error:', e);
     }
@@ -251,25 +297,45 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
       await AsyncStorage.setItem(STORAGE_KEY_LAST_RECORD, JSON.stringify(updated));
       set({ lastSleepRecord: updated });
 
-      // Optionally log to backend as a wellness log entry
+      // Update / enrich the timeline Sleep LogEntry with quality rating
       try {
         const location = await logLocationService.getFastLocationSnapshot().catch(() => null);
+        const hours = Math.floor(updated.durationMinutes / 60);
+        const mins = updated.durationMinutes % 60;
+        const qualityLabel = quality.charAt(0) + quality.slice(1).toLowerCase();
         await api.post('/logs', {
-          clientId: uuidv4(),
-          source: 'sleep_quality_checkin',
+          clientId: `sleep:${updated.date}`,
+          source: 'sleep',
           occurredAt: updated.wakeTime,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          note: `Sleep: ${hours}h ${mins}m · ${qualityLabel}`,
           answers: [
             {
-              fieldKey: 'sleep_duration_minutes',
-              dataType: 'NUMBER',
-              value: updated.durationMinutes,
-              unit: 'minutes',
-            },
-            {
-              fieldKey: 'sleep_quality',
-              dataType: 'ENUM',
-              value: quality,
+              optionId: 'sleep_summary',
+              optionLabelSnapshot: `${hours}h ${mins}m sleep`,
+              values: [
+                {
+                  fieldKey: 'sleep_duration_minutes',
+                  dataType: 'number',
+                  value: updated.durationMinutes,
+                  unit: 'minutes',
+                },
+                {
+                  fieldKey: 'sleep_quality',
+                  dataType: 'enum',
+                  value: quality,
+                },
+                {
+                  fieldKey: 'bedtime',
+                  dataType: 'string',
+                  value: updated.bedtime,
+                },
+                {
+                  fieldKey: 'wake_time',
+                  dataType: 'string',
+                  value: updated.wakeTime,
+                },
+              ],
             },
           ],
           ...(location ? { location } : {}),
@@ -282,6 +348,15 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
     } catch (e) {
       console.warn('[SleepTrackerStore] recordSleepQuality error:', e);
     }
+  },
+
+  setLastSleepRecordFromSync: (record: { date: string; durationMinutes: number; bedtime: string; wakeTime: string }) => {
+    const fullRecord: SleepRecord = {
+      ...record,
+      targetGoalMinutes: get().targetGoalMinutes,
+    };
+    AsyncStorage.setItem(STORAGE_KEY_LAST_RECORD, JSON.stringify(fullRecord)).catch(() => {});
+    set({ lastSleepRecord: fullRecord });
   },
 
   adjustTimes: async (bedtime: Date, wakeTime: Date, quality?: SleepQuality) => {

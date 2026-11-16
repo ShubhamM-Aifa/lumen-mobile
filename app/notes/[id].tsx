@@ -315,7 +315,7 @@ export default function NoteEditorScreen() {
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Scrollable Page Body */}
         <ScrollView

@@ -157,7 +157,7 @@ export default function QuickLogScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScreenTopBar
           title="Quick Log"

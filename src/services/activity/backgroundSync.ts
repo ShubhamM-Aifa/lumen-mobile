@@ -26,7 +26,11 @@ if (supported) {
     TaskManager.defineTask(AUTO_WALK_TASK, async () => {
       try {
         const { useAutoWalkStore } = require('../../store/autoWalkStore') as typeof import('../../store/autoWalkStore');
-        await useAutoWalkStore.getState().sync({ force: true });
+        const { syncHealthConnectSleep } = require('./sleepSource') as typeof import('./sleepSource');
+        await Promise.allSettled([
+          useAutoWalkStore.getState().sync({ force: true }),
+          syncHealthConnectSleep(),
+        ]);
         return BackgroundTask.BackgroundTaskResult.Success;
       } catch {
         return BackgroundTask.BackgroundTaskResult.Failed;

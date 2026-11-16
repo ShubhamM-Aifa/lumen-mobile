@@ -50,6 +50,7 @@ export default function WalkingDashboardScreen() {
   } = useActivityStore();
   const autoOn = useAutoWalkStore(s => s.enabled);
   const autoMinutes = useAutoWalkStore(s => s.minWalkMinutes);
+  const autoStatus = useAutoWalkStore(s => s.status);
   const phoneStepsToday = useAutoWalkStore(s => s.todaySteps);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -90,10 +91,31 @@ export default function WalkingDashboardScreen() {
     }
   };
 
-  const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
-  const todayMinutes = todaySummary?.totalDurationMinutes ?? 0;
+  const STRIDE_METERS = 0.7;
+  const sessionDistanceKm = todaySummary?.totalDistanceKm ?? 0;
+  const sessionMinutes = todaySummary?.totalDurationMinutes ?? 0;
   // With automatic tracking on, the phone's own count covers the whole day, not just walks
   const todaySteps = Math.max(todaySummary?.totalSteps ?? 0, phoneStepsToday ?? 0);
+  const stepDistanceKm = todaySteps > 0 ? (todaySteps * STRIDE_METERS) / 1000 : 0;
+  const todayDistanceKm = Math.max(sessionDistanceKm, stepDistanceKm);
+  const stepMinutes = todaySteps > 0 ? Math.round(todaySteps / 100) : 0;
+  const todayMinutes = Math.max(sessionMinutes, stepMinutes);
+
+  const avgPace = todaySummary?.averagePaceMinPerKm && todaySummary.averagePaceMinPerKm > 0
+    ? todaySummary.averagePaceMinPerKm
+    : (todayDistanceKm > 0 && todayMinutes > 0 ? (todayMinutes / todayDistanceKm) : null);
+
+  const avgSpeed = todaySummary?.averageSpeedKmh && todaySummary.averageSpeedKmh > 0
+    ? todaySummary.averageSpeedKmh
+    : (todayDistanceKm > 0 && todayMinutes > 0 ? (todayDistanceKm / (todayMinutes / 60)) : null);
+
+  const autoBannerLabel = !autoOn
+    ? 'Find walks automatically, no Start button'
+    : autoStatus === 'no_access'
+      ? 'Step permission needed in phone settings'
+      : autoStatus === 'unavailable'
+        ? 'Step history not available on this phone'
+        : `Walks of ${autoMinutes}+ min are found automatically`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -152,12 +174,10 @@ export default function WalkingDashboardScreen() {
             style={styles.autoRow}
             onPress={() => router.push('/settings')}
             accessibilityRole="button"
-            accessibilityLabel={autoOn ? `Walks are found automatically, shortest walk ${autoMinutes} minutes. Open settings.` : 'Find walks automatically. Open settings to turn it on.'}
+            accessibilityLabel={autoBannerLabel}
           >
             <Sparkles size={15} color={palette.primaryText} />
-            <Text style={styles.autoRowText}>
-              {autoOn ? `Walks of ${autoMinutes}+ min are found automatically` : 'Find walks automatically, no Start button'}
-            </Text>
+            <Text style={styles.autoRowText}>{autoBannerLabel}</Text>
             <ChevronRight size={16} color={palette.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -170,7 +190,7 @@ export default function WalkingDashboardScreen() {
               <View style={[styles.statIconCircle, { backgroundColor: palette.warning + '26' }]}>
                 <Flame size={18} color={palette.warningText} />
               </View>
-              <Text style={styles.statVal}>{todaySummary?.averagePaceMinPerKm ? `${todaySummary.averagePaceMinPerKm.toFixed(1)}` : '--'}</Text>
+              <Text style={styles.statVal}>{avgPace ? `${avgPace.toFixed(1)}` : '--'}</Text>
               <Text style={styles.statLabel}>Avg Pace (min/km)</Text>
             </View>
 
@@ -178,7 +198,7 @@ export default function WalkingDashboardScreen() {
               <View style={[styles.statIconCircle, { backgroundColor: palette.secondary + '26' }]}>
                 <TrendingUp size={18} color={palette.secondaryText} />
               </View>
-              <Text style={styles.statVal}>{todaySummary?.averageSpeedKmh ? `${todaySummary.averageSpeedKmh.toFixed(1)} km/h` : '--'}</Text>
+              <Text style={styles.statVal}>{avgSpeed ? `${avgSpeed.toFixed(1)} km/h` : '--'}</Text>
               <Text style={styles.statLabel}>Avg Speed</Text>
             </View>
           </View>
@@ -193,39 +213,45 @@ export default function WalkingDashboardScreen() {
               <Text style={styles.emptyHistoryText}>No walking sessions recorded yet.</Text>
             </View>
           ) : (
-            history.map((session: IActivitySession) => (
-              <View key={session._id} style={styles.historyCard}>
-                <View style={styles.historyLeft}>
-                  <View style={styles.historyIconWrap}>
-                    <Footprints size={20} color={palette.primaryText} />
-                  </View>
-                  <View style={styles.historyTextCol}>
-                    <Text style={styles.historyTitle}>{session.title || 'Outdoor Walk'}</Text>
-                    <Text style={styles.historyDate}>{formatDate(session.startTime)} • {formatDuration(session.activeDurationSeconds)}</Text>
-                    {session.source === 'AUTO' ? (
-                      <View style={styles.autoMetaRow}>
-                        <View style={styles.autoPill}>
-                          <Text style={styles.autoPillText}>Auto-detected</Text>
+            history.map((session: IActivitySession) => {
+              const sessionDistMeters = (session.distanceMeters && session.distanceMeters > 0)
+                ? session.distanceMeters
+                : Math.round((session.steps || 0) * STRIDE_METERS);
+              const sessionKmStr = (sessionDistMeters / 1000).toFixed(2);
+              return (
+                <View key={session._id} style={styles.historyCard}>
+                  <View style={styles.historyLeft}>
+                    <View style={styles.historyIconWrap}>
+                      <Footprints size={20} color={palette.primaryText} />
+                    </View>
+                    <View style={styles.historyTextCol}>
+                      <Text style={styles.historyTitle}>{session.title || 'Outdoor Walk'}</Text>
+                      <Text style={styles.historyDate}>{formatDate(session.startTime)} • {formatDuration(session.activeDurationSeconds)}</Text>
+                      {session.source === 'AUTO' ? (
+                        <View style={styles.autoMetaRow}>
+                          <View style={styles.autoPill}>
+                            <Text style={styles.autoPillText}>Auto-detected</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => confirmRemove(session)}
+                            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Not a walk. Remove this auto-detected walk."
+                          >
+                            <Text style={styles.notWalkText}>Not a walk?</Text>
+                          </TouchableOpacity>
                         </View>
-                        <TouchableOpacity
-                          onPress={() => confirmRemove(session)}
-                          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-                          accessibilityRole="button"
-                          accessibilityLabel="Not a walk. Remove this auto-detected walk."
-                        >
-                          <Text style={styles.notWalkText}>Not a walk?</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View style={styles.historyRight}>
+                    <Text style={styles.historyKm}>{session.source === 'AUTO' ? '~' : ''}{sessionKmStr} km</Text>
+                    <Text style={styles.historySteps}>{session.steps || 0} steps</Text>
                   </View>
                 </View>
-
-                <View style={styles.historyRight}>
-                  <Text style={styles.historyKm}>{session.source === 'AUTO' ? '~' : ''}{(session.distanceMeters / 1000).toFixed(2)} km</Text>
-                  <Text style={styles.historySteps}>{session.steps || 0} steps</Text>
-                </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 

@@ -38,7 +38,9 @@ const SOURCE_LABEL: Record<string, string> = {
   questionnaire: 'Log',
   check_in: 'Check-in',
   reminder: 'Reminder',
-  activity: 'Activity',
+  activity: 'Walking',
+  sleep: 'Sleep',
+  sleep_quality_checkin: 'Sleep Check-in',
 };
 
 function formatTime(iso: string): string {
@@ -125,15 +127,30 @@ export function TimelineItem({
   const styles = useStyles();
 
   const isQuickAction = entry.source === 'quick_action' || !!entry.quickActionId;
-  const title = isQuickAction
-    ? quickAction?.label ?? 'Quick Tap'
-    : category?.name ?? 'Log';
-  const icon = isQuickAction
-    ? quickAction?.icon ?? '⚡'
-    : category?.icon ?? null;
-  const accentColor = isQuickAction
-    ? quickAction?.color ?? palette.primary
-    : category?.color ?? palette.primary;
+  const isActivity = entry.source === 'activity';
+  const isSleep = entry.source === 'sleep' || entry.source === 'sleep_quality_checkin';
+
+  let title = category?.name ?? 'Log';
+  let icon = category?.icon ?? null;
+  let accentColor = category?.color ?? palette.primary;
+
+  if (isQuickAction) {
+    title = quickAction?.label ?? 'Quick Tap';
+    icon = quickAction?.icon ?? '⚡';
+    accentColor = quickAction?.color ?? palette.primary;
+  } else if (isActivity) {
+    title = entry.note?.includes('Daily Activity')
+      ? 'Daily Walking & Steps'
+      : entry.note?.includes('auto-detected')
+        ? 'Walk (Auto-detected)'
+        : 'Walk';
+    icon = '🚶';
+    accentColor = palette.primary;
+  } else if (isSleep) {
+    title = 'Sleep';
+    icon = '🌙';
+    accentColor = palette.secondary;
+  }
 
   const quickValueText =
     quickAction?.defaultValue != null
@@ -310,6 +327,10 @@ export function TimelineItem({
               <Text style={styles.sub} maxFontSizeMultiplier={1.4}>
                 {quickValueText ? <Text style={styles.subStrong}>{quickValueText} · </Text> : null}
                 {sourceLabel}
+              </Text>
+            ) : isActivity || isSleep ? (
+              <Text style={styles.sub} numberOfLines={isExpanded ? undefined : 2} maxFontSizeMultiplier={1.4}>
+                {entry.note ? <Text style={styles.subStrong}>{entry.note}</Text> : sourceLabel}
               </Text>
             ) : answerParts.length > 0 ? (
               <Text style={styles.sub} numberOfLines={isExpanded ? undefined : 3} maxFontSizeMultiplier={1.4}>

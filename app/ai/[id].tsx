@@ -18,6 +18,7 @@ import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 import { AiMessageText } from '../../src/components/ai/AiMessageText';
 import { AiPhotoThumb } from '../../src/components/ai/AiPhotoThumb';
 import { AiSetupNotice } from '../../src/components/ai/AiSetupNotice';
+import { useKeyboard } from '../../src/hooks/useKeyboard';
 import {
   useAiAccess, useAiConversation, useSaveMessageAsNote, useSendAiMessage, type AiArtifact, type SendAiMessage,
 } from '../../src/hooks/useAiChat';
@@ -48,6 +49,7 @@ export default function AiChatScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
+  const { isKeyboardVisible } = useKeyboard();
 
   const access = useAiAccess();
   const conversation = useAiConversation(isNew ? undefined : id);
@@ -172,7 +174,7 @@ export default function AiChatScreen() {
   const empty = messages.length === 0 && !pending && !failure;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScreenTopBar
         title={conversation.data?.title ?? 'Lumen AI'}
         fallbackRoute="/ai"
@@ -246,7 +248,16 @@ export default function AiChatScreen() {
         ) : null}
       </ScrollView>
 
-      <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
+      <View
+        style={[
+          styles.composer,
+          {
+            paddingBottom: isKeyboardVisible
+              ? (Platform.OS === 'ios' ? 8 : 6)
+              : (Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 8),
+          },
+        ]}
+      >
         {attachments.length > 0 ? (
           <ScrollView horizontal contentContainerStyle={styles.attachRow}>
             {attachments.map(a => (

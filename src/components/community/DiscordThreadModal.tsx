@@ -16,6 +16,8 @@ import { ICommunityMessage } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
 import { useAuthStore } from '../../store/authStore';
 import { ModularAvatar } from '../avatar/ModularAvatar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboard } from '../../hooks/useKeyboard';
 
 interface Props {
   visible: boolean;
@@ -35,6 +37,8 @@ export const DiscordThreadModal: React.FC<Props> = ({
   onPressProfile,
 }) => {
   const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { isKeyboardVisible } = useKeyboard();
   const { user } = useAuthStore();
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -56,7 +60,7 @@ export const DiscordThreadModal: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={[styles.container, { backgroundColor: palette.surface }]}>
           {/* Header */}
@@ -141,7 +145,16 @@ export const DiscordThreadModal: React.FC<Props> = ({
           </ScrollView>
 
           {/* Composer */}
-          <View style={[styles.composerRow, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
+          <View
+            style={[
+              styles.composerRow,
+              {
+                backgroundColor: palette.surface,
+                borderTopColor: palette.border,
+                paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 10),
+              },
+            ]}
+          >
             <TextInput
               style={[
                 styles.composerInput,

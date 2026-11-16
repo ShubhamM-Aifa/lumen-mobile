@@ -316,8 +316,15 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     const endTime = new Date().toISOString();
     // The live step counter stops while the screen is locked; the phone's own history does not.
     const historySteps = await stepsFromPhoneHistory(activeSession.startTime, endTime);
-    const distKm = Math.max(distanceMeters, finalDistance) / 1000;
-    const avgSpeed = finalActiveSeconds > 0 ? distKm / (finalActiveSeconds / 3600) : 0;
+    const totalSteps = Math.max(get().steps, finalSteps, historySteps);
+    let sessionDistanceMeters = Math.max(distanceMeters, finalDistance);
+    // If GPS did not record distance (e.g. indoors, treadmill, poor GPS accuracy), estimate from steps
+    if (sessionDistanceMeters === 0 && totalSteps > 0) {
+      sessionDistanceMeters = Math.round(totalSteps * 0.7);
+    }
+    const distKm = sessionDistanceMeters / 1000;
+    const avgSpeed = finalActiveSeconds > 0 && distKm > 0 ? distKm / (finalActiveSeconds / 3600) : 0;
+    const avgPace = distKm > 0 && finalActiveSeconds > 0 ? (finalActiveSeconds / 60) / distKm : 0;
 
     const completedSession: IActivitySession = {
       ...activeSession,
@@ -325,10 +332,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       endTime,
       activeDurationSeconds: finalActiveSeconds,
       totalDurationSeconds: finalActiveSeconds,
-      distanceMeters: Math.max(distanceMeters, finalDistance),
-      steps: Math.max(get().steps, finalSteps, historySteps),
+      distanceMeters: sessionDistanceMeters,
+      steps: totalSteps,
       averageSpeedKmh: Number(avgSpeed.toFixed(2)),
-      averagePaceMinPerKm: Number(averagePaceMinPerKm.toFixed(2)),
+      averagePaceMinPerKm: Number(avgPace.toFixed(2)),
       hasRouteData: routePoints.length > 0,
       routePoints: routePoints.slice(0, 300), // Cap route points
       notes,

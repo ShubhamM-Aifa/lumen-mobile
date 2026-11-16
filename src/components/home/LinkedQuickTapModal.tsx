@@ -195,7 +195,7 @@ export function LinkedQuickTapModal({ visible, action, onClose, onSuccess }: Pro
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardWrap}
         >
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>

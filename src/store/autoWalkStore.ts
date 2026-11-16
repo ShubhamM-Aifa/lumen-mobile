@@ -138,7 +138,7 @@ export const useAutoWalkStore = create<AutoWalkState>((set, get) => {
           const outcome = await runAutoWalkSync({
             source,
             now,
-            cursor: get().cursor,
+            cursor: opts.force ? null : get().cursor,
             minWalkMinutes: get().minWalkMinutes,
             post: (path, body) => api.post(path, body),
             put: (path, body) => api.put(path, body),
@@ -153,7 +153,7 @@ export const useAutoWalkStore = create<AutoWalkState>((set, get) => {
             ...(outcome.todaySteps !== null ? { todaySteps: outcome.todaySteps, todayKey: dayKey(now) } : {}),
           });
           persist();
-          if (outcome.walks.length > 0) refreshScreens();
+          refreshScreens();
         } catch {
           set({ status: 'error' });
         } finally {

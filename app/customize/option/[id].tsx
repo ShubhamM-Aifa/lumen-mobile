@@ -181,7 +181,7 @@ export default function OptionEditorScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView scrollEnabled={scrollEnabled} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Live Preview */}
@@ -337,7 +337,7 @@ function FieldEditModal({ field, onSave, onClose }: FieldEditModalProps) {
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={[styles.sheetCard, { backgroundColor: palette.background }]}>

@@ -374,7 +374,7 @@ export default function QuestionSheet() {
     <View style={styles.screen}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Stack.Screen options={{ headerShown: false }} />
 

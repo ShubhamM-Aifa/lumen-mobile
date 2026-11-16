@@ -305,12 +305,15 @@ export async function syncLiveWidgetsFromStores(): Promise<void> {
       const activityState = useActivityStore?.getState?.();
       const autoWalkState = useAutoWalkStore?.getState?.();
 
+      let summaryDistKm = 0;
       if (activityState?.todaySummary) {
         const s = activityState.todaySummary;
-        if (typeof s.distanceMeters === 'number') {
-          distanceKm = (s.distanceMeters / 1000).toFixed(1);
-        }
-        if (typeof s.activeMinutes === 'number') {
+        summaryDistKm = typeof s.totalDistanceKm === 'number'
+          ? s.totalDistanceKm
+          : (typeof s.totalDistanceMeters === 'number' ? s.totalDistanceMeters / 1000 : 0);
+        if (typeof s.totalDurationMinutes === 'number') {
+          activeMinutes = s.totalDurationMinutes;
+        } else if (typeof s.activeMinutes === 'number') {
           activeMinutes = s.activeMinutes;
         }
         if (typeof s.activeGoalMinutes === 'number') {
@@ -320,9 +323,18 @@ export async function syncLiveWidgetsFromStores(): Promise<void> {
 
       if (autoWalkState?.enabled && typeof autoWalkState.todaySteps === 'number') {
         stepsToday = autoWalkState.todaySteps;
+      } else if (activityState?.todaySummary?.totalSteps) {
+        stepsToday = activityState.todaySummary.totalSteps;
       } else if (activityState?.todaySummary?.steps) {
         stepsToday = activityState.todaySummary.steps;
       }
+
+      const stepDistKm = stepsToday > 0 ? (stepsToday * 0.7) / 1000 : 0;
+      const effectiveDistKm = Math.max(summaryDistKm, stepDistKm);
+      distanceKm = effectiveDistKm.toFixed(1);
+
+      const stepActiveMin = stepsToday > 0 ? Math.round(stepsToday / 100) : 0;
+      activeMinutes = Math.max(activeMinutes, stepActiveMin);
     } catch {}
 
     await saveWidgetSnapshot({

@@ -140,7 +140,7 @@ export default function TaskScreen() {
   return (
     <View style={styles.container}>
       <ScreenTopBar fallbackRoute="/todo" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"

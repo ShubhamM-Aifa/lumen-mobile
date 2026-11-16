@@ -8,7 +8,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Award, FileText, CheckSquare, Sparkles, MessageSquare } from 'lucide-react-native';
+import { X, Award, FileText, CheckSquare, Sparkles, MessageSquare, Mail } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { IDiscordUserProfile } from '../../shared/types';
 import { ModularAvatar } from '../avatar/ModularAvatar';
@@ -18,6 +18,7 @@ interface Props {
   user: IDiscordUserProfile | null;
   onClose: () => void;
   onMention?: (displayName: string) => void;
+  onDirectMessage?: (userId: string) => void;
 }
 
 export const DiscordProfilePopoutModal: React.FC<Props> = ({
@@ -25,6 +26,7 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
   user,
   onClose,
   onMention,
+  onDirectMessage,
 }) => {
   const { palette } = useTheme();
 
@@ -136,16 +138,48 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
 
                 {/* Actions */}
                 <View style={styles.actionsRow}>
+                  {onDirectMessage && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: palette.primary, flex: 1, marginRight: 8 }]}
+                      onPress={() => {
+                        onClose();
+                        onDirectMessage(user.userId);
+                      }}
+                    >
+                      <Mail size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.actionBtnText}>Message</Text>
+                    </TouchableOpacity>
+                  )}
+
                   {onMention && (
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: palette.primary }]}
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: onDirectMessage ? palette.surface : palette.primary,
+                          borderWidth: onDirectMessage ? 1 : 0,
+                          borderColor: palette.border,
+                          flex: onDirectMessage ? 1 : undefined,
+                        },
+                      ]}
                       onPress={() => {
                         onMention(user.displayName);
                         onClose();
                       }}
                     >
-                      <MessageSquare size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.actionBtnText}>Mention in Chat</Text>
+                      <MessageSquare
+                        size={15}
+                        color={onDirectMessage ? palette.text : '#FFFFFF'}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.actionBtnText,
+                          { color: onDirectMessage ? palette.text : '#FFFFFF' },
+                        ]}
+                      >
+                        Mention
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>

@@ -35,9 +35,12 @@ export default function CommunityDirectoryScreen() {
     fetchChannels,
     setActiveChannel,
     activeChannel,
+    dmChannels,
+    fetchDms,
     isLoading,
   } = useCommunityStore();
 
+  const [isDmsMode, setIsDmsMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [createCommunityVisible, setCreateCommunityVisible] = useState(false);
@@ -47,14 +50,17 @@ export default function CommunityDirectoryScreen() {
   useEffect(() => {
     fetchServers();
     fetchChannels();
-  }, [fetchServers, fetchChannels]);
+    fetchDms();
+  }, [fetchServers, fetchChannels, fetchDms]);
 
-  const filteredChannels = channels.filter(
+  const displayedChannels = isDmsMode ? dmChannels : channels;
+
+  const filteredChannels = displayedChannels.filter(
     (c) =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.topic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.category.toLowerCase().includes(searchQuery.toLowerCase())
+      (c.topic && c.topic.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (c.category && c.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleOpenChannel = (channel: ICommunityChannel) => {
@@ -74,7 +80,7 @@ export default function CommunityDirectoryScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScreenTopBar
         sheet
-        title={activeServer?.name || 'Lumen Community Hub'}
+        title={isDmsMode ? 'Direct Messages' : (activeServer?.name || 'Lumen Community Hub')}
         backLabel="Go back to dashboard"
         onBack={() => safeGoBack('/(tabs)/today')}
         right={
@@ -96,7 +102,7 @@ export default function CommunityDirectoryScreen() {
           <Search size={16} color={palette.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search channels, categories, topics..."
+            placeholder={isDmsMode ? 'Search conversations...' : 'Search channels, categories, topics...'}
             placeholderTextColor={palette.placeholder}
             accessibilityLabel="Search channels"
             value={searchQuery}
@@ -116,8 +122,16 @@ export default function CommunityDirectoryScreen() {
         {/* Discord Vertical Server Rail */}
         <DiscordServerRail
           servers={servers}
-          activeServerId={activeServer?._id}
-          onSelectServer={handleSelectServer}
+          activeServerId={isDmsMode ? undefined : activeServer?._id}
+          isDmsActive={isDmsMode}
+          onSelectDms={() => {
+            setIsDmsMode(true);
+            fetchDms();
+          }}
+          onSelectServer={(server) => {
+            setIsDmsMode(false);
+            handleSelectServer(server);
+          }}
           onPressAddServer={() => setCreateCommunityVisible(true)}
           onPressJoinServer={() => setJoinCommunityVisible(true)}
         />

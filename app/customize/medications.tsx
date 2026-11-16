@@ -204,7 +204,7 @@ export default function MedicationsScreen() {
         <Modal visible animationType="slide" transparent onRequestClose={() => setEditing(null)}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
             <View style={[styles.sheetCard, { backgroundColor: palette.background }]}>

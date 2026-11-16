@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Plus, Compass, KeyRound } from 'lucide-react-native';
+import { Plus, Compass, KeyRound, MessageCircle } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityServer } from '../../shared/types';
 import { LumenIcon } from '../common/LumenLogo';
@@ -9,6 +9,8 @@ import { LumenIcon } from '../common/LumenLogo';
 interface Props {
   servers: ICommunityServer[];
   activeServerId?: string;
+  isDmsActive?: boolean;
+  onSelectDms?: () => void;
   onSelectServer: (server: ICommunityServer) => void;
   onPressAddServer: () => void;
   onPressJoinServer: () => void;
@@ -17,6 +19,8 @@ interface Props {
 export const DiscordServerRail: React.FC<Props> = ({
   servers,
   activeServerId,
+  isDmsActive = false,
+  onSelectDms,
   onSelectServer,
   onPressAddServer,
   onPressJoinServer,
@@ -29,6 +33,47 @@ export const DiscordServerRail: React.FC<Props> = ({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Direct Messages Tab (Discord DMs Top Icon) */}
+        {onSelectDms && (
+          <>
+            <View style={styles.serverItemWrapper}>
+              <View
+                style={[
+                  styles.activeIndicator,
+                  {
+                    backgroundColor: isDmsActive ? palette.primary : 'transparent',
+                    height: isDmsActive ? 34 : 0,
+                  },
+                ]}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onSelectDms();
+                }}
+                style={[
+                  styles.serverIconBtn,
+                  {
+                    backgroundColor: isDmsActive
+                      ? palette.primary
+                      : `${palette.primary}20`,
+                    borderRadius: isDmsActive ? 16 : 24,
+                  },
+                ]}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Direct Messages"
+              >
+                <MessageCircle
+                  size={22}
+                  color={isDmsActive ? '#FFFFFF' : palette.primaryText || palette.primary}
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.divider, { backgroundColor: palette.border }]} />
+          </>
+        )}
+
         {servers.map((server) => {
           const isActive = server._id === activeServerId;
 

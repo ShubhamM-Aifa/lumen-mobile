@@ -135,7 +135,10 @@ export default function ActiveWalkingScreen() {
     );
   };
 
-  const distanceKm = (distanceMeters / 1000).toFixed(2);
+  const effectiveDistanceMeters = (distanceMeters && distanceMeters > 0)
+    ? distanceMeters
+    : Math.round((steps || 0) * 0.7);
+  const distanceKm = (effectiveDistanceMeters / 1000).toFixed(2);
   const speedDisplay = (currentSpeedKmh || 0).toFixed(1);
   const estimatedCalories = Math.round(
     steps * 0.042 + (activeSeconds / 60) * 3.8

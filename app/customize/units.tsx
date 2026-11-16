@@ -108,7 +108,7 @@ export default function UnitsScreen() {
 
       {editing && (
         <Modal visible animationType="slide" transparent>
-          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <Pressable style={styles.backdrop} onPress={() => setEditing(null)} />
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>

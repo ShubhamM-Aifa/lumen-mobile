@@ -226,14 +226,15 @@ export default function TodayScreen() {
           onPress: () => { setSelectedWaterActionId(waterAction?._id); setWaterModalVisible(true); },
         };
       case 'walking':
+        const effectiveWalkingKm = Math.max(todayDistanceKm, phoneStepsToday ? (phoneStepsToday * 0.7) / 1000 : 0);
         return {
           icon: Footprints, tile: palette.catFood, label: 'Walking',
           sub: isTracking
             ? 'Tracking live'
             : phoneStepsToday !== null
-              ? `${phoneStepsToday.toLocaleString()} steps · ${todayWalkingMinutes} min`
+              ? `${phoneStepsToday.toLocaleString()} steps · ${totalActiveMinutes} min`
               : `${todayWalkingMinutes} min`,
-          value: `${todayDistanceKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
+          value: `${effectiveWalkingKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
         };
       case 'active_time':
         return {

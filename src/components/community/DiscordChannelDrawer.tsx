@@ -71,6 +71,9 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
     if (type === 'announcement') {
       return <Volume2 size={15} color={color} style={styles.channelIcon} />;
     }
+    if (type === 'dm') {
+      return <MessageSquare size={15} color={color} style={styles.channelIcon} />;
+    }
     return <Hash size={16} color={color} style={styles.channelIcon} />;
   };
 
@@ -171,6 +174,12 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
                       {channel.type === 'forum' && (
                         <View style={[styles.forumPill, { backgroundColor: `${palette.primary}25` }]}>
                           <Text style={[styles.forumPillText, { color: palette.primaryText }]}>Forum</Text>
+                        </View>
+                      )}
+
+                      {Boolean(channel.unreadCount && channel.unreadCount > 0) && (
+                        <View style={[styles.unreadBadge, { backgroundColor: palette.primary }]}>
+                          <Text style={styles.unreadBadgeText}>{channel.unreadCount}</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -330,6 +339,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   forumPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  unreadBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
   },
