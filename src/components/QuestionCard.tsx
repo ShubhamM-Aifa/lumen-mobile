@@ -144,9 +144,18 @@ export function QuestionCard({
           ) : null}
           <View style={styles.titleGroup}>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>{question.title}</Text>
+              <Text style={styles.title} numberOfLines={2}>
+                {question.title}
+              </Text>
               {question.required && !isOncePerDayCompleted && <Text style={styles.required}> *</Text>}
             </View>
+            {!isCardExpanded && hasHistory && (
+              <Text style={styles.historySubtitle} numberOfLines={1}>
+                {isToday
+                  ? (latestHistory?.timeFormatted ? `Today at ${latestHistory.timeFormatted}` : 'Logged today')
+                  : `Logged for ${targetDayLabel || 'selected day'}`}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -155,17 +164,16 @@ export function QuestionCard({
           {!isCardExpanded && (
             answers.length > 0 ? (
               <View style={styles.collapsedAnswerBadge}>
-                <CheckCircle2 size={11} color="#059669" />
+                <CheckCircle2 size={12} color="#059669" strokeWidth={2.4} />
                 <Text style={styles.collapsedAnswerBadgeText} numberOfLines={1}>
                   {answers.map(a => a.optionLabelSnapshot || 'Selected').join(', ')}
                 </Text>
               </View>
             ) : hasHistory ? (
               <View style={styles.collapsedHistoryBadge}>
+                <CheckCircle2 size={12} color="#059669" strokeWidth={2.4} />
                 <Text style={styles.collapsedHistoryBadgeText}>
-                  {todayHistory.length === 1
-                    ? (isToday ? 'Logged today' : `Logged on ${targetDayLabel || 'this day'}`)
-                    : `Logged (${todayHistory.length})`}
+                  {todayHistory.length > 1 ? `Logged (${todayHistory.length})` : 'Logged'}
                 </Text>
               </View>
             ) : (
@@ -769,9 +777,11 @@ export function QuestionCard({
 const useStyles = createThemedStyles(palette => ({
   card: {
     backgroundColor: palette.surface,
-    borderRadius: 26,
+    borderRadius: 22,
     padding: 16,
     gap: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
   header: { flexDirection: 'row', gap: 10 },
   icon: { fontSize: 22, paddingTop: 2 },
@@ -1256,17 +1266,25 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+    minHeight: 40,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     flex: 1,
+  },
+  historySubtitle: {
+    ...typography.caption,
+    color: palette.successText,
+    fontWeight: '500',
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
   chevronBtn: {
     width: 32,
@@ -1281,14 +1299,22 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 4,
     backgroundColor: palette.success + '1F',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    maxWidth: 140,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    maxWidth: 120,
   },
-  collapsedAnswerBadgeText: { ...typography.footnote, fontWeight: '600', color: palette.successText },
-  collapsedHistoryBadge: { backgroundColor: palette.success + '1F', paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 10 },
-  collapsedHistoryBadgeText: { ...typography.footnote, fontWeight: '600', color: palette.successText },
+  collapsedAnswerBadgeText: { ...typography.footnote, fontWeight: '700', color: palette.successText },
+  collapsedHistoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.success + '1F',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+  },
+  collapsedHistoryBadgeText: { ...typography.footnote, fontWeight: '700', color: palette.successText },
   collapsedUnansweredBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: palette.surfaceAlt },
   collapsedUnansweredBadgeText: { ...typography.footnote, color: palette.textSecondary },
   expandedContent: {

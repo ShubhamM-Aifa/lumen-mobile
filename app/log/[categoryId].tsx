@@ -378,25 +378,27 @@ export default function QuestionSheet() {
       >
         <Stack.Screen options={{ headerShown: false }} />
 
-        <ScreenTopBar
-          title={category.name}
-          onBack={() => safeGoBack(date ? '/(tabs)/timeline' : '/log')}
-          right={
-            <TouchableOpacity
-              style={styles.datePill}
-              onPress={() => setShowDatePicker(true)}
-              accessibilityLabel={`Log date: ${fmtDateOnly(occurredAt)}`}
-              accessibilityHint="Change the date"
-              accessibilityRole="button"
-            >
-              <Text style={styles.datePillText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                {isLoggingForToday
-                  ? 'Today'
-                  : occurredAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-              </Text>
-            </TouchableOpacity>
-          }
-        />
+        <View style={[styles.headerContainer, { backgroundColor: palette.background, borderBottomColor: palette.border }]}>
+          <ScreenTopBar
+            title={category.name}
+            onBack={() => safeGoBack(date ? '/(tabs)/timeline' : '/log')}
+            right={
+              <TouchableOpacity
+                style={styles.datePill}
+                onPress={() => setShowDatePicker(true)}
+                accessibilityLabel={`Log date: ${fmtDateOnly(occurredAt)}`}
+                accessibilityHint="Change the date"
+                accessibilityRole="button"
+              >
+                <Text style={styles.datePillText} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+                  {isLoggingForToday
+                    ? 'Today'
+                    : occurredAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </Text>
+              </TouchableOpacity>
+            }
+          />
+        </View>
 
         <ScrollView
           ref={scrollRef}
@@ -448,13 +450,13 @@ export default function QuestionSheet() {
 
             <View style={styles.previousLogInfo}>
               <View style={styles.previousLogRow}>
-                <Text style={styles.previousLogTitle}>
+                <Text style={styles.previousLogTitle} numberOfLines={1}>
                   {justApplied
                     ? 'Applied to form!'
                     : (isLoggingForToday && isYesterdayLog ? 'Same as yesterday' : 'Copy previous log')}
                 </Text>
                 <View style={styles.previousLogBadge}>
-                  <Text style={styles.previousLogBadgeText}>{previousDateBadge}</Text>
+                  <Text style={styles.previousLogBadgeText} numberOfLines={1}>{previousDateBadge}</Text>
                 </View>
               </View>
 
@@ -628,6 +630,11 @@ export default function QuestionSheet() {
 
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
+  headerContainer: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 10,
+    elevation: 3,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: palette.errorText },
   scroll: { paddingHorizontal: 16, paddingTop: 12, gap: 14 },
@@ -636,9 +643,11 @@ const useStyles = createThemedStyles(palette => ({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 14,
-    minHeight: 44,
-    borderRadius: 22,
-    backgroundColor: palette.surface,
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.primary + '33',
+    backgroundColor: palette.surfaceAlt === '#F5F0EB' ? '#EFF6FF' : `${palette.primary}14`,
   },
   pastDateBannerText: {
     ...typography.caption,
@@ -652,13 +661,15 @@ const useStyles = createThemedStyles(palette => ({
   },
   previousLogCard: {
     backgroundColor: palette.surface,
-    borderRadius: 26,
+    borderRadius: 20,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
   },
-  previousLogCardApplied: { backgroundColor: palette.success + '1F' },
+  previousLogCardApplied: { backgroundColor: palette.success + '1F', borderColor: palette.success },
   previousLogIconBox: {
     width: 34,
     height: 34,
@@ -670,14 +681,14 @@ const useStyles = createThemedStyles(palette => ({
   previousLogIconBoxApplied: { backgroundColor: palette.success + '33' },
   previousLogInfo: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   previousLogRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
   },
-  previousLogTitle: { ...typography.subheadBold, color: palette.text },
+  previousLogTitle: { ...typography.subheadBold, color: palette.text, flexShrink: 1 },
   previousLogBadge: { backgroundColor: palette.surfaceAlt, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   previousLogBadgeText: { ...typography.footnote, color: palette.textSecondary },
   previousLogSummary: { ...typography.footnote, color: palette.textSecondary },
@@ -746,8 +757,10 @@ const useStyles = createThemedStyles(palette => ({
   spacer: { height: 100 },
   footer: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 10,
     backgroundColor: palette.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
   },
   submitBtn: {
     backgroundColor: palette.primary,

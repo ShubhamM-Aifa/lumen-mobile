@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, StyleSheet,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -175,33 +175,45 @@ export default function AiChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScreenTopBar
-        title={conversation.data?.title ?? 'Lumen AI'}
-        fallbackRoute="/ai"
-        right={(
+      {/* Pinned Solid Header Bar with Model Switcher */}
+      <View style={[styles.headerContainer, { backgroundColor: palette.background, borderBottomColor: palette.border }]}>
+        <ScreenTopBar
+          title={conversation.data?.title ?? 'Lumen AI'}
+          fallbackRoute="/ai"
+          right={(
+            <TouchableOpacity
+              style={styles.headerBtn}
+              onPress={() => router.push(`/ai/voice?id=${isNew ? 'new' : id}`)}
+              accessibilityRole="button"
+              accessibilityLabel="Talk to Lumen AI by voice"
+            >
+              <AudioLines size={22} color={palette.primaryText} />
+            </TouchableOpacity>
+          )}
+        />
+        <View style={styles.chipRow}>
           <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => router.push(`/ai/voice?id=${isNew ? 'new' : id}`)}
+            style={[styles.modelChip, { backgroundColor: palette.surface, borderColor: palette.border }]}
+            onPress={() => router.push('/ai/model')}
             accessibilityRole="button"
-            accessibilityLabel="Talk to Lumen AI by voice"
+            accessibilityLabel={`Model: ${access.data?.modelLabel ?? ''}. Change model`}
           >
-            <AudioLines size={22} color={palette.primaryText} />
+            <View style={[styles.modelStatusDot, { backgroundColor: palette.primary }]} />
+            <Text style={styles.modelChipText} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+              {access.data?.modelLabel ?? 'Model'}{access.data?.chosenModelUnavailable ? ' · your pick is unavailable' : ''}
+            </Text>
+            <ChevronDown size={13} color={palette.textSecondary} />
           </TouchableOpacity>
-        )}
-      />
-      <TouchableOpacity
-        style={styles.modelChip}
-        onPress={() => router.push('/ai/model')}
-        accessibilityRole="button"
-        accessibilityLabel={`Model: ${access.data?.modelLabel ?? ''}. Change model`}
-      >
-        <Text style={styles.modelChipText} maxFontSizeMultiplier={1.2} numberOfLines={1}>
-          {access.data?.modelLabel ?? 'Model'}{access.data?.chosenModelUnavailable ? ' · your pick is unavailable' : ''}
-        </Text>
-        <ChevronDown size={14} color={palette.textSecondary} />
-      </TouchableOpacity>
+        </View>
+      </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.thread} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.thread}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {conversation.isLoading ? <ActivityIndicator style={{ marginTop: 40 }} /> : null}
 
         {empty && !conversation.isLoading ? (
@@ -389,15 +401,47 @@ function Bubble({ id, role, text, mediaIds, modelLabel, onSpeak, artifacts, onSa
 
 const useStyles = createThemedStyles(palette => ({
   screen: { flex: 1, backgroundColor: palette.background },
-  thread: { padding: 16, gap: 10, paddingBottom: 24 },
+  headerContainer: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 10,
+    elevation: 3,
+  },
+  chipRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 8,
+    paddingTop: 2,
+  },
+  modelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 28,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    maxWidth: '85%',
+  },
+  modelStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  modelChipText: {
+    ...typography.caption,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  thread: { padding: 16, gap: 12, paddingBottom: 24 },
   intro: { gap: 10, paddingVertical: 8 },
   introTitle: { ...typography.title2, color: palette.text },
   introBody: { ...typography.body, color: palette.textSecondary, lineHeight: 22 },
   suggestion: { backgroundColor: palette.surface, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12 },
   suggestionText: { ...typography.body, color: palette.primaryText },
-  bubble: { maxWidth: '88%', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: palette.primary },
-  aiBubble: { alignSelf: 'flex-start', backgroundColor: palette.surface },
+  bubble: { borderRadius: 20, paddingHorizontal: 15, paddingVertical: 12, gap: 8 },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: palette.primary, borderBottomRightRadius: 6, maxWidth: '85%' },
+  aiBubble: { alignSelf: 'flex-start', backgroundColor: palette.surface, borderBottomLeftRadius: 6, maxWidth: '92%', borderWidth: 1, borderColor: palette.border },
   errorBubble: { alignSelf: 'flex-start', backgroundColor: palette.error + '18' },
   userText: { ...typography.body, color: '#fff', lineHeight: 22 },
   aiText: { ...typography.body, color: palette.text, lineHeight: 22 },
@@ -407,7 +451,7 @@ const useStyles = createThemedStyles(palette => ({
   errorText: { ...typography.body, color: palette.text, lineHeight: 22 },
   retry: { minHeight: 36, justifyContent: 'center' },
   retryText: { ...typography.bodyBold, color: palette.primaryText },
-  composer: { borderTopWidth: 0.5, borderTopColor: palette.border, backgroundColor: palette.surface, paddingTop: 8, paddingHorizontal: 10, gap: 8 },
+  composer: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingTop: 8, paddingHorizontal: 10, gap: 8 },
   attachRow: { gap: 8, paddingHorizontal: 4 },
   attachSpinner: { position: 'absolute', top: 22, left: 22 },
   attachRemove: { position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#0009', alignItems: 'center', justifyContent: 'center' },
@@ -419,12 +463,16 @@ const useStyles = createThemedStyles(palette => ({
   micBtn: { backgroundColor: palette.background },
   micBtnOn: { backgroundColor: palette.error },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  modelChip: {
-    alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32,
-    paddingHorizontal: 12, borderRadius: 16, backgroundColor: palette.surface, marginBottom: 4, maxWidth: '90%',
+  bubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
   },
-  modelChipText: { ...typography.footnote, color: palette.textSecondary },
-  bubbleFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -2 },
   modelLabel: { ...typography.caption, color: palette.textSecondary, flexShrink: 1 },
   artifact: {
     flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: 14,
