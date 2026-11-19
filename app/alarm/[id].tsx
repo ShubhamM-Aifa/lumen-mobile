@@ -18,6 +18,7 @@ import { Bell, Check, Clock, Volume2, X } from 'lucide-react-native';
 
 import { useReminderStore } from '../../src/store/reminderStore';
 import { useQuickLogStore } from '../../src/store/quickLogStore';
+import { markReminderDose } from '../../src/services/meds/reminderDose';
 import { snoozeReminder } from '../../src/services/notifications';
 import { startAlarmSound, stopSound, getSoundOption } from '../../src/services/soundService';
 import { isNativeAlarmAvailable } from '../../src/services/alarmScheduler';
@@ -58,6 +59,7 @@ export default function AlarmScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const auraAnim = useRef(new Animated.Value(0.4)).current;
   const isDismissedRef = useRef(false);
+  const isMedDose = reminder?.category === 'MEDICATION' && !!reminder?.medicationId;
 
   const categoryColor = reminder?.category ? (CATEGORY_COLORS[reminder.category] || palette.primary) : palette.primary;
   const categoryEmoji = reminder?.icon || (reminder?.category ? CATEGORY_EMOJIS[reminder.category] : '🔔') || '🔔';
@@ -164,11 +166,13 @@ export default function AlarmScreen() {
     if (reminder?.linkedQuickActionId) {
       useQuickLogStore.getState().tap(reminder.linkedQuickActionId);
     }
+    // A medicine reminder marks the dose as taken.
+    if (isMedDose) markReminderDose(reminder!, 'taken').catch(() => {});
 
     if (id) {
       api.post(`/reminders/${id}/event`, {
         status: 'COMPLETED',
-        actionTaken: 'alarm_complete_tap',
+        actionTaken: isMedDose ? 'TAKEN' : 'alarm_complete_tap',
       }).catch(() => {});
     }
 
@@ -177,6 +181,17 @@ export default function AlarmScreen() {
     } else {
       router.replace('/(tabs)/today');
     }
+  };
+
+  // Action: Skip this dose (medicine reminders only) — recorded as skipped, never guessed.
+  const handleSkipDose = () => {
+    isDismissedRef.current = true;
+    stopSound().catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    markReminderDose(reminder!, 'skipped').catch(() => {});
+    if (id) api.post(`/reminders/${id}/event`, { status: 'DISMISSED', actionTaken: 'SKIPPED' }).catch(() => {});
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/today');
   };
 
   // Action: Dismiss
@@ -295,11 +310,11 @@ export default function AlarmScreen() {
           onPress={handleComplete}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Complete Reminder"
+          accessibilityLabel={isMedDose ? 'Taken' : 'Complete Reminder'}
         >
           <Check size={20} color="#FFFFFF" strokeWidth={3} />
           <Text style={styles.completeBtnText}>
-            {reminder?.category === 'HYDRATION' ? 'Drink & Log' : 'Done'}
+            {isMedDose ? 'Taken' : reminder?.category === 'HYDRATION' ? 'Drink & Log' : 'Done'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -307,12 +322,12 @@ export default function AlarmScreen() {
       {/* Dismiss Slide / Tap Footer */}
       <TouchableOpacity
         style={styles.dismissFooter}
-        onPress={handleDismiss}
+        onPress={isMedDose ? handleSkipDose : handleDismiss}
         activeOpacity={0.6}
         accessibilityRole="button"
-        accessibilityLabel="Dismiss Alarm"
+        accessibilityLabel={isMedDose ? 'Skip this dose' : 'Dismiss Alarm'}
       >
-        <Text style={styles.dismissFooterText}>Tap to Dismiss</Text>
+        <Text style={styles.dismissFooterText}>{isMedDose ? 'Skip this dose' : 'Tap to Dismiss'}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

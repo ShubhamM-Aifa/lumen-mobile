@@ -19,6 +19,7 @@ jest.mock('react-native-health-connect', () => ({
 jest.mock('../../../api/client', () => ({
   api: {
     post: jest.fn().mockResolvedValue({ success: true }),
+    put: jest.fn().mockResolvedValue({ success: true }),
   },
 }));
 
@@ -60,13 +61,9 @@ describe('syncHealthConnectSleep', () => {
     expect(result.latestRecord?.durationMinutes).toBe(450); // 7h 30m
 
     // Verify timeline log entry creation
-    expect(api.post).toHaveBeenCalledWith(
-      '/logs',
-      expect.objectContaining({
-        source: 'sleep',
-        clientId: expect.stringMatching(/^sleep:\d{4}-\d{2}-\d{2}$/),
-        note: expect.stringContaining('Sleep: 7h 30m'),
-      })
+    expect(api.put).toHaveBeenCalledWith(
+      '/logs/sleep',
+      expect.objectContaining({ wakeTime, bedtime, durationMinutes: 450, source: 'device' })
     );
 
     // Verify sleep store lastSleepRecord update

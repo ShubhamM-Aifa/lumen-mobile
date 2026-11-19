@@ -7,6 +7,7 @@
  * - Direct Archive / Delete action
  */
 import React, { useState, useEffect } from 'react';
+import { MedicineLinkPicker } from '../../src/components/meds/MedicineLinkPicker';
 import {
   View,
   Text,
@@ -96,6 +97,7 @@ export default function EditReminderScreen() {
   const [snooze, setSnooze] = useState(10);
   const [sound, setSound] = useState(reminder?.sound || 'default');
   const [linkedQuickActionId, setLinkedQuickActionId] = useState<string | undefined>(undefined);
+  const [medicationId, setMedicationId] = useState<string | undefined>(undefined);
   const [enabled, setEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -115,6 +117,7 @@ export default function EditReminderScreen() {
       setSnooze(reminder.snoozeDurationMinutes || 10);
       setSound(reminder.sound || 'default');
       setLinkedQuickActionId(reminder.linkedQuickActionId);
+      setMedicationId(reminder.medicationId);
       setEnabled(reminder.enabled !== undefined ? reminder.enabled : true);
     }
   }, [reminder]);
@@ -164,6 +167,7 @@ export default function EditReminderScreen() {
         snoozeDurationMinutes: snooze,
         sound,
         linkedQuickActionId,
+        medicationId: category === 'MEDICATION' ? medicationId : undefined,
         enabled,
       });
 
@@ -409,6 +413,8 @@ export default function EditReminderScreen() {
         </View>
 
         {/* Alarm Sound Picker */}
+        {category === 'MEDICATION' ? <MedicineLinkPicker value={medicationId} onChange={setMedicationId} /> : null}
+
         <SoundPicker value={sound} onChange={setSound} />
 
         {/* Link with Quick-Tap Button */}

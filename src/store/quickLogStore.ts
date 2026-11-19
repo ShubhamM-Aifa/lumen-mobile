@@ -49,6 +49,56 @@ export interface QuickTapEntry {
   lastAt: string;       // last occurrence ISO
   serverId?: string;    // returned from server
   synced: boolean;
+  /** Sum of amounts recorded explicitly today (e.g. water ml picked in the sheet). */
+  explicitAmount?: number;
+  /** How many of today's taps carried an explicit amount (the rest count as the default amount). */
+  explicitCount?: number;
+  /** Amount of the last tap (for undo). */
+  lastAmount?: number;
+}
+
+/** What a tap records besides "it happened": an amount (water ml) or a duration (a timer). */
+export interface TapDetail {
+  amount?: { value: number; unit: string };
+  durationSec?: number;
+}
+
+export const TAP_AMOUNT_OPTION_ID = 'qa:amount';
+export const TAP_TIMER_OPTION_ID = 'qa:timer';
+
+/** The answer a tap with a detail sends (the server and analytics read these option ids). */
+export function tapAnswers(detail?: TapDetail) {
+  if (detail?.amount && Number.isFinite(detail.amount.value) && detail.amount.value > 0) {
+    return [{
+      optionId: TAP_AMOUNT_OPTION_ID,
+      optionLabelSnapshot: `${detail.amount.value} ${detail.amount.unit}`,
+      values: [{ fieldKey: 'amount', dataType: 'number', value: detail.amount.value, unit: detail.amount.unit }],
+    }];
+  }
+  if (typeof detail?.durationSec === 'number' && detail.durationSec > 0) {
+    const sec = Math.round(detail.durationSec);
+    const min = Math.max(1, Math.round(sec / 60));
+    return [{
+      optionId: TAP_TIMER_OPTION_ID,
+      optionLabelSnapshot: `${min} min`,
+      values: [{ fieldKey: 'duration', dataType: 'duration', value: sec, unit: 's' }],
+    }];
+  }
+  return [];
+}
+
+/** Today's total amount for a tap: explicit amounts plus the default amount for plain taps. */
+export function tapTotalAmount(entry: QuickTapEntry | undefined, defaultValue: number | undefined): number {
+  if (!entry) return 0;
+  const plain = Math.max(0, entry.count - (entry.explicitCount ?? 0));
+  return (entry.explicitAmount ?? 0) + plain * (defaultValue ?? 0);
+}
+
+/** Amount recorded by a logged tap, if it carried one. */
+export function tapAmountOf(log: { answers?: Array<{ optionId?: string; values?: Array<{ value?: unknown }> }> }): number | undefined {
+  const a = log.answers?.find(x => x.optionId === TAP_AMOUNT_OPTION_ID);
+  const v = Number(a?.values?.[0]?.value);
+  return Number.isFinite(v) && v > 0 ? v : undefined;
 }
 
 interface QuickLogState {
@@ -58,7 +108,7 @@ interface QuickLogState {
   undoEntry: QuickTapEntry | null;
   undoTimer: ReturnType<typeof setTimeout> | null;
 
-  tap: (quickActionId: string, customOccurredAt?: string, boundaryHour?: number) => Promise<void>;
+  tap: (quickActionId: string, customOccurredAt?: string, boundaryHour?: number, detail?: TapDetail) => Promise<void>;
   undo: () => void;
   resetToday: () => void;
   loadTodayTaps: (quickActionId: string, count: number, lastAt: string, boundaryHour?: number) => void;
@@ -72,7 +122,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
   undoEntry: null,
   undoTimer: null,
 
-  tap: async (quickActionId: string, customOccurredAt?: string, boundaryHour?: number) => {
+  tap: async (quickActionId: string, customOccurredAt?: string, boundaryHour?: number, detail?: TapDetail) => {
     const now = customOccurredAt || new Date().toISOString();
     const bHour = getActiveBoundaryHour(boundaryHour);
     const clientId = uuidv4();
@@ -85,6 +135,9 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
       isWithinDayBoundary(prev.lastAt, bHour, new Date(now));
 
     const newCount = isPrevValid ? (prev?.count ?? 0) + 1 : 1;
+    const amount = detail?.amount && detail.amount.value > 0 ? detail.amount.value : undefined;
+    const explicitAmount = (isPrevValid ? prev?.explicitAmount ?? 0 : 0) + (amount ?? 0);
+    const explicitCount = (isPrevValid ? prev?.explicitCount ?? 0 : 0) + (amount !== undefined ? 1 : 0);
 
     // Prune entries from other tracking day windows
     const currentTaps = get().todayTaps;
@@ -103,6 +156,9 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
       count: newCount,
       lastAt: now,
       synced: false,
+      explicitAmount,
+      explicitCount,
+      lastAmount: amount,
     };
     const nextTaps = { ...cleanedTaps, [quickActionId]: entry };
     set({
@@ -129,7 +185,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
         quickActionId,
         occurredAt: now,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        answers: [],
+        answers: tapAnswers(detail),
         mediaIds: [],
         ...(location ? { location } : {}),
       });
@@ -159,9 +215,16 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
     const prev = get().todayTaps[entry.quickActionId];
     if (prev) {
       const newCount = Math.max(0, prev.count - 1);
+      const undone = entry.lastAmount;
       const nextTaps = {
         ...get().todayTaps,
-        [entry.quickActionId]: { ...prev, count: newCount },
+        [entry.quickActionId]: {
+          ...prev,
+          count: newCount,
+          ...(undone !== undefined
+            ? { explicitAmount: Math.max(0, (prev.explicitAmount ?? 0) - undone), explicitCount: Math.max(0, (prev.explicitCount ?? 0) - 1) }
+            : {}),
+        },
       };
       set({
         undoEntry: null,
@@ -260,6 +323,7 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
             continue;
           }
           const qid = String(log.quickActionId);
+          const amount = tapAmountOf(log);
           if (!tapsMap[qid]) {
             tapsMap[qid] = {
               id: log.clientId || log._id,
@@ -269,9 +333,15 @@ export const useQuickLogStore = create<QuickLogState>((set, get) => ({
               lastAt: log.occurredAt,
               serverId: log._id,
               synced: true,
+              explicitAmount: amount ?? 0,
+              explicitCount: amount !== undefined ? 1 : 0,
             };
           } else {
             tapsMap[qid].count += 1;
+            if (amount !== undefined) {
+              tapsMap[qid].explicitAmount = (tapsMap[qid].explicitAmount ?? 0) + amount;
+              tapsMap[qid].explicitCount = (tapsMap[qid].explicitCount ?? 0) + 1;
+            }
             if (new Date(log.occurredAt) > new Date(tapsMap[qid].lastAt)) {
               tapsMap[qid].lastAt = log.occurredAt;
             }

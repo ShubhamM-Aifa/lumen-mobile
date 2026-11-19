@@ -31,6 +31,8 @@ import { ScreenTopBar, HeaderTextButton } from '../../src/components/ios/ScreenT
 import { InsetGroup, GroupedRow } from '../../src/components/ios/InsetGroup';
 import { AppleSwitch } from '../../src/components/common/AppleSwitch';
 import { api } from '../../src/api/client';
+import { queryClient } from '../../src/api/queryClient';
+import { DoseTimesEditor } from '../../src/components/meds/DoseTimesEditor';
 
 export interface IMedication {
   _id: string;
@@ -39,6 +41,9 @@ export interface IMedication {
   unit?: string;
   schedule?: string;
   active: boolean;
+  prn?: boolean;
+  doseTimes?: Array<{ slot: string; amount?: string }>;
+  daysOfWeek?: number[];
 }
 
 export default function MedicationsScreen() {
@@ -67,7 +72,7 @@ export default function MedicationsScreen() {
 
   const openAdd = () => {
     Haptics.selectionAsync();
-    setEditing({ active: true, name: '', dose: '', unit: 'mg', schedule: '' });
+    setEditing({ active: true, name: '', dose: '', unit: 'mg', schedule: '', prn: false, doseTimes: [], daysOfWeek: [] });
   };
 
   const openEdit = (med: IMedication) => {
@@ -84,11 +89,23 @@ export default function MedicationsScreen() {
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      // Only the fields this sheet edits (the server keeps the dose plan history itself).
+      const payload = {
+        name: editing.name.trim(),
+        dose: editing.dose ?? '',
+        unit: editing.unit ?? '',
+        schedule: editing.schedule ?? '',
+        active: editing.active ?? true,
+        prn: !!editing.prn,
+        doseTimes: editing.doseTimes ?? [],
+        daysOfWeek: editing.daysOfWeek ?? [],
+      };
       if (editing._id) {
-        await api.patch(`/medications/${editing._id}`, editing);
+        await api.patch(`/medications/${editing._id}`, payload);
       } else {
-        await api.post('/medications', editing);
+        await api.post('/medications', payload);
       }
+      queryClient.invalidateQueries({ queryKey: ['doses'] });
       await load();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditing(null);
@@ -276,6 +293,11 @@ export default function MedicationsScreen() {
                     />
                   </View>
                 </InsetGroup>
+
+                <DoseTimesEditor
+                  value={{ prn: !!editing.prn, doseTimes: editing.doseTimes ?? [], daysOfWeek: editing.daysOfWeek ?? [] }}
+                  onChange={(plan) => setEditing((e) => ({ ...e!, ...plan }))}
+                />
 
                 <InsetGroup>
                   <GroupedRow

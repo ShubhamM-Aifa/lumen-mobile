@@ -52,6 +52,9 @@ import { FeelingCard } from '../../src/components/home/FeelingCard';
 import { DayCheckInCard } from '../../src/components/home/DayCheckInCard';
 import { MyDaySection } from '../../src/components/home/MyDaySection';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
+import { tapTotalAmount } from '../../src/store/quickLogStore';
+import { RunningTimerPill } from '../../src/components/home/RunningTimerPill';
+import { TodayMedsCard } from '../../src/components/home/TodayMedsCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
 import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
 import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
@@ -163,6 +166,13 @@ export default function TodayScreen() {
   const waterAction = config?.quickActions.find(isWaterAction);
   const waterCount = waterAction ? (todayTaps[waterAction._id]?.count ?? 0) : 0;
   const waterGoal = waterAction?.dailyGoal ? Math.round(waterAction.dailyGoal / (waterAction.defaultValue ?? 250)) : 8;
+  // Water in ml when the tap measures ml (the amount picked in the sheet is saved with each tap).
+  const waterInMl = !!waterAction && (waterAction.unit ?? 'ml') === 'ml';
+  const waterMl = waterAction ? tapTotalAmount(todayTaps[waterAction._id], waterAction.defaultValue ?? 250) : 0;
+  const waterGoalMl = waterAction?.dailyGoal ?? 2000;
+  const waterValue = waterInMl
+    ? `${waterMl >= 1000 ? `${(waterMl / 1000).toFixed(waterMl % 1000 === 0 ? 0 : 1)} L` : `${waterMl} ml`} of ${waterGoalMl >= 1000 ? `${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 === 0 ? 0 : 1)} L` : `${waterGoalMl} ml`}`
+    : `${waterCount} of ${waterGoal}`;
 
   const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
   const todayWalkingMinutes = todaySummary?.totalDurationMinutes ?? 0;
@@ -223,7 +233,7 @@ export default function TodayScreen() {
     switch (key) {
       case 'water':
         return {
-          icon: Droplets, tile: palette.catHabits, label: 'Water', value: `${waterCount} of ${waterGoal}`,
+          icon: Droplets, tile: palette.catHabits, label: 'Water', value: waterValue,
           onPress: () => { setSelectedWaterActionId(waterAction?._id); setWaterModalVisible(true); },
         };
       case 'walking':
@@ -378,6 +388,7 @@ export default function TodayScreen() {
 
             <View style={styles.block}>
               <SectionTitle title="Quick Taps" actionLabel="Customize" onAction={() => router.push('/customize/quick-actions')} />
+              <RunningTimerPill boundaryHour={boundaryHour} />
               <View style={styles.grid}>
                 {visibleActions.map(action => (
                   <QuickActionButton
@@ -444,6 +455,8 @@ export default function TodayScreen() {
             )}
 
             <MyDaySection boundaryHour={boundaryHour} />
+
+            <TodayMedsCard />
 
             <DayCheckInCard boundaryHour={boundaryHour} />
           </>

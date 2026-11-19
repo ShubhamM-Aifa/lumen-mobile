@@ -37,7 +37,8 @@ export function WaterQuantityModal({ visible, onClose, quickActionId, onLogged }
 
   const handleSelect = async (ml: number) => {
     if (quickActionId) {
-      await tap(quickActionId);
+      // The amount picked is saved with the tap, so water totals are real millilitres.
+      await tap(quickActionId, undefined, undefined, { amount: { value: ml, unit: 'ml' } });
     }
     onLogged?.(ml);
     onClose();

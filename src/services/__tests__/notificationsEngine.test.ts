@@ -490,11 +490,11 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
         notification: { request: { content: { data: { linkedQuickActionId: 'qa_water' } } } },
       });
 
-      expect(tapSpy).toHaveBeenCalledWith('qa_water');
+      expect(tapSpy).toHaveBeenCalledWith('qa_water', undefined, undefined, { amount: { value: 250, unit: 'ml' } });
       tapSpy.mockRestore();
     });
 
-    it('handles LOG_500ML action by logging 2 increments to quick log store', async () => {
+    it('handles LOG_500ML action by logging one 500 ml tap', async () => {
       const tapSpy = jest.spyOn(useQuickLogStore.getState(), 'tap');
 
       await handleNotificationActionResponse({
@@ -502,8 +502,8 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
         notification: { request: { content: { data: { linkedQuickActionId: 'qa_water' } } } },
       });
 
-      expect(tapSpy).toHaveBeenCalledTimes(2);
-      expect(tapSpy).toHaveBeenCalledWith('qa_water');
+      expect(tapSpy).toHaveBeenCalledTimes(1);
+      expect(tapSpy).toHaveBeenCalledWith('qa_water', undefined, undefined, { amount: { value: 500, unit: 'ml' } });
       tapSpy.mockRestore();
     });
 

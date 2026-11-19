@@ -189,7 +189,7 @@ export interface Attachable {
   date?: string;
 }
 
-export type AttachableKind = Exclude<AiChatRefKind, 'day' | 'file'>;
+export type AttachableKind = Exclude<AiChatRefKind, 'day' | 'file' | 'analysis'>;
 
 /** The member's items of one kind for the attach picker (newest first), searched by title on the server. */
 export function useAttachables(kind: AttachableKind | null, q = '') {

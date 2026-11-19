@@ -9,7 +9,7 @@ import {
   ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrendingUp, Sparkles, Download, RefreshCw } from 'lucide-react-native';
 import { useInsights, useRecomputeInsights, InsightFinding } from '../../src/hooks/useInsights';
@@ -33,6 +33,17 @@ import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { FilterChip } from '../../src/components/ios/FilterChip';
 import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
+import { IosSegmented } from '../../src/components/ios/IosSegmented';
+import { ExplorePane } from '../../src/components/insights/ExplorePane';
+import { MetricsPane } from '../../src/components/insights/MetricsPane';
+import { useQueryClient } from '@tanstack/react-query';
+
+type Pane = 'overview' | 'explore' | 'metrics';
+const PANES: Array<{ key: Pane; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'explore', label: 'Explore' },
+  { key: 'metrics', label: 'Metrics' },
+];
 
 const MIN_DAYS_FOR_STATS = 14;
 /** One tired glance should be enough, so only this many patterns show before "See more". */
@@ -55,6 +66,10 @@ export default function InsightsScreen() {
     ask({ kind: 'pattern', id: `${f.exposureKey}|${f.outcomeKey}|${f.lagDays}`, title: `${f.exposure.optionLabel} → ${f.outcome.optionLabel}` });
   }, [ask]);
   const recompute = useRecomputeInsights();
+  const params = useLocalSearchParams<{ tab?: string; q?: string }>();
+  const [pane, setPane] = useState<Pane>(PANES.some(p => p.key === params.tab) ? (params.tab as Pane) : 'overview');
+  useEffect(() => { if (PANES.some(p => p.key === params.tab)) setPane(params.tab as Pane); }, [params.tab, params.q]);
+  const qc = useQueryClient();
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [showAll, setShowAll] = useState(false);
   const [showEarlier, setShowEarlier] = useState(false);
@@ -109,11 +124,15 @@ export default function InsightsScreen() {
   const empty = progressText(progress.observedDays, progress.daysNeeded);
 
   const onRefresh = useCallback(async () => {
+    if (pane !== 'overview') {
+      await qc.invalidateQueries({ queryKey: ['analytics'] });
+      return;
+    }
     try {
       await recompute.mutateAsync();
     } catch {}
     await refetch();
-  }, [recompute, refetch]);
+  }, [recompute, refetch, pane, qc]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -134,6 +153,12 @@ export default function InsightsScreen() {
           />
         </View>
 
+        <IosSegmented options={PANES} value={pane} onChange={setPane} />
+
+        {pane === 'explore' ? <ExplorePane initialToken={params.q ?? null} /> : null}
+        {pane === 'metrics' ? <MetricsPane /> : null}
+
+        {pane === 'overview' ? (<>
         <DisclaimerBanner />
 
         {!isLoading && warningData?.ready && <WarningCard warning={warningData} />}
@@ -294,6 +319,8 @@ export default function InsightsScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        </>) : null}
 
         <View style={{ height: 40 }} />
       </ScrollView>

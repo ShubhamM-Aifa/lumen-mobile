@@ -4,6 +4,19 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+
+const PAGE = 1000;
+/** Every log in [from, to], page by page (one busy month can pass a single page). */
+export async function fetchAllLogs(from: string, to: string, maxPages = 10): Promise<ILogEntry[]> {
+  const all: ILogEntry[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const res = await api.get<any>('/logs', { params: { from, to, limit: PAGE, skip: page * PAGE } });
+    const rows: ILogEntry[] = Array.isArray(res) ? res : (res?.logs ?? res?.data ?? []);
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
+}
 import { ILogEntry } from '@lumen/shared';
 import { DaySeverity } from '../components/timeline/CalendarHeatMap';
 import { useConfigStore } from '../store/configStore';
@@ -43,8 +56,7 @@ export function useTimelineSummary(year: number, month: number, boundaryHour: nu
   return useQuery<DaySeverity[]>({
     queryKey: ['timeline-summary', year, month, boundaryHour],
     queryFn: async () => {
-      const res = await api.get<any>('/logs', { params: { from, to, limit: 1000 } });
-      const entries: ILogEntry[] = Array.isArray(res) ? res : (res?.logs ?? res?.data ?? []);
+      const entries = await fetchAllLogs(from, to);
 
       // Group logs by tracking day
       const entriesByDay: Record<string, ILogEntry[]> = {};
@@ -162,8 +174,7 @@ export function useDayEntries(date: string, boundaryHour: number = 4) {
     queryKey: ['day-entries', date, boundaryHour],
     queryFn: async () => {
       if (!date) return [];
-      const res = await api.get<any>('/logs', { params: { from, to, limit: 500 } });
-      return Array.isArray(res) ? res : (res?.logs ?? res?.data ?? []);
+      return fetchAllLogs(from, to);
     },
     staleTime: 0,
     refetchOnMount: 'always',

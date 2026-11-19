@@ -17,11 +17,16 @@ interface Props {
 interface Saved {
   noSymptoms: boolean;
   score: number | null;
+  energy?: number | null;
+  stress?: number | null;
 }
 
 /** Option ids Insights reads: a day with one of these is a day the member was really watching. */
 export const NO_SYMPTOMS_OPTION_ID = 'checkin:no_symptoms';
 export const PATIENT_GLOBAL_OPTION_ID = 'checkin:global';
+/** Optional 0-10 scales for Metrics and Explore: energy (10 = most energy), stress (10 = most stressed). */
+export const ENERGY_OPTION_ID = 'checkin:energy';
+export const STRESS_OPTION_ID = 'checkin:stress';
 
 const SCORES = Array.from({ length: 11 }, (_, i) => i);
 const storageKey = (day: string) => `lumen:day_checkin:${day}`;
@@ -86,8 +91,43 @@ export function DayCheckInCard({ boundaryHour }: Props) {
     save({ ...saved, score }, () => post(PATIENT_GLOBAL_OPTION_ID, 'Overall today', score));
   };
 
+  const chooseEnergy = (energy: number) => {
+    if (saved.energy === energy) return;
+    save({ ...saved, energy }, () => post(ENERGY_OPTION_ID, 'Energy today', energy));
+  };
+
+  const chooseStress = (stress: number) => {
+    if (saved.stress === stress) return;
+    save({ ...saved, stress }, () => post(STRESS_OPTION_ID, 'Stress today', stress));
+  };
+
+  const [showMore, setShowMore] = useState(false);
+  const scale = (label: string, value: number | null | undefined, onPick: (n: number) => void, a11y: (n: number) => string) => (
+    <View>
+      <Text style={styles.scoreLabel} maxFontSizeMultiplier={1.3}>{label}</Text>
+      <View style={styles.scores} accessibilityRole="radiogroup">
+        {SCORES.map(n => {
+          const selected = value === n;
+          return (
+            <TouchableOpacity
+              key={n}
+              style={[styles.score, { backgroundColor: selected ? palette.primary : s.fill }]}
+              onPress={() => onPick(n)}
+              activeOpacity={0.7}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              accessibilityLabel={a11y(n)}
+            >
+              <Text style={[styles.scoreText, selected && styles.scoreTextOn]} maxFontSizeMultiplier={1.2}>{n}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
   const note = saved.score !== null
-    ? `Overall ${saved.score} of 10${saved.noSymptoms ? ' · no symptoms' : ''}`
+    ? `Overall ${saved.score} of 10${saved.noSymptoms ? ' · no symptoms' : ''}${saved.energy != null ? ` · energy ${saved.energy}` : ''}${saved.stress != null ? ` · stress ${saved.stress}` : ''}`
     : saved.noSymptoms
       ? 'Marked: no symptoms today'
       : 'Takes a few seconds. It helps your patterns make sense.';
@@ -112,27 +152,18 @@ export function DayCheckInCard({ boundaryHour }: Props) {
         </Text>
       </TouchableOpacity>
 
-      <View>
-        <Text style={styles.scoreLabel} maxFontSizeMultiplier={1.3}>How was today overall? 0 is great, 10 is worst.</Text>
-        <View style={styles.scores} accessibilityRole="radiogroup">
-          {SCORES.map(n => {
-            const selected = saved.score === n;
-            return (
-              <TouchableOpacity
-                key={n}
-                style={[styles.score, { backgroundColor: selected ? palette.primary : s.fill }]}
-                onPress={() => chooseScore(n)}
-                activeOpacity={0.7}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Overall today ${n} of 10`}
-              >
-                <Text style={[styles.scoreText, selected && styles.scoreTextOn]} maxFontSizeMultiplier={1.2}>{n}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+      {scale('How was today overall? 0 is great, 10 is worst.', saved.score, chooseScore, n => `Overall today ${n} of 10`)}
+
+      {showMore || saved.energy != null || saved.stress != null ? (
+        <>
+          {scale('Energy today? 0 is none, 10 is plenty.', saved.energy, chooseEnergy, n => `Energy today ${n} of 10`)}
+          {scale('Stress today? 0 is calm, 10 is very stressed.', saved.stress, chooseStress, n => `Stress today ${n} of 10`)}
+        </>
+      ) : (
+        <TouchableOpacity onPress={() => setShowMore(true)} accessibilityRole="button" accessibilityLabel="Add energy and stress" hitSlop={8}>
+          <Text style={styles.more}>+ Energy and stress (optional)</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -149,4 +180,5 @@ const useStyles = createThemedStyles(palette => ({
   score: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   scoreText: { ...typography.body, fontWeight: '600', color: palette.text },
   scoreTextOn: { color: '#FFFFFF' },
+  more: { ...typography.footnote, color: palette.primaryText, fontWeight: '600' },
 }));

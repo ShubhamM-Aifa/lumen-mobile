@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MedicineLinkPicker } from '../../src/components/meds/MedicineLinkPicker';
 import {
   View,
   Text,
@@ -84,6 +85,7 @@ export default function AddReminderScreen() {
   const [snooze, setSnooze] = useState(10);
   const [sound, setSound] = useState('default');
   const [linkedQuickActionId, setLinkedQuickActionId] = useState<string | undefined>(undefined);
+  const [medicationId, setMedicationId] = useState<string | undefined>(undefined);
   const [enabled, setEnabled] = useState(true);
 
   const toggleDay = (day: WeekDay) => {
@@ -115,6 +117,7 @@ export default function AddReminderScreen() {
       snoozeDurationMinutes: snooze,
       sound,
       linkedQuickActionId,
+      medicationId: category === 'MEDICATION' ? medicationId : undefined,
       enabled,
     });
 
@@ -336,6 +339,8 @@ export default function AddReminderScreen() {
         </View>
 
         {/* Alarm Sound Picker */}
+        {category === 'MEDICATION' ? <MedicineLinkPicker value={medicationId} onChange={setMedicationId} /> : null}
+
         <SoundPicker value={sound} onChange={setSound} />
 
         {/* Linked Quick Action */}

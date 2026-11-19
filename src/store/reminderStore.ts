@@ -44,6 +44,8 @@ export interface CreateReminderInput {
   snoozeDurationMinutes?: number;
   sound?: string;
   linkedQuickActionId?: string;
+  medicationId?: string;
+  doseSlot?: string;
   linkedQuestionId?: string;
   enabled?: boolean;
 }

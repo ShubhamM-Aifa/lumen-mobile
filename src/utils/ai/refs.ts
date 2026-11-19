@@ -1,6 +1,6 @@
 /**
  * Lumen AI chat attachments ("refs"): a day, a note, a task or list, a medicine, a health record,
- * a flare, an experiment, an insight pattern, a weekly review or a PDF. The server resolves the
+ * a flare, an experiment, an insight pattern, a weekly review, a PDF or an Explore analysis. The server resolves the
  * full item; the app only keeps kind, id and a chip title.
  */
 import type { AiChatRefKind, IAiChatRef } from '../../shared/types';
@@ -25,6 +25,7 @@ export const REF_KIND_META: Record<AiChatRefKind, { label: string; emoji: string
   pattern: { label: 'Pattern', emoji: '🔎' },
   weekly_report: { label: 'Weekly review', emoji: '🗓️' },
   file: { label: 'PDF', emoji: '📄' },
+  analysis: { label: 'Analysis', emoji: '📊' },
 };
 
 const KINDS = Object.keys(REF_KIND_META) as AiChatRefKind[];
@@ -70,5 +71,8 @@ export function refRoute(ref: Pick<ChatRef, 'kind' | 'id'>): string | null {
     case 'experiment':
     case 'flare': return '/(tabs)/insights';
     case 'file': return null;
+    // An Explore question travels as a token; the Insights Explore pane re-runs it.
+    case 'analysis': return `/(tabs)/insights?tab=explore&q=${encodeURIComponent(ref.id)}`;
   }
+  return null;
 }

@@ -4,7 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import InsightsScreen, { HIDDEN_FINDINGS_KEY } from '../../../app/(tabs)/insights';
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+let mockParams: Record<string, string> = {};
+jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useLocalSearchParams: () => mockParams }));
+jest.mock('@tanstack/react-query', () => ({ ...jest.requireActual('@tanstack/react-query'), useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
+jest.mock('../../components/insights/ExplorePane', () => {
+  const { Text } = require('react-native');
+  return { ExplorePane: ({ initialToken }: { initialToken?: string | null }) => <Text>{`Explore pane ${initialToken ?? ''}`}</Text> };
+});
+jest.mock('../../components/insights/MetricsPane', () => {
+  const { Text } = require('react-native');
+  return { MetricsPane: () => <Text>Metrics pane</Text> };
+});
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -74,7 +84,26 @@ async function render(): Promise<ReactTestRenderer> {
 }
 
 describe('Insights screen', () => {
-  beforeEach(async () => { await AsyncStorage.clear(); mockStartExperiment.mockClear(); });
+  beforeEach(async () => { await AsyncStorage.clear(); mockStartExperiment.mockClear(); mockParams = {}; });
+
+  it('switches between Overview, Explore and Metrics', async () => {
+    mockUseInsights.mockReturnValue(ready());
+    const tree = await render();
+    expect(texts(tree)).toEqual(expect.arrayContaining(['Overview', 'Explore', 'Metrics', 'Patterns in your logs']));
+    const tab = (label: string) => tree.root.findAll(n => n.props.accessibilityRole === 'tab' && typeof n.props.onPress === 'function')
+      .find(n => n.findAll(c => c.props.children === label).length > 0)!;
+    await act(async () => { tab('Metrics').props.onPress(); });
+    expect(texts(tree)).toContain('Metrics pane');
+    expect(texts(tree)).not.toContain('Patterns in your logs');
+    await act(async () => { tab('Explore').props.onPress(); });
+    expect(texts(tree)).toContain('Explore pane ');
+  });
+
+  it('opens Explore with a shared question from a link', async () => {
+    mockUseInsights.mockReturnValue(ready());
+    mockParams = { tab: 'explore', q: 'abc' };
+    expect(texts(await render())).toContain('Explore pane abc');
+  });
 
   it('shows stats and the pattern with its counts and a "not a cause" line', async () => {
     mockUseInsights.mockReturnValue(ready());

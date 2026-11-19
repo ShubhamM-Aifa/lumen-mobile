@@ -17,7 +17,8 @@ import * as Haptics from 'expo-haptics';
 import { Check, Target } from 'lucide-react-native';
 import { createThemedStyles, useTheme } from '../theme/ThemeContext';
 import { typography } from '../theme/typography';
-import { useQuickLogStore } from '../store/quickLogStore';
+import { useQuickLogStore, tapTotalAmount } from '../store/quickLogStore';
+import { useQuickTimerStore, elapsedSeconds } from '../store/quickTimerStore';
 import { useAuthStore } from '../store/authStore';
 import { isWithinDayBoundary } from '../utils/dayBoundary';
 import { IQuickAction } from '@lumen/shared';
@@ -51,10 +52,26 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
         ? Math.max(1, Math.round(action.dailyGoal! / action.defaultValue))
         : Math.max(1, Math.round(action.dailyGoal!)))
     : null;
-  const progress = hasGoal && target ? count / target : 0;
+  // Taps that record an amount (water in ml) count by amount, not by number of taps.
+  const amountMode = hasGoal && action.unit === 'ml' && (action.defaultValue ?? 0) > 1;
+  const amountToday = amountMode && isTapValidForToday ? tapTotalAmount(tapData, action.defaultValue) : 0;
+  const progress = amountMode ? amountToday / action.dailyGoal! : hasGoal && target ? count / target : 0;
   const clampedProgress = Math.min(1, Math.max(0, progress));
-  const isGoalMet = hasGoal && target ? count >= target : false;
+  const isGoalMet = amountMode ? amountToday >= action.dailyGoal! : hasGoal && target ? count >= target : false;
   const percent = Math.round(clampedProgress * 100);
+
+  // Timer taps: first tap starts, next tap stops and logs the minutes.
+  const isTimer = action.mode === 'timer' && !onPressOverride;
+  const running = useQuickTimerStore(st => (st.running?.quickActionId === action._id ? st.running : null));
+  const startTimer = useQuickTimerStore(st => st.start);
+  const stopTimer = useQuickTimerStore(st => st.stop);
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
+    if (!running) return undefined;
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, [running]);
+  const runningMin = running ? Math.floor(elapsedSeconds(running) / 60) : 0;
 
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -79,10 +96,22 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
       return;
     }
 
-    await tap(action._id, undefined, boundaryHour);
-  }, [hasGoal, target, count, isGoalMet, action._id, tap, onPressOverride, boundaryHour]);
+    if (isTimer) {
+      if (running) await stopTimer(boundaryHour);
+      else await startTimer(action._id, action.label, boundaryHour);
+      return;
+    }
 
-  const status = hasGoal && target
+    await tap(action._id, undefined, boundaryHour);
+  }, [hasGoal, target, count, isGoalMet, action._id, action.label, tap, onPressOverride, boundaryHour, isTimer, running, startTimer, stopTimer]);
+
+  const status = running
+    ? `Running · ${runningMin} min · tap to stop`
+    : isTimer && count === 0
+      ? 'Tap to start timer'
+      : amountMode
+    ? `${amountToday}/${action.dailyGoal} ml${isGoalMet ? ' · Goal met' : lastAt ? ` · ${lastAt}` : ''}`
+    : hasGoal && target
     ? isGoalMet
       ? `${count}/${target} · Goal met`
       : count > 0
@@ -92,7 +121,11 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
       ? `${count} today${lastAt ? ` · ${lastAt}` : ''}`
       : 'Tap to log';
 
-  const accessibilityLabel = hasGoal && target
+  const accessibilityLabel = running
+    ? `${action.label}, timer running for ${runningMin} minutes. Tap to stop and log it.`
+    : isTimer && count === 0
+      ? `${action.label}, timer. Tap to start.`
+      : hasGoal && target
     ? `${action.label}, goal ${count} of ${target}, ${percent} percent complete${isGoalMet ? ', goal reached' : ''}`
     : `${action.label}, ${count === 0 ? 'not logged yet today' : `logged ${count} ${count === 1 ? 'time' : 'times'} today`}`;
 

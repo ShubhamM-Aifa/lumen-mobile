@@ -11,6 +11,7 @@ import { Platform, NativeModules } from 'react-native';
 import { router } from 'expo-router';
 import { IReminder, WeekDay } from '@lumen/shared';
 import { api } from '../api/client';
+import { markReminderDose } from './meds/reminderDose';
 import { useQuickLogStore } from '../store/quickLogStore';
 import {
   scheduleNativeAlarm,
@@ -95,6 +96,7 @@ export const NOTIF_ACTIONS = {
   RESTING_NOW: 'action_resting_now',
   VIEW_WALK: 'action_view_walk',
   MARK_MED_TAKEN: 'action_mark_med_taken',
+  SKIP_MED: 'action_skip_med',
   LOG_250ML: 'action_log_250ml',
   LOG_500ML: 'action_log_500ml',
   START_WALK: 'action_start_walk',
@@ -132,7 +134,8 @@ export async function setupNotificationCategories(): Promise<void> {
         { identifier: NOTIF_ACTIONS.VIEW_WALK, buttonTitle: 'View Walk', options: { opensAppToForeground: true } },
       ]),
       createCategorySafe(NOTIF_CATEGORIES.MEDS, [
-        { identifier: NOTIF_ACTIONS.MARK_MED_TAKEN, buttonTitle: 'Mark Taken', options: { opensAppToForeground: false } },
+        { identifier: NOTIF_ACTIONS.MARK_MED_TAKEN, buttonTitle: 'Taken', options: { opensAppToForeground: false } },
+        { identifier: NOTIF_ACTIONS.SKIP_MED, buttonTitle: 'Skip', options: { opensAppToForeground: false } },
         { identifier: NOTIF_ACTIONS.SNOOZE_15, buttonTitle: 'Snooze 15m', options: { opensAppToForeground: false } },
       ]),
       createCategorySafe(NOTIF_CATEGORIES.WATER, [
@@ -486,7 +489,12 @@ export async function scheduleReminder(reminder: IReminder): Promise<void> {
   const commonContent = {
     title: reminder.notificationTitle || reminder.name,
     body: reminder.notificationMessage || reminder.message || 'Scheduled Reminder',
-    data: { reminderId: reminder._id, linkedQuickActionId: reminder.linkedQuickActionId },
+    data: {
+      reminderId: reminder._id,
+      linkedQuickActionId: reminder.linkedQuickActionId,
+      // A medicine reminder marks this medicine's dose from the notification buttons.
+      ...(reminder.medicationId ? { medicationId: reminder.medicationId, doseSlot: reminder.doseSlot ?? reminder.targetTime ?? null } : {}),
+    },
     categoryIdentifier: categoryId,
     sound: 'default',
     priority: N?.AndroidNotificationPriority?.MAX ?? 'max',
@@ -899,6 +907,17 @@ export async function cancelAllNotifications(): Promise<void> {
   }
 }
 
+/** The reminder event a notification button stands for. */
+export function reminderEventFor(actionIdentifier: string): { status: 'COMPLETED' | 'SNOOZED' | 'DISMISSED'; actionTaken: string } {
+  if (actionIdentifier === NOTIF_ACTIONS.MARK_MED_TAKEN) return { status: 'COMPLETED', actionTaken: 'TAKEN' };
+  if (actionIdentifier === NOTIF_ACTIONS.SKIP_MED) return { status: 'DISMISSED', actionTaken: 'SKIPPED' };
+  if (actionIdentifier === NOTIF_ACTIONS.SNOOZE_10 || actionIdentifier === NOTIF_ACTIONS.SNOOZE_15 || actionIdentifier === NOTIF_ACTIONS.SNOOZE_30) {
+    return { status: 'SNOOZED', actionTaken: actionIdentifier };
+  }
+  if (actionIdentifier === NOTIF_ACTIONS.DISMISS) return { status: 'DISMISSED', actionTaken: actionIdentifier };
+  return { status: 'COMPLETED', actionTaken: actionIdentifier };
+}
+
 /**
  * Handle notification action button interactions.
  */
@@ -907,12 +926,9 @@ export async function handleNotificationActionResponse(response: any): Promise<v
   const data = response.notification.request.content.data || {};
   const reminderId = data.reminderId;
 
-  // Log action completion to backend
+  // One event per action, with what really happened (it used to post twice and call a snooze "completed").
   if (reminderId) {
-    api.post(`/reminders/${reminderId}/event`, {
-      status: 'COMPLETED',
-      actionTaken: actionIdentifier,
-    }).catch(() => {});
+    api.post(`/reminders/${reminderId}/event`, reminderEventFor(actionIdentifier)).catch(() => {});
   }
 
   switch (actionIdentifier) {
@@ -947,25 +963,22 @@ export async function handleNotificationActionResponse(response: any): Promise<v
       break;
 
     case NOTIF_ACTIONS.MARK_MED_TAKEN:
-      if (reminderId) {
-        // Log med event as taken
-        api.post(`/reminders/${reminderId}/event`, {
-          status: 'COMPLETED',
-          actionTaken: 'TAKEN',
-        }).catch(() => {});
-      }
+    case NOTIF_ACTIONS.SKIP_MED:
+      await markReminderDose(
+        { medicationId: data.medicationId, doseSlot: data.doseSlot },
+        actionIdentifier === NOTIF_ACTIONS.SKIP_MED ? 'skipped' : 'taken',
+      ).catch(err => console.warn('[Notifications] Could not mark the dose:', err));
       break;
 
     case NOTIF_ACTIONS.LOG_250ML:
       if (data.linkedQuickActionId) {
-        useQuickLogStore.getState().tap(data.linkedQuickActionId);
+        useQuickLogStore.getState().tap(data.linkedQuickActionId, undefined, undefined, { amount: { value: 250, unit: 'ml' } });
       }
       break;
 
     case NOTIF_ACTIONS.LOG_500ML:
       if (data.linkedQuickActionId) {
-        useQuickLogStore.getState().tap(data.linkedQuickActionId);
-        useQuickLogStore.getState().tap(data.linkedQuickActionId);
+        useQuickLogStore.getState().tap(data.linkedQuickActionId, undefined, undefined, { amount: { value: 500, unit: 'ml' } });
       }
       break;
 

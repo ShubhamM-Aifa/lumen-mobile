@@ -235,42 +235,14 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
 
       // Automatically create Sleep LogEntry in Timeline
       try {
-        const hours = Math.floor(durationMinutes / 60);
-        const mins = durationMinutes % 60;
-        const bedtimeStr = new Date(bedtimeIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const wakeStr = wakeDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const note = `Sleep: ${hours}h ${mins}m (${bedtimeStr} – ${wakeStr})`;
 
-        await api.post('/logs', {
-          clientId: `sleep:${todayStr}`,
-          source: 'sleep',
-          occurredAt: wakeTimeIso,
+        // One entry per night on the server (the old POST was rejected: its id and source were not allowed).
+        await api.put('/logs/sleep', {
+          wakeTime: wakeTimeIso,
+          bedtime: bedtimeIso,
+          durationMinutes,
+          source: 'tracker',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          note,
-          answers: [
-            {
-              optionId: 'sleep_summary',
-              optionLabelSnapshot: `${hours}h ${mins}m sleep`,
-              values: [
-                {
-                  fieldKey: 'sleep_duration_minutes',
-                  dataType: 'number',
-                  value: durationMinutes,
-                  unit: 'minutes',
-                },
-                {
-                  fieldKey: 'bedtime',
-                  dataType: 'string',
-                  value: bedtimeIso,
-                },
-                {
-                  fieldKey: 'wake_time',
-                  dataType: 'string',
-                  value: wakeTimeIso,
-                },
-              ],
-            },
-          ],
         });
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });
         queryClient.invalidateQueries({ queryKey: ['timeline-summary'] });
@@ -300,44 +272,14 @@ export const useSleepTrackerStore = create<SleepTrackerState>((set, get) => ({
       // Update / enrich the timeline Sleep LogEntry with quality rating
       try {
         const location = await logLocationService.getFastLocationSnapshot().catch(() => null);
-        const hours = Math.floor(updated.durationMinutes / 60);
-        const mins = updated.durationMinutes % 60;
-        const qualityLabel = quality.charAt(0) + quality.slice(1).toLowerCase();
-        await api.post('/logs', {
-          clientId: `sleep:${updated.date}`,
-          source: 'sleep',
-          occurredAt: updated.wakeTime,
+        // Adds the rating to the same night (the server keeps a better source's times).
+        await api.put('/logs/sleep', {
+          wakeTime: updated.wakeTime,
+          bedtime: updated.bedtime,
+          durationMinutes: updated.durationMinutes,
+          quality,
+          source: 'tracker',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          note: `Sleep: ${hours}h ${mins}m · ${qualityLabel}`,
-          answers: [
-            {
-              optionId: 'sleep_summary',
-              optionLabelSnapshot: `${hours}h ${mins}m sleep`,
-              values: [
-                {
-                  fieldKey: 'sleep_duration_minutes',
-                  dataType: 'number',
-                  value: updated.durationMinutes,
-                  unit: 'minutes',
-                },
-                {
-                  fieldKey: 'sleep_quality',
-                  dataType: 'enum',
-                  value: quality,
-                },
-                {
-                  fieldKey: 'bedtime',
-                  dataType: 'string',
-                  value: updated.bedtime,
-                },
-                {
-                  fieldKey: 'wake_time',
-                  dataType: 'string',
-                  value: updated.wakeTime,
-                },
-              ],
-            },
-          ],
           ...(location ? { location } : {}),
         });
         queryClient.invalidateQueries({ queryKey: ['day-entries'] });

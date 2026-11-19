@@ -53,32 +53,15 @@ export async function syncHealthConnectSleep(opts?: { boundaryHour?: number; day
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue;
 
       const durationMinutes = Math.max(15, Math.round((endMs - startMs) / 60000));
-      const hours = Math.floor(durationMinutes / 60);
-      const mins = durationMinutes % 60;
       const sessionDate = getTrackingDayDateString(new Date(endMs), boundaryHour);
-      const clientId = `sleep:${sessionDate}`;
-      const bedtimeStr = new Date(startMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const wakeStr = new Date(endMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const note = `Sleep: ${hours}h ${mins}m (${bedtimeStr} – ${wakeStr})`;
 
       try {
-        await api.post('/logs', {
-          clientId,
-          source: 'sleep',
-          occurredAt: rec.endTime,
+        await api.put('/logs/sleep', {
+          wakeTime: rec.endTime,
+          bedtime: rec.startTime,
+          durationMinutes,
+          source: 'device',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          note,
-          answers: [
-            {
-              optionId: 'sleep_summary',
-              optionLabelSnapshot: `${hours}h ${mins}m sleep`,
-              values: [
-                { fieldKey: 'sleep_duration_minutes', dataType: 'number', value: durationMinutes, unit: 'minutes' },
-                { fieldKey: 'bedtime', dataType: 'string', value: rec.startTime },
-                { fieldKey: 'wake_time', dataType: 'string', value: rec.endTime },
-              ],
-            },
-          ],
         });
         syncedCount++;
         if (!latestSleep || endMs > new Date(latestSleep.wakeTime).getTime()) {

@@ -1,3 +1,4 @@
+import { api } from '../api/client';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -181,6 +182,9 @@ export const useWeatherStore = create<WeatherStoreState>((set, get) => ({
       }
 
       const { latitude, longitude } = location.coords;
+      // Daily weather for Insights › Explore is kept on the server for a rounded (~1 km) location.
+      // The server only refetches when the place changed or every few hours.
+      api.put('/weather/location', { lat: Math.round(latitude * 100) / 100, lon: Math.round(longitude * 100) / 100 }).catch(() => {});
 
       // 3. Reverse geocode to get city and area name
       const { city, region } = await weatherService.reverseGeocode(latitude, longitude);

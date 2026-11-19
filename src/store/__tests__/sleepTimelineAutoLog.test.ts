@@ -18,6 +18,7 @@ jest.mock('../daySessionStore', () => ({
 jest.mock('../../api/client', () => ({
   api: {
     post: jest.fn().mockResolvedValue({ success: true }),
+    put: jest.fn().mockResolvedValue({ success: true }),
     get: jest.fn().mockResolvedValue({ success: true }),
   },
 }));
@@ -62,14 +63,14 @@ describe('sleep timeline auto-logging', () => {
     // Verify daySessionStore was synced
     expect(mockRecordWakeUp).toHaveBeenCalledWith(wakeTime);
 
-    // Verify api.post('/logs') was called with source: 'sleep'
-    expect(api.post).toHaveBeenCalledWith(
-      '/logs',
+    // One entry per night through the sleep endpoint (the server builds the timeline note)
+    expect(api.put).toHaveBeenCalledWith(
+      '/logs/sleep',
       expect.objectContaining({
-        clientId: expect.stringMatching(/^sleep:\d{4}-\d{2}-\d{2}$/),
-        source: 'sleep',
-        occurredAt: wakeTime.toISOString(),
-        note: expect.stringContaining('Sleep: 8h 0m'),
+        wakeTime: wakeTime.toISOString(),
+        bedtime: bedtime.toISOString(),
+        durationMinutes: 480,
+        source: 'tracker',
       })
     );
 
@@ -84,13 +85,9 @@ describe('sleep timeline auto-logging', () => {
 
     await useSleepTrackerStore.getState().recordSleepQuality('RESTFUL');
 
-    expect(api.post).toHaveBeenCalledWith(
-      '/logs',
-      expect.objectContaining({
-        clientId: expect.stringMatching(/^sleep:\d{4}-\d{2}-\d{2}$/),
-        source: 'sleep',
-        note: expect.stringContaining('Restful'),
-      })
+    expect(api.put).toHaveBeenCalledWith(
+      '/logs/sleep',
+      expect.objectContaining({ quality: 'RESTFUL', source: 'tracker', wakeTime: wakeTime.toISOString() })
     );
   });
 });
