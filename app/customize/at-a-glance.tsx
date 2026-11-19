@@ -106,7 +106,7 @@ export default function AtAGlanceCustomizeScreen() {
           <View style={styles.heroTopRow}>
             <View style={styles.badgePill}>
               <LayoutGrid size={14} color={palette.primaryText} />
-              <Text style={styles.badgePillText}>{activeCount} of 6 Active</Text>
+              <Text style={styles.badgePillText}>{activeCount} of {AVAILABLE_METRICS.length} Active</Text>
             </View>
             <View style={[styles.layoutBadge, { backgroundColor: isEven ? '#10B98118' : '#F59E0B18' }]}>
               <Text style={[styles.layoutBadgeText, { color: isEven ? '#10B981' : '#F59E0B' }]}>

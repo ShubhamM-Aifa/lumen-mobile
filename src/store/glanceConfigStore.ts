@@ -20,14 +20,6 @@ export interface MetricDefinition {
 
 export const AVAILABLE_METRICS: MetricDefinition[] = [
   {
-    key: 'water',
-    label: 'Water Intake',
-    description: 'Track daily glasses against your hydration target',
-    category: 'Hydration',
-    color: '#0284C7',
-    defaultEnabled: true,
-  },
-  {
     key: 'walking',
     label: 'Walking Distance',
     description: 'Daily walking distance in km and quick GPS launch',
@@ -36,19 +28,11 @@ export const AVAILABLE_METRICS: MetricDefinition[] = [
     defaultEnabled: true,
   },
   {
-    key: 'reminders',
-    label: 'Active Reminders',
-    description: 'Count of upcoming alerts and quick access to alarms',
-    category: 'Alerts',
-    color: '#8B5CF6',
-    defaultEnabled: true,
-  },
-  {
-    key: 'quick_logs',
-    label: 'Quick Taps',
-    description: 'Count of quick taps and check-ins recorded today',
-    category: 'Logging',
-    color: '#F43F5E',
+    key: 'active_time',
+    label: 'Active Time',
+    description: 'Total active and walking minutes accumulated today',
+    category: 'Activity',
+    color: '#F59E0B',
     defaultEnabled: true,
   },
   {
@@ -60,33 +44,32 @@ export const AVAILABLE_METRICS: MetricDefinition[] = [
     defaultEnabled: true,
   },
   {
-    key: 'active_time',
-    label: 'Active Time',
-    description: 'Total active and walking minutes accumulated today',
-    category: 'Activity',
-    color: '#F59E0B',
+    key: 'reminders',
+    label: 'Active Reminders',
+    description: 'Count of upcoming alerts and quick access to alarms',
+    category: 'Alerts',
+    color: '#8B5CF6',
     defaultEnabled: true,
   },
 ];
 
 export const DEFAULT_COMPACT_ORDER: GlanceMetricKey[] = [
-  'reminders',
   'walking',
-  'quick_logs',
   'active_time',
   'day_session',
+  'reminders',
 ];
 
 const STORAGE_KEY = 'lumen:glance_metrics_v1';
 const ORDER_STORAGE_KEY = 'lumen:glance_metrics_order_v1';
 
 const DEFAULT_STATE: Record<GlanceMetricKey, boolean> = {
-  water: true,
   walking: true,
-  reminders: true,
-  quick_logs: true,
-  day_session: true,
   active_time: true,
+  day_session: true,
+  reminders: true,
+  water: false,
+  quick_logs: false,
 };
 
 interface GlanceConfigState {
@@ -214,6 +197,6 @@ export const useGlanceConfigStore = create<GlanceConfigState>((set, get) => ({
 
   getActiveCount: () => {
     const state = get().enabledMetrics;
-    return Object.values(state).filter(Boolean).length;
+    return AVAILABLE_METRICS.filter(m => state[m.key]).length;
   },
 }));
