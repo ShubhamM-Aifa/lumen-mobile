@@ -10,6 +10,7 @@ import { Href } from 'expo-router';
 
 interface Props {
   title?: string;
+  subtitle?: string;
   onBack?: () => void;
   backLabel?: string;
   /** 'close' shows an X (sheets), 'back' shows a chevron. */
@@ -22,7 +23,7 @@ interface Props {
 }
 
 /** Top row of a pushed or modal form: round glass button, centred title, optional right control. */
-export function ScreenTopBar({ title, onBack, backLabel = 'Back', backIcon = 'back', right, sheet, fallbackRoute = '/(tabs)/today' }: Props) {
+export function ScreenTopBar({ title, subtitle, onBack, backLabel = 'Back', backIcon = 'back', right, sheet, fallbackRoute = '/(tabs)/today' }: Props) {
   const styles = useStyles();
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
@@ -34,9 +35,16 @@ export function ScreenTopBar({ title, onBack, backLabel = 'Back', backIcon = 'ba
           ? <X size={20} color={palette.text} strokeWidth={2.4} />
           : <ChevronLeft size={22} color={palette.text} strokeWidth={2.4} />}
       </GlassCircleButton>
-      <Text style={styles.title} numberOfLines={1} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
-        {title ?? ''}
-      </Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title} numberOfLines={1} accessibilityRole="header" maxFontSizeMultiplier={1.3}>
+          {title ?? ''}
+        </Text>
+        {Boolean(subtitle) && (
+          <Text style={styles.subtitle} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
       <View style={styles.right}>{right}</View>
     </View>
   );
@@ -80,7 +88,9 @@ const useStyles = createThemedStyles(palette => ({
     paddingHorizontal: 16,
     paddingBottom: 4,
   },
-  title: { ...typography.headline, color: palette.text, flex: 1, textAlign: 'center' },
+  titleContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  title: { ...typography.headline, color: palette.text, textAlign: 'center' },
+  subtitle: { ...typography.caption2, color: palette.textSecondary, textAlign: 'center', marginTop: 1 },
   right: { minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   btn: { minHeight: 44, minWidth: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   btnPlain: { paddingHorizontal: 4 },

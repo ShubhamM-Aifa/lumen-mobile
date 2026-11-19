@@ -49,6 +49,11 @@ export interface CommunityReportItem {
   createdAt: string;
 }
 
+export interface CommunityPerson {
+  userId: string;
+  displayName: string;
+}
+
 export interface CommunityMember {
   userId: string;
   displayName: string;
@@ -105,6 +110,7 @@ interface CommunityState {
   setSlowMode: (channelId: string, seconds: number) => Promise<void>;
   respondToDmRequest: (channelId: string, action: 'accept' | 'decline') => Promise<void>;
   translateMessage: (messageId: string, target: 'english' | 'hinglish') => Promise<string>;
+  searchPeople: (query: string) => Promise<CommunityPerson[]>;
 
   // Safety
   blocks: CommunityBlock[];
@@ -382,6 +388,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       dmChannels: state.dmChannels.map((c) => (c._id === channelId ? { ...c, dmStatus } : c)),
       activeChannel: state.activeChannel && state.activeChannel._id === channelId ? { ...state.activeChannel, dmStatus } : state.activeChannel,
     }));
+  },
+
+  searchPeople: async (query) => {
+    try {
+      const res = await api.get<CommunityPerson[]>(`/community/people?q=${encodeURIComponent(query)}`);
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
   },
 
   translateMessage: async (messageId, target) => {

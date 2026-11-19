@@ -32,18 +32,24 @@ interface Props {
   channels: ICommunityChannel[];
   activeServer?: ICommunityServer | null;
   activeChannelId?: string;
+  isDmsMode?: boolean;
+  hideHeader?: boolean;
   onSelectChannel: (channel: ICommunityChannel) => void;
   onOpenSearch?: () => void;
   onPressAddChannel?: () => void;
+  onPressNewMessage?: () => void;
 }
 
 export const DiscordChannelDrawer: React.FC<Props> = ({
   channels,
   activeServer,
   activeChannelId,
+  isDmsMode = false,
+  hideHeader = true,
   onSelectChannel,
   onOpenSearch,
   onPressAddChannel,
+  onPressNewMessage,
 }) => {
   const { palette } = useTheme();
   const { user } = useAuthStore();
@@ -56,14 +62,14 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
   const categories = React.useMemo(() => {
     const map = new Map<string, ICommunityChannel[]>();
     for (const channel of channels) {
-      const cat = channel.category || 'COMMUNITY';
+      const cat = channel.category || (isDmsMode ? 'DIRECT MESSAGES' : 'COMMUNITY');
       if (!map.has(cat)) {
         map.set(cat, []);
       }
       map.get(cat)!.push(channel);
     }
     return Array.from(map.entries());
-  }, [channels]);
+  }, [channels, isDmsMode]);
 
   const renderChannelIcon = (type: string, color: string) => {
     if (type === 'forum') {
@@ -80,45 +86,92 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: palette.background }]}>
-      {/* Discord Server Header */}
-      <View style={[styles.serverHeader, { borderBottomColor: palette.border }]}>
-        <View style={styles.serverTitleRow}>
-          <View style={[styles.serverBadge, { backgroundColor: activeServer?.color || palette.primary }]}>
-            <Text style={{ fontSize: 18 }}>{activeServer?.icon || '🌟'}</Text>
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.serverName, { color: palette.text }]} numberOfLines={1}>
-              {activeServer?.name || 'Lumen Spoonie Hub'}
-            </Text>
-            <View style={styles.serverMetaRow}>
-              <View style={styles.onlineDot} />
-              <Text style={[styles.serverMetaText, { color: palette.textSecondary }]}>
-                {activeServer?.membersCount || 1} {activeServer?.membersCount === 1 ? 'Member' : 'Members'}
-              </Text>
+      {/* Discord Server Header - only shown if hideHeader is false */}
+      {!hideHeader && (
+        <View style={[styles.serverHeader, { borderBottomColor: palette.border }]}>
+          <View style={styles.serverTitleRow}>
+            <View style={[styles.serverBadge, { backgroundColor: isDmsMode ? palette.primary : (activeServer?.color || palette.primary) }]}>
+              <Text style={{ fontSize: 18 }}>{isDmsMode ? '💬' : (activeServer?.icon || '🌟')}</Text>
             </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[styles.serverName, { color: palette.text }]} numberOfLines={1}>
+                {isDmsMode ? 'Direct Messages' : (activeServer?.name || 'Lumen Spoonie Hub')}
+              </Text>
+              <View style={styles.serverMetaRow}>
+                <View style={styles.onlineDot} />
+                <Text style={[styles.serverMetaText, { color: palette.textSecondary }]}>
+                  {isDmsMode
+                    ? `${channels.length} ${channels.length === 1 ? 'Conversation' : 'Conversations'}`
+                    : `${activeServer?.membersCount || 1} ${activeServer?.membersCount === 1 ? 'Member' : 'Members'}`}
+                </Text>
+              </View>
+            </View>
+            {!isDmsMode && (
+              <>
+                <TouchableOpacity
+                  onPress={() => setInviteModalVisible(true)}
+                  style={styles.searchBtn}
+                  accessibilityLabel="Invite friends to community"
+                >
+                  <UserPlus size={18} color={palette.textSecondary} />
+                </TouchableOpacity>
+                {onPressAddChannel && (
+                  <TouchableOpacity onPress={onPressAddChannel} style={styles.searchBtn} accessibilityLabel="Create new channel">
+                    <Plus size={18} color={palette.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+            {onOpenSearch && (
+              <TouchableOpacity onPress={onOpenSearch} style={styles.searchBtn} accessibilityLabel="Search channels">
+                <Search size={18} color={palette.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
-          <TouchableOpacity
-            onPress={() => setInviteModalVisible(true)}
-            style={styles.searchBtn}
-            accessibilityLabel="Invite friends to community"
-          >
-            <UserPlus size={18} color={palette.textSecondary} />
-          </TouchableOpacity>
-          {onPressAddChannel && (
-            <TouchableOpacity onPress={onPressAddChannel} style={styles.searchBtn} accessibilityLabel="Create new channel">
-              <Plus size={18} color={palette.textSecondary} />
-            </TouchableOpacity>
-          )}
-          {onOpenSearch && (
-            <TouchableOpacity onPress={onOpenSearch} style={styles.searchBtn} accessibilityLabel="Search channels">
-              <Search size={18} color={palette.textSecondary} />
-            </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Channel Categories & List or Empty State */}
+      {channels.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          {isDmsMode ? (
+            <>
+              <MessageSquare size={36} color={palette.textSecondary} />
+              <Text style={[styles.emptyTitle, { color: palette.text }]}>No Direct Messages</Text>
+              <Text style={[styles.emptySubtitle, { color: palette.textSecondary }]}>
+                Start a private conversation with a community member.
+              </Text>
+              {onPressNewMessage && (
+                <TouchableOpacity
+                  style={[styles.emptyBtn, { backgroundColor: palette.primary }]}
+                  onPress={onPressNewMessage}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.emptyBtnText}>Start Conversation</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <>
+              <Hash size={36} color={palette.textSecondary} />
+              <Text style={[styles.emptyTitle, { color: palette.text }]}>No Channels Yet</Text>
+              <Text style={[styles.emptySubtitle, { color: palette.textSecondary }]}>
+                Create the first channel in this community to start chatting.
+              </Text>
+              {onPressAddChannel && (
+                <TouchableOpacity
+                  style={[styles.emptyBtn, { backgroundColor: palette.primary }]}
+                  onPress={onPressAddChannel}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.emptyBtnText}>Create Channel</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
-      </View>
-
-      {/* Channel Categories & List */}
-      <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
+      ) : (
+        <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
         {categories.map(([categoryName, groupChannels]) => {
           const isCollapsed = Boolean(collapsedCategories[categoryName]);
 
@@ -197,6 +250,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
         })}
         <View style={{ height: 80 }} />
       </ScrollView>
+      )}
 
       {/* Bottom User Bar */}
       <View style={[styles.userBar, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
@@ -405,6 +459,36 @@ const styles = StyleSheet.create({
   },
   anonToggleText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  emptyBtn: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  emptyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Search, X, Settings } from 'lucide-react-native';
+import { Search, X, Settings, SquarePen, Plus } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -23,6 +23,7 @@ import { CreateCommunityModal } from '../../src/components/community/CreateCommu
 import { JoinCommunityModal } from '../../src/components/community/JoinCommunityModal';
 import { CreateChannelModal } from '../../src/components/community/CreateChannelModal';
 import { ServerSettingsModal } from '../../src/components/community/ServerSettingsModal';
+import { NewMessageModal } from '../../src/components/community/NewMessageModal';
 
 export default function CommunityDirectoryScreen() {
   const { palette } = useTheme();
@@ -48,6 +49,7 @@ export default function CommunityDirectoryScreen() {
   const [joinCommunityVisible, setJoinCommunityVisible] = useState(false);
   const [createChannelVisible, setCreateChannelVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [newMessageVisible, setNewMessageVisible] = useState(false);
 
   useEffect(() => {
     fetchServers();
@@ -79,34 +81,64 @@ export default function CommunityDirectoryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScreenTopBar
         sheet
         title={isDmsMode ? 'Direct Messages' : (activeServer?.name || 'Lumen Community Hub')}
+        subtitle={
+          isDmsMode
+            ? `${dmChannels.length} ${dmChannels.length === 1 ? 'conversation' : 'conversations'}`
+            : `${activeServer?.membersCount || 1} ${(activeServer?.membersCount || 1) === 1 ? 'member' : 'members'}`
+        }
         backLabel="Go back to dashboard"
         onBack={() => safeGoBack('/(tabs)/today')}
         right={
           <View style={{ flexDirection: 'row', gap: 8 }}>
-          {!isDmsMode && activeServer && (
+            {isDmsMode ? (
+              <GlassCircleButton
+                accessibilityLabel="New message"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setNewMessageVisible(true);
+                }}
+              >
+                <SquarePen size={20} color={palette.text} strokeWidth={2.2} />
+              </GlassCircleButton>
+            ) : (
+              <>
+                {activeServer && (
+                  <>
+                    <GlassCircleButton
+                      accessibilityLabel="Create channel"
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setCreateChannelVisible(true);
+                      }}
+                    >
+                      <Plus size={20} color={palette.text} strokeWidth={2.2} />
+                    </GlassCircleButton>
+                    <GlassCircleButton
+                      accessibilityLabel="Community settings"
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSettingsVisible(true);
+                      }}
+                    >
+                      <Settings size={20} color={palette.text} strokeWidth={2.2} />
+                    </GlassCircleButton>
+                  </>
+                )}
+              </>
+            )}
             <GlassCircleButton
-              accessibilityLabel="Community settings"
+              accessibilityLabel="Search channels"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSettingsVisible(true);
+                setIsSearching(!isSearching);
               }}
             >
-              <Settings size={20} color={palette.text} strokeWidth={2.2} />
+              <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
             </GlassCircleButton>
-          )}
-          <GlassCircleButton
-            accessibilityLabel="Search channels"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsSearching(!isSearching);
-            }}
-          >
-            <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
-          </GlassCircleButton>
           </View>
         }
       />
@@ -165,9 +197,12 @@ export default function CommunityDirectoryScreen() {
               channels={filteredChannels}
               activeServer={activeServer}
               activeChannelId={activeChannel?._id}
+              isDmsMode={isDmsMode}
+              hideHeader={true}
               onSelectChannel={handleOpenChannel}
               onOpenSearch={() => setIsSearching(true)}
               onPressAddChannel={() => setCreateChannelVisible(true)}
+              onPressNewMessage={() => setNewMessageVisible(true)}
             />
           )}
         </View>
@@ -184,6 +219,15 @@ export default function CommunityDirectoryScreen() {
         visible={joinCommunityVisible}
         onClose={() => setJoinCommunityVisible(false)}
         onJoined={() => fetchServers()}
+      />
+
+      <NewMessageModal
+        visible={newMessageVisible}
+        onClose={() => setNewMessageVisible(false)}
+        onOpened={(channelId) => {
+          fetchDms();
+          router.push({ pathname: '/community/[channelId]', params: { channelId } });
+        }}
       />
 
       <ServerSettingsModal visible={settingsVisible} server={activeServer} onClose={() => setSettingsVisible(false)} />
