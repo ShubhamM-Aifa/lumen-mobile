@@ -53,7 +53,7 @@ const useStyles = createThemedStyles(palette => ({
   },
   actionsSplit: { justifyContent: 'space-between' },
   actionGroup: { flexDirection: 'row', gap: 10 },
-  titleBlock: { paddingHorizontal: 20, marginTop: -2, gap: 2 },
+  titleBlock: { paddingHorizontal: 16, marginTop: -2, gap: 2 },
   title: { ...typography.largeTitle, color: palette.text },
   subtitleRow: {
     flexDirection: 'row',

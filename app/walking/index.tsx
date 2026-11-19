@@ -279,8 +279,8 @@ const useStyles = createThemedStyles(palette => ({
   scroll: {
     flex: 1,
   },
-  content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24, gap: 20 },
-  heroCard: { backgroundColor: palette.surface, borderRadius: 26, padding: 20 },
+  content: { paddingTop: 6, paddingBottom: 24, gap: 20 },
+  heroCard: { marginHorizontal: 16, backgroundColor: palette.surface, borderRadius: 26, padding: 20 },
   heroHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -346,6 +346,7 @@ const useStyles = createThemedStyles(palette => ({
   autoPillText: { ...typography.caption, fontWeight: '600', color: palette.primaryText },
   notWalkText: { ...typography.caption, color: palette.textSecondary, textDecorationLine: 'underline' },
   section: {
+    marginHorizontal: 16,
     gap: 12,
   },
   sectionTitle: { ...typography.title2, color: palette.text },
