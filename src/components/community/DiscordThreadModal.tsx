@@ -20,6 +20,7 @@ import { ICommunityMessage } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
 import { useAuthStore } from '../../store/authStore';
 import { ModularAvatar } from '../avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../store/avatarStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboard } from '../../hooks/useKeyboard';
 
@@ -117,10 +118,16 @@ export const DiscordThreadModal: React.FC<Props> = ({
                   <View style={{ width: 24, height: 24, borderRadius: 12, overflow: 'hidden', marginRight: 6 }}>
                     <ModularAvatar size={24} animated={false} />
                   </View>
+                ) : parent.isAnonymous ? (
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>🥄</Text>
                 ) : (
-                  <Text style={{ fontSize: 16, marginRight: 6 }}>
-                    {parent.senderAvatarEmoji || '🥄'}
-                  </Text>
+                  <View style={{ width: 24, height: 24, borderRadius: 12, overflow: 'hidden', marginRight: 6 }}>
+                    <ModularAvatar
+                      size={24}
+                      animated={false}
+                      config={getDeterministicAvatarConfig(parent.senderId || parent.senderDisplayName)}
+                    />
+                  </View>
                 )}
                 <TouchableOpacity onPress={() => onPressProfile && onPressProfile(parent.senderId)}>
                   <Text style={[styles.authorName, { color: parent.senderRoleColor || palette.text }]}>
@@ -161,10 +168,16 @@ export const DiscordThreadModal: React.FC<Props> = ({
                       <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 5 }}>
                         <ModularAvatar size={20} animated={false} />
                       </View>
+                    ) : reply.isAnonymous ? (
+                      <Text style={{ fontSize: 14, marginRight: 4 }}>🥄</Text>
                     ) : (
-                      <Text style={{ fontSize: 14, marginRight: 4 }}>
-                        {reply.senderAvatarEmoji || '🥄'}
-                      </Text>
+                      <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 5 }}>
+                        <ModularAvatar
+                          size={20}
+                          animated={false}
+                          config={getDeterministicAvatarConfig(reply.senderId || reply.senderDisplayName)}
+                        />
+                      </View>
                     )}
                     <TouchableOpacity onPress={() => onPressProfile && onPressProfile(reply.senderId)}>
                       <Text style={[styles.authorName, { color: reply.senderRoleColor || palette.text }]}>
@@ -214,7 +227,9 @@ export const DiscordThreadModal: React.FC<Props> = ({
               {
                 backgroundColor: palette.surface,
                 borderTopColor: palette.border,
-                paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 10),
+                paddingBottom: isKeyboardVisible
+                  ? (Platform.OS === 'ios' ? 8 : 6)
+                  : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)),
               },
             ]}
           >

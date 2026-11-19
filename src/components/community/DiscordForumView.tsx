@@ -30,6 +30,7 @@ import { IForumPost, ICommunityChannel } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
 import { useAuthStore } from '../../store/authStore';
 import { ModularAvatar } from '../avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../store/avatarStore';
 
 interface Props {
   channel: ICommunityChannel;
@@ -198,10 +199,16 @@ export const DiscordForumView: React.FC<Props> = ({
                     <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 6 }}>
                       <ModularAvatar size={20} animated={false} />
                     </View>
+                  ) : post.author.isAnonymous ? (
+                    <Text style={{ fontSize: 14, marginRight: 6 }}>🥄</Text>
                   ) : (
-                    <Text style={{ fontSize: 14, marginRight: 6 }}>
-                      {post.author.senderAvatarEmoji || '🥄'}
-                    </Text>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, overflow: 'hidden', marginRight: 6 }}>
+                      <ModularAvatar
+                        size={20}
+                        animated={false}
+                        config={getDeterministicAvatarConfig(post.author.senderId || post.author.senderDisplayName)}
+                      />
+                    </View>
                   )}
                   <Text style={[styles.authorName, { color: post.author.senderRoleColor || palette.text }]}>
                     {post.author.senderDisplayName}

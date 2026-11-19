@@ -4,6 +4,7 @@
  * Support linking to a Question & Option for in-place flare/symptom logging.
  */
 import React, { useEffect, useState } from 'react';
+import { MetricRolePicker, type MetricRoleValue } from '../../../src/components/customize/MetricRolePicker';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 } from 'react-native';
@@ -41,6 +42,7 @@ export default function QuickActionEditorScreen() {
   const [unit, setUnit] = useState('');
   const [defaultValue, setDefaultValue] = useState('1');
   const [dailyGoal, setDailyGoal] = useState('');
+  const [metricRole, setMetricRole] = useState<MetricRoleValue>(undefined);
   const [saving, setSaving] = useState(false);
 
   // Linked question and option state
@@ -61,6 +63,7 @@ export default function QuickActionEditorScreen() {
         setUnit(action.unit ?? '');
         setDefaultValue(action.defaultValue != null ? String(action.defaultValue) : '1');
         setDailyGoal(action.dailyGoal != null ? String(action.dailyGoal) : '');
+        setMetricRole(action.metricRole === undefined ? undefined : action.metricRole);
         setLinkedQuestionId(action.linkedQuestionId ?? null);
         setLinkedOptionId(action.linkedOptionId ?? null);
 
@@ -102,6 +105,7 @@ export default function QuickActionEditorScreen() {
         dailyGoal: dailyGoal !== '' ? Number(dailyGoal) : undefined,
         linkedQuestionId: linkedQuestionId || null,
         linkedOptionId: linkedOptionId || null,
+        metricRole: metricRole === undefined ? 'auto' : metricRole,
       };
       if (isNew) {
         await api.post('/quick-actions', body);
@@ -433,6 +437,15 @@ export default function QuickActionEditorScreen() {
                 />
               </>
             )}
+
+            <Text style={styles.sectionLabel}>Counts toward</Text>
+            <MetricRolePicker
+              value={metricRole}
+              onChange={setMetricRole}
+              templateKey={existing?.templateKey}
+              label={label}
+              hint="Which daily number in Insights › Metrics this tap adds to."
+            />
 
             <Text style={styles.sectionLabel}>Daily goal (optional)</Text>
             <TextInput

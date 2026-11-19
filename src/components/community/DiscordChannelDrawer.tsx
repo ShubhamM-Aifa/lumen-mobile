@@ -25,6 +25,7 @@ import { useAuthStore } from '../../store/authStore';
 import { InviteCommunityModal } from './InviteCommunityModal';
 import { AppleSwitch } from '../common/AppleSwitch';
 import { ModularAvatar } from '../avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../store/avatarStore';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
@@ -208,9 +209,19 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
                       ]}
                       activeOpacity={0.75}
                     >
-                      {renderChannelIcon(
-                        channel.type,
-                        isActive ? palette.primary : palette.textSecondary
+                      {channel.type === 'dm' ? (
+                        <View style={{ marginRight: 8, borderRadius: 10, overflow: 'hidden' }}>
+                          <ModularAvatar
+                            size={20}
+                            animated={false}
+                            config={getDeterministicAvatarConfig(channel.dmUser?._id || channel.dmUser?.displayName || channel.name)}
+                          />
+                        </View>
+                      ) : (
+                        renderChannelIcon(
+                          channel.type,
+                          isActive ? palette.primary : palette.textSecondary
+                        )
                       )}
                       <Text
                         style={[
@@ -222,7 +233,9 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
                         ]}
                         numberOfLines={1}
                       >
-                        {channel.slug || channel.name}
+                        {channel.type === 'dm'
+                          ? (channel.dmUser?.displayName || (channel.name && !channel.name.startsWith('dm-') ? channel.name : 'Direct Message'))
+                          : (channel.slug || channel.name)}
                       </Text>
 
                       {channel.type === 'forum' && (

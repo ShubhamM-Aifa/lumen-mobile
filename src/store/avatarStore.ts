@@ -270,6 +270,72 @@ export const useAvatarStore = create<AvatarState>((set, get) => ({
   },
 }));
 
+/**
+ * Generate a deterministic, consistent, high-variety modular avatar config
+ * for any user ID or display name when they don't have a custom avatar configured.
+ */
+export function getDeterministicAvatarConfig(seed?: string): IModularAvatarConfig {
+  if (!seed) return DEFAULT_AVATAR_CONFIG;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const pos = Math.abs(hash);
+
+  const auras: IModularAvatarConfig['aura'][] = [
+    'none',
+    'cosmic_pulse',
+    'healing_leaves',
+    'golden_spoons',
+    'ember_glow',
+    'stardust_twinkle',
+  ];
+  const bases: IModularAvatarConfig['base'][] = ['spoonie_mascot', 'calm_human', 'celestial_feline'];
+  const eyesList: IModularAvatarConfig['eyes'][] = [
+    'calm',
+    'sleepy',
+    'sparkle',
+    'winking',
+    'cool_glasses',
+    'zen',
+  ];
+  const hairs: IModularAvatarConfig['hair'][] = [
+    'sprout',
+    'cat_ears',
+    'beanie',
+    'cozy_bun',
+    'soft_waves',
+    'short_curl',
+  ];
+  const outfits: IModularAvatarConfig['outfit'][] = [
+    'oversized_hoodie',
+    'flare_pajamas',
+    'spoonie_cape',
+    'knit_sweater',
+    'herbal_robe',
+  ];
+  const accessories: IModularAvatarConfig['accessory'][] = [
+    'chamomile_tea',
+    'golden_spoon',
+    'glowing_sprite',
+    'hot_water_bottle',
+    'sprout_branch',
+  ];
+
+  return {
+    aura: auras[pos % auras.length],
+    base: bases[(pos >> 2) % bases.length],
+    skinTone: AVATAR_SKIN_PALETTE[(pos >> 4) % AVATAR_SKIN_PALETTE.length],
+    eyes: eyesList[(pos >> 6) % eyesList.length],
+    hair: hairs[(pos >> 8) % hairs.length],
+    hairColor: AVATAR_HAIR_PALETTE[(pos >> 10) % AVATAR_HAIR_PALETTE.length],
+    outfit: outfits[(pos >> 12) % outfits.length],
+    outfitColor: AVATAR_OUTFIT_PALETTE[(pos >> 14) % AVATAR_OUTFIT_PALETTE.length],
+    accessory: accessories[(pos >> 16) % accessories.length],
+  };
+}
+
 // Early rehydration to ensure the customized profile avatar is immediately loaded everywhere
 useAvatarStore.getState().loadAvatar().catch(() => {});
 

@@ -10,8 +10,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { X, Award, FileText, CheckSquare, Sparkles, MessageSquare, Mail } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
+import { useAuthStore } from '../../store/authStore';
 import { IDiscordUserProfile } from '../../shared/types';
 import { ModularAvatar } from '../avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../store/avatarStore';
 
 interface Props {
   visible: boolean;
@@ -29,8 +31,10 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
   onDirectMessage,
 }) => {
   const { palette } = useTheme();
+  const { user: me } = useAuthStore();
 
   if (!user) return null;
+  const isMe = Boolean(me?._id && user.userId === me._id);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -53,7 +57,12 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
               {/* Avatar Section */}
               <View style={styles.avatarRow}>
                 <View style={[styles.avatarCircle, { borderColor: palette.surface }]}>
-                  <ModularAvatar size={66} animated={true} interactive={true} />
+                  <ModularAvatar
+                    size={66}
+                    animated={true}
+                    interactive={true}
+                    config={isMe ? undefined : getDeterministicAvatarConfig(user.userId || user.displayName)}
+                  />
                   <View style={styles.statusDot}>
                     <Text style={{ fontSize: 9 }}>🥄</Text>
                   </View>

@@ -35,6 +35,7 @@ import { FieldPresetPicker, Preset } from '../../../src/components/customize/Fie
 import { DraggableValueFieldsList } from '../../../src/components/customize/DraggableValueFieldsList';
 import { LivePreview } from '../../../src/components/customize/LivePreview';
 import { safeGoBack } from '../../../src/utils/navigation';
+import { OptionsSheet, type SheetSection } from '../../../src/components/todo/OptionsSheet';
 
 const CAPTURE_OPTIONS: Array<{ value: CaptureTime; label: string; desc: string }> = [
   { value: 'none', label: 'No time', desc: 'Do not capture time for this option' },
@@ -64,6 +65,25 @@ export default function OptionEditorScreen() {
   const [captureTime, setCaptureTime] = useState<CaptureTime>(normalizeCaptureTime(existing?.captureTime));
   const [fields, setFields] = useState<FieldDefinition[]>(existing?.fields ?? []);
   const [saving, setSaving] = useState(false);
+  const [mergedInto, setMergedInto] = useState<string | null>(existing?.mergedInto ?? null);
+  const [pickingMerge, setPickingMerge] = useState(false);
+  const mergeLabel = (optId: string) => {
+    const o = config?.options.find(x => x._id === optId);
+    if (!o) return 'An option that no longer exists';
+    const q = config?.questions.find(x => x._id === o.questionId);
+    const c = config?.categories.find(x => x._id === q?.categoryId);
+    return `${o.label}${c ? ` (${c.name})` : ''}`;
+  };
+  const mergeSections: SheetSection[] = [
+    { options: [{ key: 'none', label: 'No, it is its own item', selected: !mergedInto, onPress: () => setMergedInto(null) }] },
+    ...(config?.categories ?? []).filter(c => c.isActive).map(c => ({
+      title: c.name,
+      options: (config?.options ?? [])
+        .filter(o => o._id !== id && o.isActive && !o.mergedInto && (config?.questions ?? []).some(q => q._id === o.questionId && q.categoryId === c._id))
+        .map(o => ({ key: o._id, label: o.label, selected: mergedInto === o._id, onPress: () => setMergedInto(o._id) })),
+    })).filter(sec => sec.options.length > 0),
+  ];
+
   const [editingField, setEditingField] = useState<number | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
 
@@ -117,7 +137,7 @@ export default function OptionEditorScreen() {
       if (isNew) {
         await api.post('/options', body);
       } else {
-        await api.patch(`/options/${id}`, body);
+        await api.patch(`/options/${id}`, { ...body, ...(mergedInto !== (existing?.mergedInto ?? null) ? { mergedInto } : {}) });
       }
       invalidate();
       await fetchConfig();
@@ -256,6 +276,20 @@ export default function OptionEditorScreen() {
             })}
           </InsetGroup>
 
+          {!isNew ? (
+            <InsetGroup
+              title="Insights"
+              footer="For duplicates (e.g. two “Dairy” options): Explore and Metrics then count both as one item. Your logs are not changed, and you can undo it any time."
+            >
+              <GroupedRow
+                label="Count as the same as"
+                sub={mergedInto ? mergeLabel(mergedInto) : 'No, it is its own item'}
+                chevron
+                onPress={() => setPickingMerge(true)}
+              />
+            </InsetGroup>
+          ) : null}
+
           {/* Value Fields InsetGroup */}
           <InsetGroup
             title={`Value fields (${fields.length})`}
@@ -308,6 +342,13 @@ export default function OptionEditorScreen() {
           onClose={() => setEditingField(null)}
         />
       )}
+      <OptionsSheet
+        visible={pickingMerge}
+        onClose={() => setPickingMerge(false)}
+        title="Count as the same as"
+        subtitle="Explore and Metrics will treat both as one item"
+        sections={mergeSections}
+      />
     </SafeAreaView>
   );
 }

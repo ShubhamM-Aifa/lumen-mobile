@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Search } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { useCommunityStore, CommunityPerson } from '../../store/communityStore';
+import { ModularAvatar } from '../avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../store/avatarStore';
 
 interface Props {
   visible: boolean;
@@ -122,8 +124,12 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
               accessibilityRole="button"
               accessibilityLabel={`Message ${item.displayName}`}
             >
-              <View style={[styles.avatar, { backgroundColor: palette.surface }]}>
-                <Text style={{ fontSize: 18 }}>🌟</Text>
+              <View style={[styles.avatar, { backgroundColor: palette.surface, overflow: 'hidden' }]}>
+                <ModularAvatar
+                  size={32}
+                  animated={false}
+                  config={getDeterministicAvatarConfig(item.userId || item.displayName)}
+                />
               </View>
               <Text style={[styles.name, { color: palette.text }]} numberOfLines={1}>
                 {item.displayName}

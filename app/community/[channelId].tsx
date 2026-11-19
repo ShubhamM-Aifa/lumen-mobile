@@ -7,6 +7,7 @@ import {
   TextInput,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
@@ -61,6 +62,7 @@ import { formatTimeRelative } from '../../src/utils/dayBoundary';
 import { CommunityEmbedType, ICommunityMessage, IForumPost } from '../../src/shared/types';
 import { useKeyboard } from '../../src/hooks/useKeyboard';
 import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
+import { getDeterministicAvatarConfig } from '../../src/store/avatarStore';
 import { safeGoBack } from '../../src/utils/navigation';
 
 export default function ChannelChatScreen() {
@@ -72,10 +74,12 @@ export default function ChannelChatScreen() {
 
   const {
     channels,
+    dmChannels,
     activeChannel,
     activeServer,
     messages,
     fetchChannels,
+    fetchDms,
     fetchMessages,
     fetchOlderMessages,
     sendMessage,
@@ -144,18 +148,29 @@ export default function ChannelChatScreen() {
   const [noMoreOlder, setNoMoreOlder] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Find channel metadata
+  // Find channel metadata (search both server channels and direct message channels)
   const channel =
     activeChannel?._id === channelId || activeChannel?.slug === channelId
       ? activeChannel
-      : channels.find((c) => c._id === channelId || c.slug === channelId);
+      : [...channels, ...dmChannels].find((c) => c._id === channelId || c.slug === channelId);
+
+  const isDm = channel?.type === 'dm';
+  const dmTargetName = isDm
+    ? (channel?.dmUser?.displayName || (channel?.name && !channel.name.startsWith('dm-') ? channel.name : 'Direct Message'))
+    : '';
+  const channelDisplayName = isDm
+    ? dmTargetName
+    : `#${channel?.slug || channel?.name || 'Channel'}`;
 
   // Real-time Socket & Initial Data
   useEffect(() => {
     if (channels.length === 0) {
       fetchChannels();
     }
-  }, [channels.length, fetchChannels]);
+    if (dmChannels.length === 0) {
+      fetchDms();
+    }
+  }, [channels.length, dmChannels.length, fetchChannels, fetchDms]);
 
   useEffect(() => {
     if (channelId) {
@@ -509,11 +524,21 @@ export default function ChannelChatScreen() {
 
           <View style={styles.headerTitleBox}>
             <View style={styles.channelNameRow}>
-              <Text style={{ fontSize: 16, marginRight: 4 }}>
-                {channel?.icon || (channel?.type === 'forum' ? '🏷️' : '💬')}
-              </Text>
+              {isDm ? (
+                <View style={styles.headerAvatarContainer}>
+                  <ModularAvatar
+                    size={26}
+                    animated={false}
+                    config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
+                  />
+                </View>
+              ) : (
+                <Text style={{ fontSize: 16, marginRight: 4 }}>
+                  {channel?.icon || (channel?.type === 'forum' ? '🏷️' : '💬')}
+                </Text>
+              )}
               <Text style={[styles.channelTitle, { color: palette.text }]} numberOfLines={1}>
-                #{channel?.slug || channel?.name || 'Channel'}
+                {channelDisplayName}
               </Text>
               {channel?.type === 'forum' && (
                 <View style={[styles.typeBadge, { backgroundColor: `${palette.primary}25` }]}>
@@ -522,7 +547,7 @@ export default function ChannelChatScreen() {
               )}
             </View>
             <Text style={[styles.channelTopic, { color: palette.textSecondary }]} numberOfLines={1}>
-              {channel?.topic || channel?.description}
+              {isDm ? (channel?.topic || 'Private 1-on-1 conversation') : (channel?.topic || channel?.description)}
             </Text>
           </View>
 
@@ -600,7 +625,7 @@ export default function ChannelChatScreen() {
                   { color: isAnonymous ? '#F59E0B' : palette.textSecondary },
                 ]}
               >
-                {isAnonymous ? 'Anon' : 'Public'}
+                {isAnonymous ? 'Anon' : isDm ? 'Named' : 'Public'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -718,13 +743,33 @@ export default function ChannelChatScreen() {
             >
               {/* Channel Welcome Banner */}
               <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
-                <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
-                <Text style={[styles.welcomeTitle, { color: palette.text }]}>
-                  Welcome to #{channel?.name || 'Channel'}!
-                </Text>
-                <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
-                  This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
-                </Text>
+                {isDm ? (
+                  <>
+                    <View style={styles.welcomeAvatarContainer}>
+                      <ModularAvatar
+                        size={52}
+                        animated={false}
+                        config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
+                      />
+                    </View>
+                    <Text style={[styles.welcomeTitle, { color: palette.text }]}>
+                      {dmTargetName}
+                    </Text>
+                    <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
+                      This is the start of your 1-on-1 direct message history with {dmTargetName}. Messages are private between the two of you.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
+                    <Text style={[styles.welcomeTitle, { color: palette.text }]}>
+                      Welcome to #{channel?.name || 'Channel'}!
+                    </Text>
+                    <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
+                      This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
+                    </Text>
+                  </>
+                )}
               </View>
 
               {messages.length >= 50 && !noMoreOlder && !isSearching && (
@@ -794,10 +839,14 @@ export default function ChannelChatScreen() {
                           >
                             {!msg.isAnonymous && (msg.senderId === user?._id || msg.senderId === 'me' || (user?.name && msg.senderDisplayName === user.name)) ? (
                               <ModularAvatar size={38} animated={false} />
+                            ) : msg.isAnonymous ? (
+                              <Text style={styles.avatarEmoji}>🥄</Text>
                             ) : (
-                              <Text style={styles.avatarEmoji}>
-                                {msg.senderAvatarEmoji || (msg.isAnonymous ? '🥄' : '🌟')}
-                              </Text>
+                              <ModularAvatar
+                                size={38}
+                                animated={false}
+                                config={getDeterministicAvatarConfig(msg.senderId || msg.senderDisplayName)}
+                              />
                             )}
                           </TouchableOpacity>
 
@@ -1199,6 +1248,7 @@ export default function ChannelChatScreen() {
                 <TouchableOpacity
                   style={styles.micBtn}
                   onPress={() => {
+                    Keyboard.dismiss();
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setIsRecordingVoice(true);
                   }}
@@ -1214,6 +1264,8 @@ export default function ChannelChatScreen() {
                   placeholder={
                     isAnonymous
                       ? 'Message as Anonymous Spoonie 🥄...'
+                      : isDm
+                      ? `Message @${dmTargetName}...`
                       : `Message #${channel?.slug || channel?.name || 'chat'}...`
                   }
                   placeholderTextColor={palette.textDisabled}
@@ -1443,6 +1495,16 @@ const styles = StyleSheet.create({
   messagesContent: {
     padding: 16,
     paddingBottom: 24,
+  },
+  headerAvatarContainer: {
+    marginRight: 8,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  welcomeAvatarContainer: {
+    marginBottom: 8,
+    borderRadius: 26,
+    overflow: 'hidden',
   },
   channelWelcomeCard: {
     borderRadius: 14,

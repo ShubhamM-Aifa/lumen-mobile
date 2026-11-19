@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Mic, Trash2, Send } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useAudioRecorder,
   RecordingPresets,
@@ -20,6 +21,7 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
   onCancel,
 }) => {
   const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
   const [seconds, setSeconds] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,8 +105,21 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const bottomPadding = Platform.OS === 'android'
+    ? Math.max(insets.bottom, 24)
+    : Math.max(insets.bottom, 12);
+
   return (
-    <View style={[styles.container, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: palette.surface,
+          borderTopColor: palette.border,
+          paddingBottom: bottomPadding,
+        },
+      ]}
+    >
       <TouchableOpacity
         onPress={handleCancel}
         style={[styles.cancelBtn, { backgroundColor: `${palette.error || '#EF4444'}20` }]}
@@ -147,7 +162,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   cancelBtn: {

@@ -4,6 +4,7 @@
  *        /customize/question/:id?categoryId=X
  */
 import React, { useState, useEffect } from 'react';
+import { MetricRolePicker, type MetricRoleValue } from '../../../src/components/customize/MetricRolePicker';
 import {
   View,
   Text,
@@ -56,6 +57,7 @@ export default function QuestionEditorScreen() {
   const [allowOther, setAllowOther] = useState(existing?.allowOther ?? false);
   const [required, setRequired] = useState(existing?.required ?? false);
   const [frequency, setFrequency] = useState<QuestionFrequency>(existing?.frequency ?? 'anytime');
+  const [metricRole, setMetricRole] = useState<MetricRoleValue>(existing?.metricRole === undefined ? undefined : existing.metricRole);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export default function QuestionEditorScreen() {
       setAllowOther(existing.allowOther);
       setRequired(existing.required);
       setFrequency(existing.frequency);
+      setMetricRole(existing.metricRole === undefined ? undefined : existing.metricRole);
     }
   }, [existing?._id]);
 
@@ -92,6 +95,7 @@ export default function QuestionEditorScreen() {
         allowOther,
         required,
         frequency,
+        metricRole: metricRole === undefined ? 'auto' : metricRole,
       };
 
       if (isNew) {
@@ -257,6 +261,18 @@ export default function QuestionEditorScreen() {
                 />
               );
             })}
+          </InsetGroup>
+
+          <InsetGroup title="Counts toward">
+            <View style={{ padding: 14 }}>
+              <MetricRolePicker
+                value={metricRole}
+                onChange={setMetricRole}
+                templateKey={existing?.templateKey}
+                label={title}
+                hint="Which daily number in Insights › Metrics the answers add to (a duration adds minutes, a number in ml adds water, hours add sleep)."
+              />
+            </View>
           </InsetGroup>
 
           {/* Rules & Flags InsetGroup */}
