@@ -47,6 +47,7 @@ import { DayClockCard } from '../../src/components/DayClockCard';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { UndoToast } from '../../src/components/UndoToast';
 import { ForYouTodayCard } from '../../src/components/home/ForYouTodayCard';
+import { ChatShortcutsCard } from '../../src/components/home/ChatShortcutsCard';
 import { FeelingCard } from '../../src/components/home/FeelingCard';
 import { DayCheckInCard } from '../../src/components/home/DayCheckInCard';
 import { MyDaySection } from '../../src/components/home/MyDaySection';
@@ -426,6 +427,8 @@ export default function TodayScreen() {
                 onToggle={v => { setFlareMode(v); }}
               />
             </InsetGroup>
+
+            <ChatShortcutsCard />
 
             {summaryRows.length > 0 ? (
               <View style={styles.block}>

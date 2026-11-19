@@ -73,7 +73,7 @@ async function openRef(ref: ChatRef) {
 }
 
 export default function AiChatScreen() {
-  const { id, attach, prompt } = useLocalSearchParams<{ id: string; attach?: string; prompt?: string }>();
+  const { id, attach, prompt, autosend } = useLocalSearchParams<{ id: string; attach?: string; prompt?: string; autosend?: string }>();
   const isNew = !id || id === 'new';
   const { palette } = useTheme();
   const styles = useStyles();
@@ -159,6 +159,16 @@ export default function AiChatScreen() {
     return () => clearTimeout(t);
   }, [messages.length, pending, failure]);
 
+  // A question typed on the Today screen is sent right away, once.
+  const autoSent = useRef(false);
+  const submitRef = useRef<(input: SendAiMessage) => void>(() => {});
+  useEffect(() => {
+    if (autoSent.current || autosend !== '1' || typeof prompt !== 'string' || !prompt.trim() || !isNew) return;
+    autoSent.current = true;
+    setDraft('');
+    submitRef.current({ message: prompt.trim() });
+  }, [autosend, prompt, isNew]);
+
   const submit = (input: SendAiMessage) => {
     setFailure(null);
     setPending(input);
@@ -177,6 +187,7 @@ export default function AiChatScreen() {
       },
     });
   };
+  submitRef.current = submit;
 
   const onSend = async (text = draft) => {
     if (dictation.listening) dictation.cancel();

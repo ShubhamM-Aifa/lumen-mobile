@@ -79,6 +79,22 @@ describe('Lumen AI chat screen', () => {
     expect(router.replace).toHaveBeenCalledWith('/ai/c1');
   });
 
+  it('sends the question typed on the Today screen right away, only once', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'new', prompt: 'Why am I so tired?', autosend: '1' });
+    mutate.mockImplementation(() => {});
+    const t = await render();
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ message: 'Why am I so tired?' }, expect.anything());
+    await act(async () => { t.update(<AiChatScreen />); });
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('only fills the box when a prompt arrives without autosend', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'new', prompt: 'Draft me' });
+    await render();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it('sends typed text in an existing conversation', async () => {
     (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'c9' });
     const t = await render();
