@@ -47,6 +47,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
 }) => {
   const { palette } = useTheme();
   const { user } = useAuthStore();
+  const meId = user?._id;
   const { collapsedCategories, toggleCategoryCollapsed, isAnonymous, toggleAnonymous } =
     useCommunityStore();
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -174,6 +175,12 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
                       {channel.type === 'forum' && (
                         <View style={[styles.forumPill, { backgroundColor: `${palette.primary}25` }]}>
                           <Text style={[styles.forumPillText, { color: palette.primaryText }]}>Forum</Text>
+                        </View>
+                      )}
+
+                      {channel.type === 'dm' && channel.dmStatus === 'pending' && channel.dmInitiatorId !== meId && (
+                        <View style={[styles.forumPill, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                          <Text style={[styles.forumPillText, { color: '#F59E0B' }]}>Request</Text>
                         </View>
                       )}
 

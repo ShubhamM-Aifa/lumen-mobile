@@ -9,7 +9,11 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadMedia } from '../../services/mediaUpload';
 import {
   Plus,
   Tag,
@@ -52,6 +56,9 @@ export const DiscordForumView: React.FC<Props> = ({
   const [draftTitle, setDraftTitle] = useState('');
   const [draftContent, setDraftContent] = useState('');
   const [draftTag, setDraftTag] = useState('POTS');
+  const [draftWarning, setDraftWarning] = useState('');
+  const [draftPhoto, setDraftPhoto] = useState<{ uri: string; mimeType?: string } | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   const filteredPosts = React.useMemo(() => {
     return posts.filter((p) => {
@@ -65,16 +72,44 @@ export const DiscordForumView: React.FC<Props> = ({
   }, [posts, selectedTag, searchQuery]);
 
   const handlePublish = async () => {
-    if (!draftTitle.trim() || !draftContent.trim()) return;
-    await createForumPost(
-      channel._id,
-      draftTitle.trim(),
-      [draftTag],
-      draftContent.trim()
-    );
-    setDraftTitle('');
-    setDraftContent('');
-    setCreateModalVisible(false);
+    if (!draftTitle.trim() || !draftContent.trim() || publishing) return;
+    setPublishing(true);
+    try {
+      let embedType: 'photo' | undefined;
+      let embedData: { photoMediaId: string; photoUrl: string } | undefined;
+      if (draftPhoto) {
+        const up = await uploadMedia(draftPhoto.uri, draftPhoto.mimeType || 'image/jpeg');
+        embedType = 'photo';
+        embedData = { photoMediaId: up.mediaId, photoUrl: draftPhoto.uri };
+      }
+      await createForumPost(
+        channel._id,
+        draftTitle.trim(),
+        [draftTag],
+        draftContent.trim(),
+        embedType,
+        embedData,
+        draftWarning.trim() || undefined
+      );
+      setDraftTitle('');
+      setDraftContent('');
+      setDraftWarning('');
+      setDraftPhoto(null);
+      setCreateModalVisible(false);
+    } catch (err: any) {
+      Alert.alert('Story not published', err?.message || 'Please try again.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const pickDraftPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, exif: false });
+      if (!result.canceled && result.assets?.[0]) setDraftPhoto({ uri: result.assets[0].uri, mimeType: result.assets[0].mimeType || undefined });
+    } catch (err: any) {
+      Alert.alert('Photo', err?.message || 'Could not open your photos');
+    }
   };
 
   return (
@@ -153,7 +188,7 @@ export const DiscordForumView: React.FC<Props> = ({
 
               {/* Snippet */}
               <Text style={[styles.postSnippet, { color: palette.textSecondary }]} numberOfLines={3}>
-                {post.content}
+                {post.contentWarning ? `⚠ Content warning: ${post.contentWarning}` : post.content}
               </Text>
 
               {/* Author & Footer */}
@@ -271,9 +306,33 @@ export const DiscordForumView: React.FC<Props> = ({
                 onChangeText={setDraftContent}
               />
 
+              <Text style={[styles.inputLabel, { color: palette.textSecondary, marginTop: 14 }]}>CONTENT WARNING (OPTIONAL)</Text>
+              <TextInput
+                style={[styles.titleInput, { color: palette.text, backgroundColor: palette.background, borderColor: palette.border }]}
+                placeholder="e.g., hospital stay, medication changes"
+                placeholderTextColor={palette.textDisabled}
+                value={draftWarning}
+                onChangeText={setDraftWarning}
+                maxLength={60}
+                accessibilityLabel="Content warning"
+              />
+
+              <TouchableOpacity
+                onPress={draftPhoto ? () => setDraftPhoto(null) : pickDraftPhoto}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel={draftPhoto ? 'Remove photo' : 'Add a photo'}
+              >
+                {draftPhoto ? <Image source={{ uri: draftPhoto.uri }} style={{ width: 44, height: 44, borderRadius: 8 }} /> : null}
+                <Text style={{ color: palette.primaryText || palette.primary, fontWeight: '700' }}>
+                  {draftPhoto ? 'Remove photo' : '+ Add a photo'}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handlePublish}
-                style={[styles.publishBtn, { backgroundColor: palette.primary }]}
+                disabled={publishing}
+                style={[styles.publishBtn, { backgroundColor: palette.primary, opacity: publishing ? 0.6 : 1 }]}
               >
                 <Send size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                 <Text style={styles.publishBtnText}>Publish Health Story</Text>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -101,7 +101,10 @@ export default function RecordUploadScreen() {
   const { palette, colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
 
-  const { createRecord } = useHealthRecordStore();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const isEditing = Boolean(id);
+  const { createRecord, updateRecord, fetchRecordById, activeRecord, records } = useHealthRecordStore();
+  const [existingRecord, setExistingRecord] = useState<IHealthRecord | null>(null);
 
   // Form State
   const [recordType, setRecordType] = useState<HealthRecordType>('blood_test');
@@ -120,6 +123,56 @@ export default function RecordUploadScreen() {
   // Clinical Details
   const [biomarkers, setBiomarkers] = useState<IBiomarker[]>([]);
   const [medications, setMedications] = useState<IPrescribedMedication[]>([]);
+
+  // Prepopulate form if editing an existing record
+  useEffect(() => {
+    if (id) {
+      const rec = records.find((r) => r._id === id) || (activeRecord?._id === id ? activeRecord : null);
+      if (rec) {
+        setExistingRecord(rec);
+        populateForm(rec);
+      } else {
+        fetchRecordById(id).then((fetched) => {
+          if (fetched) {
+            setExistingRecord(fetched);
+            populateForm(fetched);
+          }
+        });
+      }
+    }
+  }, [id]);
+
+  const populateForm = (rec: IHealthRecord) => {
+    setRecordType(rec.type);
+    setTitle(rec.title || '');
+    setDoctorName(rec.doctorName || '');
+    setClinicOrLab(rec.clinicOrLab || '');
+    if (rec.date) {
+      const datePart = rec.date.includes('T') ? rec.date.split('T')[0] : rec.date;
+      setRecordDate(datePart);
+    }
+    setNotes(rec.notes || '');
+    setIsSensitive(Boolean(rec.isSensitive));
+    setBiomarkers(rec.biomarkers ? rec.biomarkers.map((b) => ({ ...b })) : []);
+    setMedications(rec.medications ? rec.medications.map((m) => ({ ...m })) : []);
+
+    const files: AttachedFile[] = [];
+    const urls = rec.fileUrls || [];
+    const locals = rec.localFileUris || [];
+    const names = rec.fileNames || [];
+    const allUris = Array.from(new Set([...locals, ...urls]));
+    allUris.forEach((uri, idx) => {
+      const isPdf = uri.toLowerCase().includes('.pdf');
+      files.push({
+        uri,
+        name: names[idx] || (isPdf ? `Document_${idx + 1}.pdf` : `Scan_${idx + 1}.jpg`),
+        mimeType: isPdf ? 'application/pdf' : 'image/jpeg',
+      });
+    });
+    if (files.length > 0) {
+      setAttachedFiles(files);
+    }
+  };
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
@@ -448,7 +501,7 @@ export default function RecordUploadScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const mediaIds: string[] = [];
+      const mediaIds: string[] = existingRecord?.mediaIds ? [...existingRecord.mediaIds] : [];
       const fileUrls: string[] = [];
       const localFileUris: string[] = [];
       const fileNames: string[] = [];
@@ -457,9 +510,15 @@ export default function RecordUploadScreen() {
       for (const file of attachedFiles) {
         localFileUris.push(file.uri);
         fileNames.push(file.name);
+        if (file.uri.startsWith('http://') || file.uri.startsWith('https://')) {
+          if (!fileUrls.includes(file.uri)) {
+            fileUrls.push(file.uri);
+          }
+          continue;
+        }
         try {
           const uploadRes = await uploadMedia(file.uri, file.mimeType, isSensitive);
-          if (uploadRes.mediaId) {
+          if (uploadRes.mediaId && !mediaIds.includes(uploadRes.mediaId)) {
             mediaIds.push(uploadRes.mediaId);
           }
           if (uploadRes.url) {
@@ -476,7 +535,7 @@ export default function RecordUploadScreen() {
       // 3. Clean medications
       const validMedications = medications.filter((m) => m.name.trim().length > 0);
 
-      // 4. Save record
+      // 4. Save or update record
       const payload: Partial<IHealthRecord> = {
         title: title.trim(),
         type: recordType,
@@ -493,29 +552,35 @@ export default function RecordUploadScreen() {
         medications: validMedications,
       };
 
-      await createRecord(payload);
+      if (isEditing && id) {
+        await updateRecord(id, payload);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safeGoBack(`/records/${id}`);
+      } else {
+        await createRecord(payload);
 
-      // 5. If prescription and syncToMedTracker is checked, create in medications collection
-      if (recordType === 'doctor_prescription' && syncToMedTracker && validMedications.length > 0) {
-        for (const med of validMedications) {
-          try {
-            await api.post('/medications', {
-              name: med.name.trim(),
-              dose: med.dosage?.trim() || undefined,
-              schedule: med.frequency?.trim() || undefined,
-              active: med.isActive !== false,
-              startedOn: recordDate,
-            });
-          } catch {
-            // Non-blocking medication sync
+        // 5. If prescription and syncToMedTracker is checked, create in medications collection
+        if (recordType === 'doctor_prescription' && syncToMedTracker && validMedications.length > 0) {
+          for (const med of validMedications) {
+            try {
+              await api.post('/medications', {
+                name: med.name.trim(),
+                dose: med.dosage?.trim() || undefined,
+                schedule: med.frequency?.trim() || undefined,
+                active: med.isActive !== false,
+                startedOn: recordDate,
+              });
+            } catch {
+              // Non-blocking medication sync
+            }
           }
         }
-      }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      safeGoBack('/records');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safeGoBack('/records');
+      }
     } catch (err: any) {
-      Alert.alert('Save Failed', err.message || 'Unable to save record. Please try again.');
+      Alert.alert(isEditing ? 'Update Failed' : 'Save Failed', err.message || 'Unable to save record. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -525,13 +590,13 @@ export default function RecordUploadScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Top Bar */}
       <ScreenTopBar
-        title="Upload Health Record"
+        title={isEditing ? 'Edit Health Record' : 'Upload Health Record'}
         backIcon="close"
-        onBack={() => safeGoBack('/records')}
-        fallbackRoute="/records"
+        onBack={() => safeGoBack(isEditing ? `/records/${id}` : '/records')}
+        fallbackRoute={isEditing ? `/records/${id}` : '/records'}
         right={
           <HeaderTextButton
-            label="Save"
+            label={isEditing ? 'Update' : 'Save'}
             prominent
             onPress={handleSave}
             loading={isSaving}
@@ -1156,6 +1221,25 @@ export default function RecordUploadScreen() {
             />
           </View>
 
+          {/* Bottom Save/Update Button */}
+          <TouchableOpacity
+            style={[styles.bottomSaveBtn, { backgroundColor: palette.primary }]}
+            onPress={handleSave}
+            disabled={isSaving}
+            activeOpacity={0.85}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Check size={20} color="#FFFFFF" />
+                <Text style={styles.bottomSaveBtnText}>
+                  {isEditing ? 'Update Health Record' : 'Save Health Record'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1514,5 +1598,24 @@ const useStyles = createThemedStyles((palette) => ({
   fileAiBtnText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  bottomSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  bottomSaveBtnText: {
+    ...typography.headline,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 }));

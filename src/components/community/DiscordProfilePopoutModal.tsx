@@ -64,9 +64,9 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
               <View style={styles.content}>
                 <View style={styles.headerInfo}>
                   <Text style={[styles.displayName, { color: palette.text }]}>{user.displayName}</Text>
-                  <Text style={[styles.energyStatus, { color: palette.primaryText }]}>
-                    {user.energyStatus || 'Pacing & Resting 🥄'}
-                  </Text>
+                  {Boolean(user.energyStatus) && (
+                    <Text style={[styles.energyStatus, { color: palette.primaryText }]}>{user.energyStatus}</Text>
+                  )}
                 </View>
 
                 {/* Role Badges */}
@@ -94,7 +94,7 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
                 <View style={[styles.bioBox, { backgroundColor: palette.background }]}>
                   <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>ABOUT ME</Text>
                   <Text style={[styles.bioText, { color: palette.text }]}>
-                    {user.bio || 'Chronic illness navigator sharing pacing notes, routines, and daily support.'}
+                    {user.bio || 'No bio yet.'}
                   </Text>
 
                   {/* Condition Flairs */}

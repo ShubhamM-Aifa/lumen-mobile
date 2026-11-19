@@ -18,7 +18,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Search, X, Camera, RotateCcw, Calendar } from 'lucide-react-native';
+import { Search, X, Camera, RotateCcw, Calendar, Sparkles } from 'lucide-react-native';
+import { useAskLumenAi } from '../../src/hooks/useAskLumenAi';
+import { dayRefTitle } from '../../src/utils/ai/refs';
 import * as Haptics from 'expo-haptics';
 import { useConfigStore } from '../../src/store/configStore';
 import { useAuthStore } from '../../src/store/authStore';
@@ -50,6 +52,7 @@ export default function TimelineScreen() {
   const { user } = useAuthStore();
   const boundaryHour = user?.preferences?.dayBoundaryHour ?? 4;
   const { date: routeDate } = useLocalSearchParams<{ date?: string }>();
+  const { ask } = useAskLumenAi();
 
   const [today, setToday] = useState(() => getTrackingDayDateString(new Date(), boundaryHour));
   const [selectedDate, setSelectedDate] = useState(() => routeDate || getTrackingDayDateString(new Date(), boundaryHour));
@@ -339,15 +342,23 @@ export default function TimelineScreen() {
         <LargeTitleHeader
           title="Timeline"
           actions={
-            <GlassCircleButton
-              accessibilityLabel={isToday ? 'Showing today' : 'Jump to today'}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                jumpToDate(today);
-              }}
-            >
-              <Calendar size={20} color={isToday ? palette.textSecondary : palette.tint} strokeWidth={2.2} />
-            </GlassCircleButton>
+            <View style={styles.headerActions}>
+              <GlassCircleButton
+                accessibilityLabel="Ask Lumen AI about this day"
+                onPress={() => ask({ kind: 'day', id: selectedDate, title: dayRefTitle(selectedDate, today) })}
+              >
+                <Sparkles size={20} color={palette.tint} strokeWidth={2.2} />
+              </GlassCircleButton>
+              <GlassCircleButton
+                accessibilityLabel={isToday ? 'Showing today' : 'Jump to today'}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  jumpToDate(today);
+                }}
+              >
+                <Calendar size={20} color={isToday ? palette.textSecondary : palette.tint} strokeWidth={2.2} />
+              </GlassCircleButton>
+            </View>
           }
         />
 
@@ -575,6 +586,7 @@ export default function TimelineScreen() {
 }
 
 const useStyles = createThemedStyles(palette => ({
+  headerActions: { flexDirection: 'row', gap: 10 },
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: 6, paddingBottom: TAB_BAR_CLEARANCE },

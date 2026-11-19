@@ -27,6 +27,7 @@ jest.mock('../../hooks/useExperiments', () => ({
 }));
 jest.mock('../../components/insights/CompareSection', () => ({ CompareSection: () => null }));
 jest.mock('../../components/insights/LumenAiCard', () => ({ LumenAiCard: () => null }));
+jest.mock('../../hooks/useAskLumenAi', () => ({ useAskLumenAi: () => ({ ask: jest.fn(), fullAccess: false }) }));
 jest.mock('../../hooks/useExplain', () => ({
   useExplain: () => ({ mutate: jest.fn(), isPending: false }),
 }));

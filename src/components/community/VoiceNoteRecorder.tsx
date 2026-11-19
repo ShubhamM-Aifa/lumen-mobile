@@ -11,7 +11,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { uploadMedia } from '../../services/mediaUpload';
 
 interface VoiceNoteRecorderProps {
-  onSend: (audioUrl: string, durationSeconds: number) => void;
+  onSend: (audioUrl: string, durationSeconds: number, audioMediaId?: string) => void;
   onCancel: () => void;
 }
 
@@ -22,7 +22,7 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
   const { palette } = useTheme();
   const [seconds, setSeconds] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -85,16 +85,13 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
 
       const duration = Math.max(1, seconds);
       const res = await uploadMedia(uri, 'audio/m4a');
-      onSend(res.url, duration);
+      onSend(res.url, duration, res.mediaId);
     } catch (err: any) {
       console.error('Error uploading voice note:', err);
       // Fallback: if server media upload fails in dev or offline, use local uri
-      if (recorder.uri) {
-        onSend(recorder.uri, Math.max(1, seconds));
-      } else {
-        Alert.alert('Upload Failed', 'Could not upload voice note. Please try again.');
-        onCancel();
-      }
+      // A phone-local file path would be unplayable for everyone else, so do not send it.
+      Alert.alert('Upload Failed', 'Could not upload voice note. Please try again.');
+      onCancel();
     } finally {
       setIsUploading(false);
     }

@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Search, X } from 'lucide-react-native';
+import { Search, X, Settings } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -22,6 +22,7 @@ import { DiscordServerRail } from '../../src/components/community/DiscordServerR
 import { CreateCommunityModal } from '../../src/components/community/CreateCommunityModal';
 import { JoinCommunityModal } from '../../src/components/community/JoinCommunityModal';
 import { CreateChannelModal } from '../../src/components/community/CreateChannelModal';
+import { ServerSettingsModal } from '../../src/components/community/ServerSettingsModal';
 
 export default function CommunityDirectoryScreen() {
   const { palette } = useTheme();
@@ -46,6 +47,7 @@ export default function CommunityDirectoryScreen() {
   const [createCommunityVisible, setCreateCommunityVisible] = useState(false);
   const [joinCommunityVisible, setJoinCommunityVisible] = useState(false);
   const [createChannelVisible, setCreateChannelVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   useEffect(() => {
     fetchServers();
@@ -84,6 +86,18 @@ export default function CommunityDirectoryScreen() {
         backLabel="Go back to dashboard"
         onBack={() => safeGoBack('/(tabs)/today')}
         right={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+          {!isDmsMode && activeServer && (
+            <GlassCircleButton
+              accessibilityLabel="Community settings"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSettingsVisible(true);
+              }}
+            >
+              <Settings size={20} color={palette.text} strokeWidth={2.2} />
+            </GlassCircleButton>
+          )}
           <GlassCircleButton
             accessibilityLabel="Search channels"
             onPress={() => {
@@ -93,6 +107,7 @@ export default function CommunityDirectoryScreen() {
           >
             <Search size={20} color={isSearching ? palette.tint : palette.text} strokeWidth={2.2} />
           </GlassCircleButton>
+          </View>
         }
       />
 
@@ -170,6 +185,8 @@ export default function CommunityDirectoryScreen() {
         onClose={() => setJoinCommunityVisible(false)}
         onJoined={() => fetchServers()}
       />
+
+      <ServerSettingsModal visible={settingsVisible} server={activeServer} onClose={() => setSettingsVisible(false)} />
 
       {activeServer && (
         <CreateChannelModal

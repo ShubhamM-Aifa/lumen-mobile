@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft, ArrowUpDown, MoreHorizontal, Lightbulb, X, ChevronDown, ChevronRight,
-  CheckSquare, Eye, EyeOff, Zap, Tag, SlidersHorizontal, FolderInput, Inbox,
+  CheckSquare, Eye, EyeOff, Zap, Tag, SlidersHorizontal, FolderInput, Inbox, Sparkles,
 } from 'lucide-react-native';
+import { useAskLumenAi } from '../../../src/hooks/useAskLumenAi';
 import * as Haptics from 'expo-haptics';
 import { safeGoBack } from '../../../src/utils/navigation';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
@@ -61,6 +62,7 @@ export default function TodoListScreen() {
   const boundaryHour = useBoundaryHour();
   const { isKeyboardVisible } = useKeyboard();
   useTodoBootstrap();
+  const { ask } = useAskLumenAi();
 
   const tasks = useTaskStore((s) => s.tasks);
   const lists = useTaskStore((s) => s.lists);
@@ -225,6 +227,7 @@ export default function TodoListScreen() {
       ? [{ key: 'clear', label: 'Clear filters', icon: X, onPress: () => setViewPrefs(viewId, { energy: null, category: null }) }]
       : []),
     ...(list ? [{ key: 'list', label: 'List options', icon: SlidersHorizontal, opensModal: true, onPress: () => setActionList(list) }] : []),
+    ...(list ? [{ key: 'ask', label: 'Ask Lumen AI about this list', icon: Sparkles, onPress: () => ask({ kind: 'list', id: list._id, title: list.name }) }] : []),
   ];
 
   const energyOptions: SheetOption[] = [

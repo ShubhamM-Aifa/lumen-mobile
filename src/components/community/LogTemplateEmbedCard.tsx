@@ -50,13 +50,14 @@ export const LogTemplateEmbedCard: React.FC<LogTemplateEmbedCardProps> = ({
   };
 
   const handleInstall = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await cloneLogTemplateToPersonal(embed, messageId);
-    setIsInstalledLocal(true);
-    Alert.alert(
-      'Template Installed!',
-      `"${embed.title}" tracking configuration has been saved. You can log it anytime in Today or Log tabs.`
-    );
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      // Opens the review screen: you choose what to add, and can undo it afterwards.
+      const draftId = await cloneLogTemplateToPersonal(embed, messageId);
+      router.push(`/ai/template/${draftId}` as any);
+    } catch (err: any) {
+      Alert.alert('Could not install', err?.message || 'Please try again.');
+    }
   };
 
   const categoriesCount = embed.categories?.length || 0;

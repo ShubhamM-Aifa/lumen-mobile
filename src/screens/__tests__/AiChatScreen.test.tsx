@@ -8,9 +8,13 @@ import { useDictation, type DictationOptions } from '../../services/voice/useDic
 import { speakReply } from '../../services/voice/tts';
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() }, useLocalSearchParams: jest.fn() }));
-jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }), SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('expo-image-picker', () => ({}));
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('../../services/mediaUpload', () => ({ uploadMedia: jest.fn(), getMimeType: () => 'image/jpeg' }));
+jest.mock('../../services/todo/outbox', () => ({ flushOutbox: jest.fn(async () => undefined) }));
+jest.mock('../../services/mediaService', () => ({ resolveMediaUrl: jest.fn(async () => 'https://files/x.pdf') }));
+jest.mock('../../hooks/useTodo', () => ({ useTodayStr: () => '2026-11-19' }));
 jest.mock('../../components/ios/ScreenTopBar', () => ({ ScreenTopBar: () => null }));
 jest.mock('../../components/ai/AiPhotoThumb', () => ({ AiPhotoThumb: () => null }));
 jest.mock('../../services/voice/useDictation', () => ({ useDictation: jest.fn() }));
@@ -20,6 +24,10 @@ const mockSaveNote = jest.fn();
 jest.mock('../../hooks/useAiChat', () => ({
   useAiAccess: jest.fn(), useAiConversation: jest.fn(), useSendAiMessage: jest.fn(),
   useSaveMessageAsNote: jest.fn(() => ({ mutate: mockSaveNote, isPending: false })),
+  useAttachables: jest.fn((kind: string | null) => ({
+    isLoading: false, isError: false,
+    data: kind === 'note' ? [{ id: 'n7', title: 'Doctor visit', subtitle: 'Edited today' }] : kind ? [] : undefined,
+  })),
 }));
 
 const flat = (c: unknown): string | null => {
@@ -158,5 +166,72 @@ describe('Lumen AI chat screen', () => {
     expect(router.push).toHaveBeenCalledWith('/ai/template/d1');
     await act(async () => { t.root.findAll(n => n.props.accessibilityLabel === 'Save as note' && n.props.onPress)[0].props.onPress(); });
     expect(mockSaveNote).toHaveBeenCalledWith({ conversationId: 'c3', messageId: 'm1' }, expect.anything());
+  });
+});
+
+describe('Lumen AI chat attachments', () => {
+  const byLabel = (t: ReactTestRenderer, label: string) => t.root.findAll(n => n.props.accessibilityLabel === label && typeof n.props.onPress === 'function')[0];
+  const tap = async (t: ReactTestRenderer, label: string) => { await act(async () => { byLabel(t, label).props.onPress(); }); };
+  // The attach menu waits for its close animation before opening the next sheet.
+  const settle = () => act(async () => { await new Promise(r => setTimeout(r, 400)); });
+
+  it('attaches a note from the picker and sends it with the question', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'c9' });
+    const t = await render();
+    await tap(t, 'Attach');
+    await tap(t, 'Note');
+    await settle();
+    await tap(t, 'Attach Doctor visit');
+    expect(texts(t)).toContain('Doctor visit');
+    await act(async () => { t.root.findByType(TextInput).props.onChangeText('What should I ask?'); });
+    await tap(t, 'Send');
+    expect(mutate).toHaveBeenCalledWith(
+      { conversationId: 'c9', message: 'What should I ask?', mediaIds: [], refs: [{ kind: 'note', id: 'n7', title: 'Doctor visit' }] },
+      expect.anything(),
+    );
+  });
+
+  it('opens with an item from "Ask Lumen AI" attached, and can send it without text', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'new', attach: JSON.stringify({ kind: 'day', id: '2026-11-17', title: 'Tue, 17 Nov' }) });
+    const t = await render();
+    expect(texts(t)).toContain('Tue, 17 Nov');
+    await tap(t, 'Send');
+    expect(mutate).toHaveBeenCalledWith(
+      { conversationId: undefined, message: '', mediaIds: [], refs: [{ kind: 'day', id: '2026-11-17', title: 'Tue, 17 Nov' }] },
+      expect.anything(),
+    );
+  });
+
+  it('removes an attachment before sending', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'new', attach: JSON.stringify({ kind: 'note', id: 'n1', title: 'Visit' }) });
+    const t = await render();
+    await tap(t, 'Remove Visit');
+    expect(texts(t)).not.toContain('Visit');
+  });
+
+  it('uploads a picked PDF as a sensitive file and attaches it by name', async () => {
+    const { getDocumentAsync } = jest.requireMock('expo-document-picker') as { getDocumentAsync: jest.Mock };
+    const { uploadMedia } = jest.requireMock('../../services/mediaUpload') as { uploadMedia: jest.Mock };
+    getDocumentAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///cbc.pdf', name: 'cbc.pdf', size: 2048, mimeType: 'application/pdf' }] });
+    uploadMedia.mockResolvedValue({ mediaId: 'f1', url: '' });
+    const t = await render();
+    await tap(t, 'Attach');
+    await tap(t, 'PDF file');
+    await settle();
+    expect(uploadMedia).toHaveBeenCalledWith('file:///cbc.pdf', 'application/pdf', true, 2048);
+    expect(texts(t)).toContain('cbc.pdf');
+  });
+
+  it('shows sent attachments as chips that open the item', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'c4' });
+    (useAiConversation as jest.Mock).mockReturnValue({
+      isLoading: false,
+      data: { id: 'c4', title: 'Tasks', messages: [
+        { id: 'm1', role: 'user', text: 'Help me plan this', mediaIds: [], createdAt: '', refs: [{ kind: 'task', id: 't1', title: 'Book blood test' }] },
+      ] },
+    });
+    const t = await render();
+    await tap(t, 'Task: Book blood test. Open');
+    expect(router.push).toHaveBeenCalledWith('/todo/task/t1');
   });
 });

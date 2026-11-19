@@ -12,7 +12,11 @@ import {
   EXPERIMENT_DISCLAIMER, MEDICINE_LINE, resultLine, scheduleLine, significanceLine, thinDataLine,
 } from '../../services/insights/experimentCopy';
 
-export function ExperimentCard({ experiment }: { experiment: ExperimentData }) {
+export function ExperimentCard({ experiment, onAsk }: {
+  experiment: ExperimentData;
+  /** "Ask Lumen AI": a chat with this experiment attached (only passed when Lumen AI is on). */
+  onAsk?: (experiment: ExperimentData) => void;
+}) {
   const { palette } = useTheme();
   const styles = useStyles();
   const end = useEndExperiment();
@@ -59,6 +63,17 @@ export function ExperimentCard({ experiment }: { experiment: ExperimentData }) {
           <Text style={styles.stopText} maxFontSizeMultiplier={1.3}>Stop early</Text>
         </TouchableOpacity>
       )}
+
+      {onAsk ? (
+        <TouchableOpacity
+          style={styles.stopBtn}
+          onPress={() => onAsk(experiment)}
+          accessibilityRole="button"
+          accessibilityLabel={`Ask Lumen AI about the ${experiment.exposureLabel} experiment`}
+        >
+          <Text style={styles.askText} maxFontSizeMultiplier={1.3}>Ask Lumen AI about this</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -75,4 +90,5 @@ const useStyles = createThemedStyles(palette => ({
   disclaimer: { ...typography.footnote, color: palette.textSecondary, lineHeight: 19 },
   stopBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   stopText: { ...typography.body, color: palette.textDisabled },
+  askText: { ...typography.bodyBold, color: palette.primaryText },
 }));

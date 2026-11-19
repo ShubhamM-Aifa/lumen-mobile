@@ -56,6 +56,7 @@ export const CHANNEL_ID_SAFETY = 'lumen_safety_v1';        // MAX, alarm audio, 
 export const CHANNEL_ID_HEADS_UP = 'lumen_heads_up_v1';    // HIGH, default sound, respects DND
 export const CHANNEL_ID_INSIGHTS = 'lumen_insights_v1';    // LOW, silent
 // Lumen AI notifications (pushed by the server): briefing, nudge, check-in. The server names this id.
+export const CHANNEL_ID_COMMUNITY = 'lumen_community_v1'; // DEFAULT, sound, text hidden on the lock screen
 export const CHANNEL_ID_AI = 'lumen_ai_v1';                // DEFAULT, sound, text hidden on the lock screen
 export const CHANNEL_ID_WALK_ACTIVE = 'lumen_walk_active_v2'; // LOW, silent, public lockscreen for live activity
 export const NOTIFICATION_ID_WALK_ACTIVE = 'lumen_active_walk_session';
@@ -284,6 +285,16 @@ export async function ensureNotificationChannel(): Promise<void> {
       createChannelSafe(CHANNEL_ID_AI, {
         name: 'Lumen AI',
         description: 'Morning briefing, nudges and evening check-ins written by Lumen AI',
+        importance: N.AndroidImportance?.DEFAULT ?? 3,
+        sound: 'default',
+        enableVibrate: true,
+        vibrationPattern: [0, 200],
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
+      }),
+      // 7c. Community: direct messages, replies and @mentions pushed by the server
+      createChannelSafe(CHANNEL_ID_COMMUNITY, {
+        name: 'Community',
+        description: 'Direct messages, replies and mentions from the Lumen community',
         importance: N.AndroidImportance?.DEFAULT ?? 3,
         sound: 'default',
         enableVibrate: true,

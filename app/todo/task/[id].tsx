@@ -3,9 +3,11 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, KeyboardAvoidingVi
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Sun, Bell, Calendar, Repeat, Tag, Zap, FolderInput, HeartPulse, Trash2, Star, Check, Plus, X, MoreHorizontal, ArrowUpRight, Inbox,
+  Sun, Bell, Calendar, Repeat, Tag, Zap, FolderInput, HeartPulse, Trash2, Star, Check, Plus, X, MoreHorizontal, ArrowUpRight, Inbox, Sparkles,
 } from 'lucide-react-native';
 import { ScreenTopBar } from '../../../src/components/ios/ScreenTopBar';
+import { GlassCircleButton } from '../../../src/components/ios/GlassCircleButton';
+import { useAskLumenAi } from '../../../src/hooks/useAskLumenAi';
 import { InsetGroup, GroupedRow } from '../../../src/components/ios/InsetGroup';
 import { useTheme, createThemedStyles } from '../../../src/theme/ThemeContext';
 import { typography } from '../../../src/theme/typography';
@@ -49,6 +51,7 @@ export default function TaskScreen() {
   const todayStr = useTodayStr();
   const boundaryHour = useBoundaryHour();
   useTodoBootstrap();
+  const { ask } = useAskLumenAi();
 
   const task = useTaskStore((s) => s.tasks.find((t) => t._id === id));
   const lists = useTaskStore((s) => s.lists);
@@ -139,7 +142,17 @@ export default function TaskScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenTopBar fallbackRoute="/todo" />
+      <ScreenTopBar
+        fallbackRoute="/todo"
+        right={(
+          <GlassCircleButton
+            accessibilityLabel="Ask Lumen AI about this task"
+            onPress={() => { flushTitle(); flushNotes(); ask({ kind: 'task', id: task._id, title: title.trim() || task.title }); }}
+          >
+            <Sparkles size={18} color={palette.primaryText} />
+          </GlassCircleButton>
+        )}
+      />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={styles.content}

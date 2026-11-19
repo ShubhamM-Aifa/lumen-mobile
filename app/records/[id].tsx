@@ -35,6 +35,7 @@ import {
   X,
   Clock,
   Sparkles,
+  Pencil,
 } from 'lucide-react-native';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -44,6 +45,7 @@ import { PdfViewerModal } from '../../src/components/records/PdfViewerModal';
 import { useHealthRecordStore } from '../../src/store/healthRecordStore';
 import { IHealthRecord, HealthRecordType, IBiomarker, IPrescribedMedication } from '../../src/shared/types';
 import { safeGoBack } from '../../src/utils/navigation';
+import { useAskLumenAi } from '../../src/hooks/useAskLumenAi';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -54,6 +56,7 @@ export default function RecordDetailScreen() {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const { fetchRecordById, activeRecord, deleteRecord } = useHealthRecordStore();
+  const { ask } = useAskLumenAi();
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -230,13 +233,28 @@ export default function RecordDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {/* Top Bar with Share & Delete */}
+      {/* Top Bar with Edit, Share & Delete */}
       <ScreenTopBar
         title={record.title}
         onBack={() => safeGoBack('/records')}
         fallbackRoute="/records"
         right={
           <View style={styles.topRightActions}>
+            <GlassCircleButton
+              accessibilityLabel="Ask Lumen AI about this record"
+              onPress={() => ask({ kind: 'record', id: record._id, title: record.title })}
+            >
+              <Sparkles size={18} color={palette.tint} />
+            </GlassCircleButton>
+            <GlassCircleButton
+              accessibilityLabel="Edit record"
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push(`/records/upload?id=${record._id}`);
+              }}
+            >
+              <Pencil size={18} color={palette.tint} />
+            </GlassCircleButton>
             <GlassCircleButton accessibilityLabel="Share record" onPress={handleShare}>
               {isSharing ? (
                 <ActivityIndicator size="small" color={palette.tint} />
@@ -304,6 +322,20 @@ export default function RecordDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* Quick Edit Record CTA */}
+          <TouchableOpacity
+            style={[styles.editHeroBtn, { backgroundColor: `${palette.tint}14`, borderColor: `${palette.tint}33` }]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push(`/records/upload?id=${record._id}`);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Edit record details and clinical data"
+          >
+            <Pencil size={15} color={palette.tint} />
+            <Text style={[styles.editHeroBtnText, { color: palette.tint }]}>Edit Record & Clinical Data</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Document / Prescription Attachments */}
@@ -645,6 +677,21 @@ const useStyles = createThemedStyles((palette) => ({
   metadataList: {
     gap: 6,
     paddingTop: 4,
+  },
+  editHeroBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  editHeroBtnText: {
+    ...typography.subhead,
+    fontWeight: '700',
   },
   metaRow: {
     flexDirection: 'row',

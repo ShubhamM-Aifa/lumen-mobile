@@ -84,8 +84,26 @@ export const AttachArtifactModal: React.FC<AttachArtifactModalProps> = ({
     const payload: ILogTemplateEmbedPayload = {
       title: `${category.name} Logging Template`,
       conditionTags: [category.role || 'symptom'],
-      categories: [category],
-      quickActions: (config?.quickActions || []).slice(0, 3),
+      // Share the whole category (its questions and options) so another member can really install it.
+      categories: [{
+        name: category.name,
+        icon: category.icon,
+        color: category.color,
+        role: category.role,
+        questions: (config?.questions || [])
+          .filter((q: any) => q.categoryId === category._id && q.isActive !== false && !q.archivedAt)
+          .slice(0, 10)
+          .map((q: any) => ({
+            title: q.title,
+            selectionType: q.selectionType,
+            frequency: q.frequency,
+            options: (config?.options || [])
+              .filter((o: any) => o.questionId === q._id && o.isActive !== false && !o.archivedAt)
+              .slice(0, 15)
+              .map((o: any) => ({ label: o.label, fields: o.fields || [] })),
+          })),
+      }],
+      quickActions: [],
     };
     onAttach('log_template', { logTemplate: payload });
     onClose();

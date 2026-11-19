@@ -7,6 +7,7 @@ import { AiMessageText } from '../../src/components/ai/AiMessageText';
 import { router } from 'expo-router';
 import { useAiAccess, useAiWeeklyReports, useGenerateWeeklyReport, useSaveReviewAsNote, weekLabel } from '../../src/hooks/useAiChat';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
+import { useAskLumenAi } from '../../src/hooks/useAskLumenAi';
 import { typography } from '../../src/theme/typography';
 
 export default function AiWeeklyReportsScreen() {
@@ -17,6 +18,7 @@ export default function AiWeeklyReportsScreen() {
   const reports = useAiWeeklyReports(enabled);
   const generate = useGenerateWeeklyReport();
   const saveReview = useSaveReviewAsNote();
+  const { ask } = useAskLumenAi();
   const [open, setOpen] = useState<string | null>(null);
 
   if (access.data && !enabled) {
@@ -57,36 +59,48 @@ export default function AiWeeklyReportsScreen() {
         {reports.data?.map(r => {
           const expanded = shownOpen === r.id;
           return (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.card}
-              onPress={() => setOpen(expanded ? '' : r.id)}
-              accessibilityRole="button"
-              accessibilityState={{ expanded }}
-            >
-              <Text style={styles.week} maxFontSizeMultiplier={1.3}>Week of {weekLabel(r.weekStart, r.weekEnd)}</Text>
-              {r.modelLabel ? <Text style={styles.model} maxFontSizeMultiplier={1.2}>Written by {r.modelLabel}</Text> : null}
-              {expanded
-                ? <AiMessageText text={r.text} style={styles.text} />
-                : <Text style={styles.preview} numberOfLines={3} maxFontSizeMultiplier={1.3}>{r.text.replace(/[*#]/g, '').replace(/\s+/g, ' ').trim()}</Text>}
+            // A View with sibling buttons: a button inside the card's own button breaks on web.
+            <View key={r.id} style={styles.card}>
+              <TouchableOpacity
+                style={styles.cardMain}
+                onPress={() => setOpen(expanded ? '' : r.id)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded }}
+              >
+                <Text style={styles.week} maxFontSizeMultiplier={1.3}>Week of {weekLabel(r.weekStart, r.weekEnd)}</Text>
+                {r.modelLabel ? <Text style={styles.model} maxFontSizeMultiplier={1.2}>Written by {r.modelLabel}</Text> : null}
+                {expanded
+                  ? <AiMessageText text={r.text} style={styles.text} />
+                  : <Text style={styles.preview} numberOfLines={3} maxFontSizeMultiplier={1.3}>{r.text.replace(/[*#]/g, '').replace(/\s+/g, ' ').trim()}</Text>}
+              </TouchableOpacity>
               {expanded ? (
-                <TouchableOpacity
-                  style={styles.saveBtn}
-                  onPress={() => saveReview.mutate(r.id, {
-                    onSuccess: res => Alert.alert('Saved to Notes', `“${res.title}”`, [
-                      { text: 'OK', style: 'cancel' },
-                      { text: 'Open note', onPress: () => router.push(`/notes/${res.noteId}`) },
-                    ]),
-                    onError: err => Alert.alert('Could not save', err instanceof Error ? err.message : ''),
-                  })}
-                  disabled={saveReview.isPending}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save this review as a note"
-                >
-                  <Text style={styles.saveText}>{saveReview.isPending ? 'Saving…' : 'Save to Notes'}</Text>
-                </TouchableOpacity>
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={() => saveReview.mutate(r.id, {
+                      onSuccess: res => Alert.alert('Saved to Notes', `“${res.title}”`, [
+                        { text: 'OK', style: 'cancel' },
+                        { text: 'Open note', onPress: () => router.push(`/notes/${res.noteId}`) },
+                      ]),
+                      onError: err => Alert.alert('Could not save', err instanceof Error ? err.message : ''),
+                    })}
+                    disabled={saveReview.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save this review as a note"
+                  >
+                    <Text style={styles.saveText}>{saveReview.isPending ? 'Saving…' : 'Save to Notes'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={() => ask({ kind: 'weekly_report', id: r.id, title: `Week of ${weekLabel(r.weekStart, r.weekEnd)}` })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ask Lumen AI about this week"
+                  >
+                    <Text style={styles.saveText}>Ask about this week</Text>
+                  </TouchableOpacity>
+                </View>
               ) : null}
-            </TouchableOpacity>
+            </View>
           );
         })}
       </ScrollView>
@@ -102,6 +116,8 @@ const useStyles = createThemedStyles(palette => ({
   btnText: { ...typography.bodyBold, color: palette.primaryText },
   empty: { ...typography.body, color: palette.textSecondary },
   card: { backgroundColor: palette.surface, borderRadius: 22, padding: 16, gap: 8 },
+  cardMain: { gap: 8 },
+  cardActions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
   week: { ...typography.headline, color: palette.text },
   model: { ...typography.caption, color: palette.textSecondary, marginTop: -6 },
   saveBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },

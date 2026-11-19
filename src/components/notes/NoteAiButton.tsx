@@ -9,6 +9,7 @@ import { View, Text, TouchableOpacity, Modal, ActivityIndicator, Alert, Pressabl
 import { Sparkles } from 'lucide-react-native';
 import { useAiAccess, useNoteAiAction, type NoteAiAction, type NoteActionResult } from '../../hooks/useAiChat';
 import { flushNotesOutbox, getNotesPendingCount } from '../../services/notes/outbox';
+import { useAskLumenAi } from '../../hooks/useAskLumenAi';
 import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 
@@ -23,8 +24,10 @@ export const NOTE_AI_ACTIONS: { action: NoteAiAction; label: string; sub: string
 /** The editor sends changes 600 ms after typing stops; give it time before the note is sent. */
 const EDITOR_SETTLE_MS = 800;
 
-export function NoteAiButton({ noteId, onResult, iconColor }: {
+export function NoteAiButton({ noteId, noteTitle, onResult, iconColor }: {
   noteId: string;
+  /** Chip title when the note is attached to a chat ("Ask Lumen AI in chat"). */
+  noteTitle?: string;
   /** Called with the server's result: the updated note, or the id of a new copy. */
   onResult: (res: NoteActionResult) => void;
   iconColor?: string;
@@ -35,8 +38,17 @@ export function NoteAiButton({ noteId, onResult, iconColor }: {
   const action = useNoteAiAction();
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState<NoteAiAction | null>(null);
+  const { ask } = useAskLumenAi();
 
   if (!access.data?.fullAccess) return null;
+
+  /** A new chat with this note attached; its latest edits are sent first so the AI reads them. */
+  const askInChat = async () => {
+    setOpen(false);
+    await new Promise(r => setTimeout(r, EDITOR_SETTLE_MS));
+    await flushNotesOutbox().catch(() => {});
+    ask({ kind: 'note', id: noteId, title: noteTitle?.trim() || 'Note' });
+  };
 
   const run = async (a: NoteAiAction) => {
     setRunning(a);
@@ -75,6 +87,18 @@ export function NoteAiButton({ noteId, onResult, iconColor }: {
         <Pressable style={styles.backdrop} onPress={() => !running && setOpen(false)} accessibilityLabel="Close">
           <Pressable style={styles.sheet} onPress={() => undefined}>
             <Text style={styles.title} maxFontSizeMultiplier={1.3}>Lumen AI</Text>
+            <TouchableOpacity
+              style={[styles.row, running && styles.off]}
+              onPress={() => { askInChat().catch(() => {}); }}
+              disabled={!!running}
+              accessibilityRole="button"
+              accessibilityLabel="Ask Lumen AI in chat"
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label} maxFontSizeMultiplier={1.3}>Ask Lumen AI in chat</Text>
+                <Text style={styles.sub} maxFontSizeMultiplier={1.2}>Opens a chat with this note attached</Text>
+              </View>
+            </TouchableOpacity>
             {NOTE_AI_ACTIONS.map(a => (
               <TouchableOpacity
                 key={a.action}

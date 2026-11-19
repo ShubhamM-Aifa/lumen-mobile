@@ -10,7 +10,11 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
+  Linking,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadMedia } from '../../src/services/mediaUpload';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +35,9 @@ import {
   Search,
   Check,
   Pencil,
+  ImagePlus,
+  TriangleAlert,
+  Timer,
 } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useAuthStore } from '../../src/store/authStore';
@@ -66,9 +73,11 @@ export default function ChannelChatScreen() {
   const {
     channels,
     activeChannel,
+    activeServer,
     messages,
     fetchChannels,
     fetchMessages,
+    fetchOlderMessages,
     sendMessage,
     editMessage,
     deleteMessage,
@@ -97,6 +106,12 @@ export default function ChannelChatScreen() {
     closeThread,
     sendThreadReply,
     forumPosts,
+    blockAuthorOf,
+    reportMessage,
+    fetchBlocks,
+    setSlowMode,
+    respondToDmRequest,
+    translateMessage,
   } = useCommunityStore();
 
   const [inputText, setInputText] = useState('');
@@ -114,10 +129,20 @@ export default function ChannelChatScreen() {
   const [actionModalMessage, setActionModalMessage] = useState<ICommunityMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ICommunityMessage | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isSendingPhoto, setIsSendingPhoto] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [warningOn, setWarningOn] = useState(false);
+  const [warningText, setWarningText] = useState('');
+  const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nearBottomRef = useRef(true);
+  const [dividerAfterId, setDividerAfterId] = useState<string | undefined>();
+  const [readStateLoaded, setReadStateLoaded] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [noMoreOlder, setNoMoreOlder] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Find channel metadata
   const channel =
@@ -136,7 +161,16 @@ export default function ChannelChatScreen() {
     if (channelId) {
       fetchMessages(channelId);
       fetchPinnedMessages(channelId);
-      fetchReadState(channelId);
+      // Remember where the member stopped reading before we mark the channel as read.
+      setReadStateLoaded(false);
+      setNoMoreOlder(false);
+      setDividerAfterId(undefined);
+      nearBottomRef.current = true;
+      fetchBlocks();
+      fetchReadState(channelId).then((id) => {
+        setDividerAfterId(id);
+        setReadStateLoaded(true);
+      });
       communitySocket.joinChannel(channelId);
     }
     const unsub = setupSocketListeners();
@@ -149,13 +183,13 @@ export default function ChannelChatScreen() {
 
   // Mark channel as read when messages load
   useEffect(() => {
-    if (channelId && messages.length > 0) {
+    if (channelId && readStateLoaded && messages.length > 0) {
       const newest = messages[messages.length - 1];
       if (newest?._id && !newest._id.startsWith('temp_')) {
         markChannelAsRead(channelId, newest._id);
       }
     }
-  }, [channelId, messages.length]);
+  }, [channelId, messages.length, readStateLoaded]);
 
   // Handle live typing in composer
   const handleTextChange = (text: string) => {
@@ -183,8 +217,17 @@ export default function ChannelChatScreen() {
   };
 
   const channelPins = (channelId && pinnedMessages[channelId]) || [];
-  const currentTyping = (channelId && typingUsers[channelId]) || [];
-  const lastReadId = channelId ? readStates[channelId] : undefined;
+  const currentTyping = (channel && typingUsers[channel._id]) || (channelId && typingUsers[channelId]) || [];
+  const lastReadId = dividerAfterId;
+
+  const handleLoadOlder = async () => {
+    if (!channelId || loadingOlder) return;
+    setLoadingOlder(true);
+    nearBottomRef.current = false; // keep the view where it is while older messages are added on top
+    const added = await fetchOlderMessages(channelId);
+    if (added === 0) setNoMoreOlder(true);
+    setLoadingOlder(false);
+  };
 
   // Extract distinct member names for @mention suggestions
   const mentionSuggestions = useMemo(() => {
@@ -263,7 +306,9 @@ export default function ChannelChatScreen() {
     setMentionQuery(null);
 
     try {
-      await sendMessage(channelId, content, embedType, embedData);
+      await sendMessage(channelId, content, embedType, embedData, undefined, undefined, undefined, undefined, warningOn ? warningText.trim() || undefined : undefined);
+      setWarningOn(false);
+      setWarningText('');
     } catch (err: any) {
       Alert.alert('Message Blocked', err.message || 'Could not send message');
     }
@@ -274,15 +319,127 @@ export default function ChannelChatScreen() {
     }, 100);
   };
 
-  const handleSendVoice = async (audioUrl: string, durationSeconds: number) => {
+  const handleSendVoice = async (audioUrl: string, durationSeconds: number, audioMediaId?: string) => {
     setIsRecordingVoice(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    await sendMessage(channelId, '', undefined, undefined, audioUrl, durationSeconds);
+    try {
+      await sendMessage(channelId, '', undefined, undefined, audioUrl, durationSeconds, undefined, audioMediaId);
+    } catch (err: any) {
+      Alert.alert('Voice note not sent', err.message || 'Could not send voice note');
+    }
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  const handlePickPhoto = async () => {
+    if (isSendingPhoto) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        exif: false, // never share location or camera details
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setIsSendingPhoto(true);
+      const up = await uploadMedia(asset.uri, asset.mimeType || 'image/jpeg');
+      const caption = inputText.trim();
+      setInputText('');
+      await sendMessage(channelId, '', 'photo', { photoMediaId: up.mediaId, photoUrl: asset.uri, caption: caption || undefined });
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err: any) {
+      Alert.alert('Photo not sent', err?.message || 'Could not send the photo. Please try again.');
+    } finally {
+      setIsSendingPhoto(false);
+    }
+  };
+
+  const isStaff = Boolean(
+    channel?.serverId &&
+      activeServer &&
+      activeServer._id === channel.serverId &&
+      user?._id &&
+      (activeServer.ownerId === user._id || activeServer.modIds?.includes(user._id)),
+  );
+
+  const handleSlowMode = () => {
+    if (!channel) return;
+    const set = (seconds: number) =>
+      setSlowMode(channel._id, seconds).catch((err: any) => Alert.alert('Could not change slow mode', err?.message || 'Please try again.'));
+    Alert.alert('Slow mode', 'How long should members wait between messages? Moderators are not limited.', [
+      { text: 'Off', onPress: () => set(0) },
+      { text: '10 seconds', onPress: () => set(10) },
+      { text: '1 minute', onPress: () => set(60) },
+      { text: '10 minutes', onPress: () => set(600) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleTranslate = (msg: ICommunityMessage) => {
+    const run = async (target: 'english' | 'hinglish') => {
+      try {
+        const text = await translateMessage(msg._id, target);
+        setTranslations((prev) => ({ ...prev, [msg._id]: text }));
+      } catch (err: any) {
+        Alert.alert('Could not translate', err?.message || 'Please try again.');
+      }
+    };
+    Alert.alert('Translate with Lumen AI', 'The message text is sent to the AI model you chose in Lumen AI.', [
+      { text: 'To English', onPress: () => run('english') },
+      { text: 'To Hinglish', onPress: () => run('hinglish') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const dmPendingForMe =
+    channel?.type === 'dm' && channel.dmStatus === 'pending' && Boolean(user?._id) && channel.dmInitiatorId !== user?._id;
+  const dmPendingByMe =
+    channel?.type === 'dm' && channel.dmStatus === 'pending' && channel.dmInitiatorId === user?._id;
+
+  const handleDmAnswer = async (action: 'accept' | 'decline') => {
+    if (!channel) return;
+    try {
+      await respondToDmRequest(channel._id, action);
+      if (action === 'decline') safeGoBack('/community');
+    } catch (err: any) {
+      Alert.alert('Could not answer', err?.message || 'Please try again.');
+    }
+  };
+
+  const handleReport = (msg: ICommunityMessage) => {
+    const send = async (reason: 'spam' | 'harassment' | 'harmful_advice' | 'other') => {
+      try {
+        await reportMessage(msg._id, reason);
+        Alert.alert('Thank you', 'The moderators of this community have been told.');
+      } catch (err: any) {
+        Alert.alert('Could not report', err?.message || 'Please try again.');
+      }
+    };
+    Alert.alert('Report this message', 'Why are you reporting it?', [
+      { text: 'Spam', onPress: () => send('spam') },
+      { text: 'Harassment', onPress: () => send('harassment') },
+      { text: 'Harmful medical advice', onPress: () => send('harmful_advice') },
+      { text: 'Something else', onPress: () => send('other') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleBlock = (msg: ICommunityMessage) => {
+    Alert.alert(
+      'Block this member?',
+      `You will no longer see messages from ${msg.isAnonymous ? 'this anonymous member' : msg.senderDisplayName}, and they cannot send you direct messages. You can unblock in Community settings.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: () => blockAuthorOf(msg).catch((err: any) => Alert.alert('Could not block', err?.message || 'Please try again.')),
+        },
+      ],
+    );
   };
 
   const handleAttachArtifact = (type: CommunityEmbedType, data: any) => {
@@ -389,6 +546,18 @@ export default function ChannelChatScreen() {
                 color={isSearching ? palette.primaryText || palette.primary : palette.textSecondary}
               />
             </TouchableOpacity>
+
+            {/* Slow mode (owner and moderators) */}
+            {isStaff && channel?.type !== 'dm' && (
+              <TouchableOpacity
+                style={[styles.headerIconBtn, Boolean(channel?.slowModeSeconds) && { backgroundColor: `${palette.primary}20` }]}
+                onPress={handleSlowMode}
+                accessibilityRole="button"
+                accessibilityLabel="Slow mode"
+              >
+                <Timer size={18} color={channel?.slowModeSeconds ? palette.primaryText || palette.primary : palette.textSecondary} />
+              </TouchableOpacity>
+            )}
 
             {/* Pinned Messages Button */}
             <TouchableOpacity
@@ -517,6 +686,9 @@ export default function ChannelChatScreen() {
                 senderRoleBadges: post.author.senderRoleBadges,
                 isAnonymous: post.author.isAnonymous,
                 content: `${post.title}\n\n${post.content}`,
+                contentWarning: post.contentWarning,
+                embedType: post.embedType,
+                embedData: post.embedData as any,
                 reactions: { spoon: post.stats.spoonsCount },
                 cloneCount: post.stats.cloneCount,
                 createdAt: post.createdAt,
@@ -534,7 +706,15 @@ export default function ChannelChatScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
+              scrollEventThrottle={100}
+              onScroll={(e) => {
+                const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+                nearBottomRef.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 160;
+              }}
+              onContentSizeChange={() => {
+                // Only follow new content when the member is already at the bottom (not while reading history).
+                if (nearBottomRef.current) scrollViewRef.current?.scrollToEnd({ animated: false });
+              }}
             >
               {/* Channel Welcome Banner */}
               <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
@@ -546,6 +726,22 @@ export default function ChannelChatScreen() {
                   This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
                 </Text>
               </View>
+
+              {messages.length >= 50 && !noMoreOlder && !isSearching && (
+                <TouchableOpacity
+                  onPress={handleLoadOlder}
+                  disabled={loadingOlder}
+                  style={{ alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16, marginBottom: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Load earlier messages"
+                >
+                  {loadingOlder ? (
+                    <ActivityIndicator size="small" color={palette.primaryText} />
+                  ) : (
+                    <Text style={{ color: palette.primaryText, fontWeight: '600' }}>Load earlier messages</Text>
+                  )}
+                </TouchableOpacity>
+              )}
 
               {isLoading && messages.length === 0 ? (
                 <View style={styles.loadingBox}>
@@ -662,8 +858,25 @@ export default function ChannelChatScreen() {
                               </Text>
                             </View>
 
+                            {/* Content warning: the message stays hidden until the reader chooses to see it */}
+                            {Boolean(msg.contentWarning) && !revealedIds.has(msg._id) && (
+                              <TouchableOpacity
+                                onPress={() => setRevealedIds((prev) => new Set(prev).add(msg._id))}
+                                onLongPress={() => setActionModalMessage(msg)}
+                                style={[styles.contentWrap, { backgroundColor: palette.surface, borderRadius: 10, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Content warning: ${msg.contentWarning}. Double tap to show the message`}
+                              >
+                                <TriangleAlert size={16} color="#F59E0B" />
+                                <Text style={{ color: palette.text, flex: 1, fontSize: 14 }}>
+                                  Content warning: {msg.contentWarning}
+                                </Text>
+                                <Text style={{ color: palette.primaryText || palette.primary, fontWeight: '700', fontSize: 13 }}>Show</Text>
+                              </TouchableOpacity>
+                            )}
+
                             {/* Markdown & Spoilers Content with Long-Press Action Menu */}
-                            {msg.content.length > 0 && (
+                            {msg.content.length > 0 && (!msg.contentWarning || revealedIds.has(msg._id)) && (
                               <TouchableOpacity
                                 onLongPress={() => {
                                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -681,12 +894,41 @@ export default function ChannelChatScreen() {
                               </TouchableOpacity>
                             )}
 
+                            {/* Translation by Lumen AI (only for the reader who asked) */}
+                            {Boolean(translations[msg._id]) && (
+                              <View style={{ marginTop: 4, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: palette.primary }}>
+                                <Text style={{ color: palette.textSecondary, fontSize: 11, fontWeight: '700' }}>TRANSLATED BY LUMEN AI</Text>
+                                <Text style={{ color: palette.text, fontSize: 14, marginTop: 2 }}>{translations[msg._id]}</Text>
+                              </View>
+                            )}
+
                             {/* Voice Note Audio Player */}
-                            {Boolean(msg.audioUrl) && (
+                            {Boolean(msg.audioUrl) && (!msg.contentWarning || revealedIds.has(msg._id)) && (
                               <VoiceNotePlayer
                                 audioUrl={msg.audioUrl!}
                                 durationSeconds={msg.audioDurationSeconds}
                               />
+                            )}
+
+                            {/* Photo shared from the member's library */}
+                            {msg.embedType === 'photo' && Boolean(msg.embedData?.photoUrl) && (!msg.contentWarning || revealedIds.has(msg._id)) && (
+                              <View style={{ marginTop: 6 }}>
+                                <TouchableOpacity
+                                  activeOpacity={0.9}
+                                  onPress={() => Linking.openURL(msg.embedData!.photoUrl!).catch(() => {})}
+                                  accessibilityRole="imagebutton"
+                                  accessibilityLabel={`Photo from ${msg.senderDisplayName}${msg.embedData?.caption ? `: ${msg.embedData.caption}` : ''}`}
+                                >
+                                  <Image
+                                    source={{ uri: msg.embedData!.photoUrl! }}
+                                    style={{ width: 240, height: 240, borderRadius: 12, backgroundColor: palette.surface }}
+                                    resizeMode="cover"
+                                  />
+                                </TouchableOpacity>
+                                {Boolean(msg.embedData?.caption) && (
+                                  <Text style={{ color: palette.text, marginTop: 6, fontSize: 14 }}>{msg.embedData!.caption}</Text>
+                                )}
+                              </View>
                             )}
 
                             {/* Discord Left-Accent Rich Embed Cards */}
@@ -838,6 +1080,57 @@ export default function ChannelChatScreen() {
               />
             )}
 
+            {/* Slow mode and message-request banners */}
+            {Boolean(channel?.slowModeSeconds) && (
+              <View style={[styles.editingBanner, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <Timer size={14} color={palette.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={{ color: palette.textSecondary, fontSize: 12, flex: 1 }}>
+                  Slow mode is on: wait {channel!.slowModeSeconds! >= 60 ? `${Math.round(channel!.slowModeSeconds! / 60)} min` : `${channel!.slowModeSeconds}s`} between messages
+                </Text>
+              </View>
+            )}
+            {dmPendingForMe && (
+              <View style={[styles.editingBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: '#F59E0B', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+                <Text style={{ color: palette.text, fontSize: 13 }}>
+                  {channel?.name} wants to message you. Replying accepts the request.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <TouchableOpacity onPress={() => handleDmAnswer('accept')} accessibilityRole="button" accessibilityLabel="Accept message request">
+                    <Text style={{ color: palette.primaryText || palette.primary, fontWeight: '700' }}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDmAnswer('decline')} accessibilityRole="button" accessibilityLabel="Decline message request">
+                    <Text style={{ color: '#EF4444', fontWeight: '700' }}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {dmPendingByMe && (
+              <View style={[styles.editingBanner, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <Text style={{ color: palette.textSecondary, fontSize: 12, flex: 1 }}>
+                  Message request sent. You can send a few messages until they accept.
+                </Text>
+              </View>
+            )}
+
+            {/* Content warning input */}
+            {warningOn && (
+              <View style={[styles.editingBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: '#F59E0B' }]}>
+                <TriangleAlert size={14} color="#F59E0B" style={{ marginRight: 6 }} />
+                <TextInput
+                  style={{ flex: 1, color: palette.text, paddingVertical: 2 }}
+                  placeholder="Content warning, e.g. flare, hospital, medication"
+                  placeholderTextColor={palette.textDisabled}
+                  value={warningText}
+                  onChangeText={setWarningText}
+                  maxLength={60}
+                  accessibilityLabel="Content warning text"
+                />
+                <TouchableOpacity onPress={() => { setWarningOn(false); setWarningText(''); }} accessibilityRole="button" accessibilityLabel="Remove content warning">
+                  <X size={16} color={palette.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Voice Recorder vs Standard Chat Composer */}
             {isRecordingVoice ? (
               <VoiceNoteRecorder
@@ -868,6 +1161,38 @@ export default function ChannelChatScreen() {
                   accessibilityLabel="Attach Lumen Note or Routine"
                 >
                   <Paperclip size={20} color={palette.textSecondary} />
+                </TouchableOpacity>
+
+                {/* Content warning toggle */}
+                <TouchableOpacity
+                  style={styles.micBtn}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setWarningOn((v) => !v);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: warningOn }}
+                  accessibilityLabel="Add a content warning"
+                >
+                  <TriangleAlert size={20} color={warningOn ? '#F59E0B' : palette.textSecondary} />
+                </TouchableOpacity>
+
+                {/* Photo Button */}
+                <TouchableOpacity
+                  style={styles.micBtn}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    handlePickPhoto();
+                  }}
+                  disabled={isSendingPhoto}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send a photo"
+                >
+                  {isSendingPhoto ? (
+                    <ActivityIndicator size="small" color={palette.textSecondary} />
+                  ) : (
+                    <ImagePlus size={20} color={palette.textSecondary} />
+                  )}
                 </TouchableOpacity>
 
                 {/* Voice Note Button */}
@@ -966,7 +1291,12 @@ export default function ChannelChatScreen() {
         visible={Boolean(actionModalMessage)}
         message={actionModalMessage}
         currentUserId={user?._id}
-        isModerator={Boolean(channel?.serverId && channel?.serverId === user?._id)}
+        isModerator={Boolean(
+          channel?.serverId &&
+            activeServer &&
+            activeServer._id === channel.serverId &&
+            (activeServer.ownerId === user?._id || Boolean(user?._id && activeServer.modIds?.includes(user._id))),
+        )}
         onClose={() => setActionModalMessage(null)}
         onReply={(msg) => handleReplyMessage(msg)}
         onOpenThread={(msg) => openThread(msg)}
@@ -974,6 +1304,9 @@ export default function ChannelChatScreen() {
         onEdit={(msg) => handleStartEdit(msg)}
         onDelete={(msg) => channelId && deleteMessage(channelId, msg._id)}
         onTimeoutMember={(tUserId, tName) => handleTimeoutMember(tUserId, tName)}
+        onReport={handleReport}
+        onBlock={handleBlock}
+        onTranslate={handleTranslate}
         onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
       />
     </SafeAreaView>

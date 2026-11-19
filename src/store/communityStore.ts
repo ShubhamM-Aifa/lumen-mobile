@@ -21,12 +21,40 @@ import { api } from '../api/client';
 import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
 import { communitySocket } from '../services/communitySocket';
+import { uploadMedia } from '../services/mediaUpload';
 
 const SERVERS_CACHE_KEY = 'lumen:community:servers_v1';
 const CHANNELS_CACHE_KEY = 'lumen:community:channels_v1';
 const MESSAGES_CACHE_KEY = 'lumen:community:messages_v1';
 const FORUM_CACHE_KEY = 'lumen:community:forum_posts_v1';
 const DMS_CACHE_KEY = 'lumen:community:dms_v1';
+
+export interface CommunityBlock {
+  id: string;
+  label: string;
+  /** Missing when the person was blocked from an anonymous message. */
+  userId?: string;
+}
+
+export type ReportReason = 'spam' | 'harassment' | 'harmful_advice' | 'other';
+
+export interface CommunityReportItem {
+  id: string;
+  messageId: string;
+  channelId: string;
+  reason: ReportReason;
+  note?: string;
+  snippet: string;
+  senderLabel: string;
+  createdAt: string;
+}
+
+export interface CommunityMember {
+  userId: string;
+  displayName: string;
+  isOwner: boolean;
+  isMod?: boolean;
+}
 
 interface CommunityState {
   servers: ICommunityServer[];
@@ -61,6 +89,31 @@ interface CommunityState {
   setActiveServer: (server: ICommunityServer) => void;
   createServer: (data: CreateCommunityServerDto) => Promise<ICommunityServer>;
   joinServer: (inviteCodeOrId: string) => Promise<ICommunityServer>;
+  updateServer: (
+    serverId: string,
+    changes: { name?: string; description?: string; icon?: string; color?: string }
+  ) => Promise<void>;
+  deleteServer: (serverId: string) => Promise<void>;
+  removeServerLocally: (serverId: string) => void;
+  leaveServer: (serverId: string) => Promise<void>;
+  fetchServerMembers: (serverId: string) => Promise<CommunityMember[]>;
+  setModerator: (serverId: string, userId: string, isMod: boolean) => Promise<void>;
+
+  // My settings
+  fetchMySettings: () => Promise<{ status: string; push: boolean; quiet: boolean }>;
+  updateMySettings: (changes: { status?: string; push?: boolean; quiet?: boolean }) => Promise<void>;
+  setSlowMode: (channelId: string, seconds: number) => Promise<void>;
+  respondToDmRequest: (channelId: string, action: 'accept' | 'decline') => Promise<void>;
+  translateMessage: (messageId: string, target: 'english' | 'hinglish') => Promise<string>;
+
+  // Safety
+  blocks: CommunityBlock[];
+  fetchBlocks: () => Promise<void>;
+  blockAuthorOf: (message: ICommunityMessage) => Promise<void>;
+  unblock: (blockId: string) => Promise<void>;
+  reportMessage: (messageId: string, reason: ReportReason, note?: string) => Promise<void>;
+  fetchReports: (serverId: string) => Promise<CommunityReportItem[]>;
+  resolveReport: (reportId: string, action: 'dismiss' | 'delete') => Promise<void>;
   createChannel: (
     serverId: string,
     channelData: CreateCommunityChannelDto
@@ -70,6 +123,8 @@ interface CommunityState {
   fetchChannels: (serverId?: string) => Promise<void>;
   setActiveChannel: (channel: ICommunityChannel) => void;
   fetchMessages: (channelId: string) => Promise<void>;
+  /** Loads the page of messages before the oldest one shown; returns how many were added. */
+  fetchOlderMessages: (channelId: string) => Promise<number>;
   sendMessage: (
     channelId: string,
     content: string,
@@ -77,7 +132,9 @@ interface CommunityState {
     embedData?: any,
     audioUrl?: string,
     audioDurationSeconds?: number,
-    mentions?: string[]
+    mentions?: string[],
+    audioMediaId?: string,
+    contentWarning?: string
   ) => Promise<ICommunityMessage>;
   editMessage: (channelId: string, messageId: string, content: string) => Promise<void>;
   deleteMessage: (channelId: string, messageId: string) => Promise<void>;
@@ -108,7 +165,11 @@ interface CommunityState {
   clearUserPopout: () => void;
   openThread: (message: ICommunityMessage) => Promise<void>;
   closeThread: () => void;
-  sendThreadReply: (parentMessageId: string, content: string) => Promise<void>;
+  sendThreadReply: (
+    parentMessageId: string,
+    content: string,
+    opts?: { contentWarning?: string; photoUri?: string; photoMimeType?: string }
+  ) => Promise<void>;
 
   // Discord Forum Posts
   fetchForumPosts: (channelId: string, tag?: string, search?: string) => Promise<void>;
@@ -118,7 +179,8 @@ interface CommunityState {
     tags: string[],
     content: string,
     embedType?: CommunityEmbedType,
-    embedData?: any
+    embedData?: any,
+    contentWarning?: string
   ) => Promise<IForumPost>;
 
   // 1-Tap Clone Dispatchers
@@ -130,10 +192,11 @@ interface CommunityState {
     embed: ITodoEmbedPayload,
     messageId?: string
   ) => Promise<ITaskList>;
+  /** Creates a reviewable draft from a shared template and returns its id (nothing is added yet). */
   cloneLogTemplateToPersonal: (
     embed: ILogTemplateEmbedPayload,
     messageId?: string
-  ) => Promise<void>;
+  ) => Promise<string>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -157,7 +220,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   typingUsers: {},
   readStates: {},
   dmChannels: [],
-
+  blocks: [],
 
   fetchServers: async () => {
     set({ isLoading: true, error: null });
@@ -257,6 +320,131 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
 
     throw new Error('Could not join community server');
+  },
+
+  updateServer: async (serverId, changes) => {
+    const res = await api.patch<ICommunityServer>(`/community/servers/${serverId}`, changes);
+    if (res && res._id) {
+      const servers = get().servers.map((s) => (s._id === res._id ? { ...s, ...res } : s));
+      set({
+        servers,
+        activeServer: get().activeServer?._id === res._id ? { ...get().activeServer!, ...res } : get().activeServer,
+      });
+      AsyncStorage.setItem(SERVERS_CACHE_KEY, JSON.stringify(servers)).catch(() => {});
+    }
+  },
+
+  deleteServer: async (serverId) => {
+    await api.delete(`/community/servers/${serverId}`);
+    get().removeServerLocally(serverId);
+  },
+
+  leaveServer: async (serverId) => {
+    await api.post(`/community/servers/${serverId}/leave`, {});
+    get().removeServerLocally(serverId);
+  },
+
+  removeServerLocally: (serverId) => {
+    const servers = get().servers.filter((s) => s._id !== serverId);
+    const wasActive = get().activeServer?._id === serverId;
+    set({ servers, ...(wasActive ? { activeServer: servers[0] ?? null, activeChannel: null, channels: [] } : {}) });
+    AsyncStorage.setItem(SERVERS_CACHE_KEY, JSON.stringify(servers)).catch(() => {});
+    if (wasActive && servers[0]) get().fetchChannels(servers[0]._id);
+  },
+
+  fetchMySettings: async () => {
+    try {
+      const res = await api.get<{ status: string; push: boolean; quiet: boolean }>('/community/me/settings');
+      if (res) return res;
+    } catch {}
+    return { status: '', push: true, quiet: false };
+  },
+
+  updateMySettings: async (changes) => {
+    await api.put('/community/me/settings', changes);
+  },
+
+  setSlowMode: async (channelId, seconds) => {
+    await api.patch(`/community/channels/${channelId}/settings`, { slowModeSeconds: seconds });
+    set((state) => ({
+      channels: state.channels.map((c) => (c._id === channelId || c.slug === channelId ? { ...c, slowModeSeconds: seconds } : c)),
+      activeChannel:
+        state.activeChannel && (state.activeChannel._id === channelId || state.activeChannel.slug === channelId)
+          ? { ...state.activeChannel, slowModeSeconds: seconds }
+          : state.activeChannel,
+    }));
+  },
+
+  respondToDmRequest: async (channelId, action) => {
+    await api.post(`/community/dms/${channelId}/${action}`, {});
+    const dmStatus = action === 'accept' ? 'accepted' : 'declined';
+    set((state) => ({
+      dmChannels: state.dmChannels.map((c) => (c._id === channelId ? { ...c, dmStatus } : c)),
+      activeChannel: state.activeChannel && state.activeChannel._id === channelId ? { ...state.activeChannel, dmStatus } : state.activeChannel,
+    }));
+  },
+
+  translateMessage: async (messageId, target) => {
+    const res = await api.post<{ text: string }>(`/community/messages/${messageId}/translate`, { target });
+    if (!res?.text) throw new Error('Could not translate this message.');
+    return res.text;
+  },
+
+  fetchBlocks: async () => {
+    try {
+      const res = await api.get<CommunityBlock[]>('/community/blocks');
+      if (Array.isArray(res)) set({ blocks: res });
+    } catch {}
+  },
+
+  blockAuthorOf: async (message) => {
+    const res = await api.post<CommunityBlock>(`/community/messages/${message._id}/block`, {});
+    if (!res?.id) throw new Error('Could not block this member.');
+    // Hide what they already wrote; an anonymous author is hidden by message since their id is never shown.
+    set((state) => ({
+      blocks: state.blocks.some((b) => b.id === res.id) ? state.blocks : [res, ...state.blocks],
+      messages: state.messages.filter((m) => m._id !== message._id && (!res.userId || m.senderId !== res.userId)),
+    }));
+  },
+
+  unblock: async (blockId) => {
+    await api.delete(`/community/blocks/${blockId}`);
+    set((state) => ({ blocks: state.blocks.filter((b) => b.id !== blockId) }));
+  },
+
+  reportMessage: async (messageId, reason, note) => {
+    await api.post(`/community/messages/${messageId}/report`, { reason, note });
+  },
+
+  fetchReports: async (serverId) => {
+    try {
+      const res = await api.get<CommunityReportItem[]>(`/community/servers/${serverId}/reports`);
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
+  },
+
+  resolveReport: async (reportId, action) => {
+    await api.post(`/community/reports/${reportId}/resolve`, { action });
+  },
+
+  setModerator: async (serverId, userId, isMod) => {
+    const res = await api.post<{ modIds: string[] }>(`/community/servers/${serverId}/moderators`, { userId, isMod });
+    if (res?.modIds) {
+      const apply = (s: ICommunityServer) => (s._id === serverId ? { ...s, modIds: res.modIds } : s);
+      const active = get().activeServer;
+      set({ servers: get().servers.map(apply), activeServer: active ? apply(active) : active });
+    }
+  },
+
+  fetchServerMembers: async (serverId) => {
+    try {
+      const res = await api.get<CommunityMember[]>(`/community/servers/${serverId}/members`);
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
   },
 
   createChannel: async (serverId, channelData) => {
@@ -377,7 +565,24 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
-  sendMessage: async (channelId, content, embedType, embedData, audioUrl, audioDurationSeconds, mentions) => {
+  fetchOlderMessages: async (channelId: string) => {
+    const oldest = get().messages.find((m) => !m._id.startsWith('temp_'));
+    if (!oldest) return 0;
+    try {
+      const res = await api.get<ICommunityMessage[]>(
+        `/community/channels/${channelId}/messages?before=${encodeURIComponent(oldest.createdAt)}`
+      );
+      if (res && Array.isArray(res) && res.length > 0) {
+        const known = new Set(get().messages.map((m) => m._id));
+        const fresh = res.filter((m) => !known.has(m._id));
+        set({ messages: [...fresh, ...get().messages] });
+        return fresh.length;
+      }
+    } catch {}
+    return 0;
+  },
+
+  sendMessage: async (channelId, content, embedType, embedData, audioUrl, audioDurationSeconds, mentions, audioMediaId, contentWarning) => {
     const tempId = `temp_msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const isAnonymous = get().isAnonymous;
     const replyingTo = get().replyingTo;
@@ -392,6 +597,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       senderRoleBadges: isAnonymous ? ['Anonymous Spoonie'] : ['Community Member'],
       isAnonymous,
       content,
+      contentWarning,
       mentions: mentions || [],
       audioUrl,
       audioDurationSeconds,
@@ -422,6 +628,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         {
           channelId,
           content,
+          contentWarning,
           isAnonymous,
           senderDisplayName: isAnonymous ? 'Anonymous Spoonie' : 'You',
           senderAvatarEmoji: isAnonymous ? '🥄' : '🌟',
@@ -429,6 +636,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           senderRoleBadges: isAnonymous ? ['Anonymous Spoonie'] : ['Community Member'],
           mentions,
           audioUrl,
+          audioMediaId,
           audioDurationSeconds,
           replyTo: replyingTo ? { ...replyingTo } : undefined,
           embedType,
@@ -437,9 +645,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       );
 
       if (serverMsg && serverMsg._id) {
-        const finalized = get().messages.map((m) =>
-          m._id === tempId ? serverMsg : m
-        );
+        // The live socket event can arrive before this response; never keep the message twice.
+        const already = get().messages.some((m) => m._id === serverMsg._id);
+        const finalized = already
+          ? get().messages.filter((m) => m._id !== tempId)
+          : get().messages.map((m) => (m._id === tempId ? serverMsg : m));
         set({ messages: finalized });
         await AsyncStorage.setItem(
           `${MESSAGES_CACHE_KEY}:${channelId}`,
@@ -447,7 +657,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         );
         return serverMsg;
       }
-    } catch {}
+    } catch (err) {
+      // Blocked by AutoMod, timed out, or offline: take the pending bubble back and tell the caller.
+      const rolledBack = get().messages.filter((m) => m._id !== tempId);
+      set({ messages: rolledBack });
+      AsyncStorage.setItem(`${MESSAGES_CACHE_KEY}:${channelId}`, JSON.stringify(rolledBack)).catch(() => {});
+      throw err;
+    }
 
     return optimisticMsg;
   },
@@ -533,6 +749,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         [channelId]: lastReadMessageId || '',
       },
     }));
+    // The channel list badge clears as soon as the channel is read.
+    set((state) => ({
+      channels: state.channels.map((c) =>
+        c._id === channelId || c.slug === channelId ? { ...c, unreadCount: 0 } : c
+      ),
+    }));
     try {
       await api.post(`/community/channels/${channelId}/read`, { lastReadMessageId });
     } catch {}
@@ -590,6 +812,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const activeCh = get().activeChannel;
       if (activeCh && (activeCh._id === channelId || activeCh.slug === channelId)) {
         set((state) => {
+          if (state.blocks.some((b) => b.userId && b.userId === message.senderId)) return state;
           const exists = state.messages.some((m) => m._id === message._id);
           if (exists) return state;
           return { messages: [...state.messages, message] };
@@ -705,24 +928,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         return res;
       }
     } catch {
-      const fallback: IDiscordUserProfile = {
-        userId,
-        displayName: 'Spoonie Warrior',
-        avatarEmoji: '🌟',
-        bannerGradient: ['#0284C7', '#6366F1'],
-        bio: 'Pacing navigator, daily tracker, and community member.',
-        energyStatus: 'Pacing & Resting 🥄',
-        conditionTags: ['Dysautonomia', 'Pacing Warrior'],
-        roleBadges: ['POTS Veteran', 'Community Guide'],
-        roleColor: '#38BDF8',
-        stats: {
-          sharedNotesCount: 5,
-          sharedTodosCount: 3,
-          totalClones: 48,
-        },
-      };
-      set({ popoutUser: fallback });
-      return fallback;
+      // No invented profile: the caller simply gets nothing.
     }
     return null;
   },
@@ -749,11 +955,32 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     set({ activeThreadParent: null, activeThreadReplies: [] });
   },
 
-  sendThreadReply: async (parentMessageId: string, content: string) => {
+  sendThreadReply: async (parentMessageId: string, content: string, opts) => {
     const parent = get().activeThreadParent;
     if (!parent) return;
 
-    await get().sendMessage(parent.channelId, content);
+    // Replies in a thread are replies to the parent message, so the thread actually lists them.
+    set({
+      replyingTo: {
+        messageId: parent._id,
+        senderDisplayName: parent.senderDisplayName,
+        snippet: parent.content || 'Shared something',
+      },
+    });
+    try {
+      if (opts?.photoUri) {
+        const up = await uploadMedia(opts.photoUri, opts.photoMimeType || 'image/jpeg');
+        await get().sendMessage(
+          parent.channelId, '', 'photo',
+          { photoMediaId: up.mediaId, photoUrl: opts.photoUri, caption: content || undefined },
+          undefined, undefined, undefined, undefined, opts.contentWarning,
+        );
+      } else {
+        await get().sendMessage(parent.channelId, content, undefined, undefined, undefined, undefined, undefined, undefined, opts?.contentWarning);
+      }
+    } finally {
+      set({ replyingTo: null });
+    }
     get().openThread(parent);
   },
 
@@ -790,13 +1017,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
-  createForumPost: async (channelId, title, tags, content, embedType, embedData) => {
+  createForumPost: async (channelId, title, tags, content, embedType, embedData, contentWarning) => {
     const isAnonymous = get().isAnonymous;
     const res = await api.post<IForumPost>(`/community/forums/${channelId}/posts`, {
       channelId,
       title,
       tags,
       content,
+      contentWarning,
       isAnonymous,
       senderAvatarEmoji: isAnonymous ? '🥄' : '🌟',
       embedType,
@@ -879,9 +1107,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     return list;
   },
 
-  cloneLogTemplateToPersonal: async (embed, messageId) => {
-    if (messageId && !messageId.startsWith('temp_')) {
-      api.post(`/community/messages/${messageId}/clone`, {}).catch(() => {});
-    }
+  cloneLogTemplateToPersonal: async (_embed, messageId) => {
+    if (!messageId || messageId.startsWith('temp_')) throw new Error('Wait for the message to finish sending, then try again.');
+    const res = await api.post<{ draftId: string }>(`/community/messages/${messageId}/install-template`, {});
+    if (!res?.draftId) throw new Error('Could not read this template.');
+    return res.draftId;
   },
 }));

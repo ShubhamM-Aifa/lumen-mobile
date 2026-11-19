@@ -815,6 +815,7 @@ export interface ILogTemplateEmbedPayload {
 }
 
 export interface ICommunityMessage {
+  contentWarning?: string;
   _id: string;
   channelId: string;
   senderId: string;
@@ -872,6 +873,7 @@ export interface ICommunityServer {
   isPrivate: boolean;
   inviteCode?: string;
   ownerId: string;
+  modIds?: string[];
   membersCount: number;
   isOfficial: boolean;
   isMember?: boolean;
@@ -901,11 +903,15 @@ export interface ICommunityChannel {
   messageCount: number;
   isFeatured: boolean;
   unreadCount?: number;
+  slowModeSeconds?: number;
+  dmStatus?: 'pending' | 'accepted' | 'declined';
+  dmInitiatorId?: string;
   lastReadMessageId?: string;
   createdAt: string;
 }
 
 export interface IForumPost {
+  contentWarning?: string;
   _id: string;
   channelId: string;
   title: string;
@@ -996,3 +1002,16 @@ export interface IHealthRecord {
   updatedAt: string;
 }
 
+
+// ── Lumen AI chat attachments ────────────────────────────────────────────────
+
+/** What a Lumen AI chat attachment can point at (see server services/llm/assistant/refTypes.ts). */
+export type AiChatRefKind = 'day' | 'note' | 'task' | 'list' | 'medication' | 'record' | 'flare' | 'experiment' | 'pattern' | 'weekly_report' | 'file';
+
+export interface IAiChatRef {
+  kind: AiChatRefKind;
+  /** YYYY-MM-DD for a day, `exposureKey|outcomeKey|lagDays` for a pattern, otherwise an id (a Media id for a file). */
+  id: string;
+  /** The chip label. */
+  title: string;
+}

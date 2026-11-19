@@ -25,6 +25,7 @@ import { WarningCard } from '../../src/components/insights/WarningCard';
 import { ExperimentCard } from '../../src/components/insights/ExperimentCard';
 import { CompareSection } from '../../src/components/insights/CompareSection';
 import { LumenAiCard } from '../../src/components/insights/LumenAiCard';
+import { useAskLumenAi } from '../../src/hooks/useAskLumenAi';
 import { progressText } from '../../src/services/insights/insightCopy';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
@@ -49,6 +50,10 @@ export default function InsightsScreen() {
   const { data: experiments } = useExperiments();
   const startExperiment = useStartExperiment();
   const aiExplanationsEnabled = !!useAuthStore(s => s.user?.preferences?.aiExplanations);
+  const { ask, fullAccess: aiOn } = useAskLumenAi();
+  const askPattern = useCallback((f: InsightFinding) => {
+    ask({ kind: 'pattern', id: `${f.exposureKey}|${f.outcomeKey}|${f.lagDays}`, title: `${f.exposure.optionLabel} → ${f.outcome.optionLabel}` });
+  }, [ask]);
   const recompute = useRecomputeInsights();
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [showAll, setShowAll] = useState(false);
@@ -133,7 +138,12 @@ export default function InsightsScreen() {
 
         {!isLoading && warningData?.ready && <WarningCard warning={warningData} />}
 
-        {!isLoading && mostRecentExperiment && <ExperimentCard experiment={mostRecentExperiment} />}
+        {!isLoading && mostRecentExperiment && (
+          <ExperimentCard
+            experiment={mostRecentExperiment}
+            onAsk={aiOn ? e => ask({ kind: 'experiment', id: e.id, title: `${e.exposureLabel} → ${e.outcomeLabel}` }) : undefined}
+          />
+        )}
 
         {isLoading && (
           <View style={styles.center}>
@@ -222,6 +232,7 @@ export default function InsightsScreen() {
                   onTestIt={testIt}
                   testItDisabled={!!activeExperiment}
                   aiExplanationsEnabled={aiExplanationsEnabled}
+                  onAsk={aiOn ? askPattern : undefined}
                 />
               ))
             )}

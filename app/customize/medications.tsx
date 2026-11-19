@@ -19,7 +19,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import { ChevronLeft, Plus, Pill, Trash2 } from 'lucide-react-native';
+import { ChevronLeft, Plus, Pill, Trash2, Sparkles } from 'lucide-react-native';
+import { useAskLumenAi } from '../../src/hooks/useAskLumenAi';
 import * as Haptics from 'expo-haptics';
 import { safeGoBack } from '../../src/utils/navigation';
 import { useTheme, createThemedStyles } from '../../src/theme/ThemeContext';
@@ -46,6 +47,7 @@ export default function MedicationsScreen() {
   const [meds, setMeds] = useState<IMedication[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<IMedication> | null>(null);
+  const { ask } = useAskLumenAi();
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -284,6 +286,22 @@ export default function MedicationsScreen() {
                     onToggle={(v) => setEditing((e) => ({ ...e!, active: v }))}
                   />
                 </InsetGroup>
+
+                {editing._id && (
+                  <InsetGroup>
+                    <GroupedRow
+                      icon={Sparkles}
+                      tile="#AF52DE"
+                      label="Ask Lumen AI about this medicine"
+                      chevron
+                      onPress={() => {
+                        const m = editing as IMedication;
+                        setEditing(null);
+                        ask({ kind: 'medication', id: m._id, title: m.name });
+                      }}
+                    />
+                  </InsetGroup>
+                )}
 
                 {editing._id && (
                   <InsetGroup>

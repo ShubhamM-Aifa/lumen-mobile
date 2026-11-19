@@ -90,11 +90,16 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
     it('creates all specialized notification channels on Android', async () => {
       await ensureNotificationChannel();
 
-      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(10);
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(11);
 
       // Lumen AI notes (pushed by the server): audible, but their text stays off the lock screen.
       expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
         'lumen_ai_v1',
+        expect.objectContaining({ importance: 3, sound: 'default', lockscreenVisibility: 0 }),
+      );
+      // Community pushes (DMs, replies, mentions) are private on the lock screen too.
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        'lumen_community_v1',
         expect.objectContaining({ importance: 3, sound: 'default', lockscreenVisibility: 0 }),
       );
 

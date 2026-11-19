@@ -25,9 +25,11 @@ interface Props {
   testItDisabled?: boolean;
   /** preferences.aiExplanations — off by default; "Explain" only shows when the member turned it on. */
   aiExplanationsEnabled?: boolean;
+  /** "Ask Lumen AI": a chat with this pattern attached (only passed when Lumen AI is on). */
+  onAsk?: (finding: InsightFinding) => void;
 }
 
-export function InsightCard({ finding, onDismiss, onTestIt, testItDisabled, aiExplanationsEnabled }: Props) {
+export function InsightCard({ finding, onDismiss, onTestIt, testItDisabled, aiExplanationsEnabled, onAsk }: Props) {
   const { palette } = useTheme();
   const styles = useStyles();
   const { withRate, otherRate } = rates(finding);
@@ -85,7 +87,7 @@ export function InsightCard({ finding, onDismiss, onTestIt, testItDisabled, aiEx
         </View>
       ) : null}
 
-      {(onDismiss || onTestIt || (aiExplanationsEnabled && !faded)) ? (
+      {(onDismiss || onTestIt || onAsk || (aiExplanationsEnabled && !faded)) ? (
         <View style={styles.actions}>
           {aiExplanationsEnabled && !faded && !explanation ? (
             <TouchableOpacity
@@ -109,6 +111,16 @@ export function InsightCard({ finding, onDismiss, onTestIt, testItDisabled, aiEx
               accessibilityLabel={`Test it: start a 6-week experiment on ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
             >
               <Text style={[styles.actionText, testItDisabled && styles.actionTextDisabled]} maxFontSizeMultiplier={1.3}>Test it</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onAsk ? (
+            <TouchableOpacity
+              style={styles.action}
+              onPress={() => onAsk(finding)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ask Lumen AI about the pattern between ${finding.exposure.optionLabel} and ${finding.outcome.optionLabel}`}
+            >
+              <Text style={styles.actionText} maxFontSizeMultiplier={1.3}>Ask AI</Text>
             </TouchableOpacity>
           ) : null}
           {onDismiss ? (

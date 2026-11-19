@@ -2,22 +2,40 @@
  * Lumen AI chat thread. `id` is a conversation id, or "new" for a fresh chat.
  * The AI can read all of the member's own data (logs, notes, sleep, activity, medicines, records,
  * photos) through server-side tools; attached photos go with the question.
+ * The paperclip also attaches Lumen items (a day, a note, a task or list, a medicine, a health
+ * record, an insight...) and PDFs; the server reads the full item. `/ai/new?attach=<ref>` (from
+ * "Ask Lumen AI" on other screens, see useAskLumenAi) opens with that item already attached.
  * Voice: the mic dictates into the box (on-device recognizer), each reply has a speaker button,
  * and the header opens hands-free voice mode (./voice.tsx). The chip under the title picks the model.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, StyleSheet,
+  ActivityIndicator, Alert, StyleSheet, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowUp, AudioLines, BookmarkPlus, ChevronDown, ImagePlus, Mic, Square, Volume2, X } from 'lucide-react-native';
+import {
+  ArrowUp, AudioLines, BookmarkPlus, CalendarDays, CalendarRange, Camera, ChevronDown, FileText, Flame, FlaskConical,
+  Images, Lightbulb, ListTodo, Mic, NotebookPen, Paperclip, Pill, Square, Stethoscope, Volume2, X,
+} from 'lucide-react-native';
 import { ScreenTopBar } from '../../src/components/ios/ScreenTopBar';
 import { AiMessageText } from '../../src/components/ai/AiMessageText';
 import { AiPhotoThumb } from '../../src/components/ai/AiPhotoThumb';
 import { AiSetupNotice } from '../../src/components/ai/AiSetupNotice';
+import { RefChip } from '../../src/components/ai/RefChip';
+import { AttachPickerModal, type PickerKind } from '../../src/components/ai/AttachPickerModal';
+import { OptionsSheet, type SheetSection } from '../../src/components/todo/OptionsSheet';
+import { AppDateTimePicker } from '../../src/components/common/AppDateTimePicker';
+import { useTodayStr } from '../../src/hooks/useTodo';
+import { flushOutbox } from '../../src/services/todo/outbox';
+import { resolveMediaUrl } from '../../src/services/mediaService';
+import { toDateStr, parseDateStr } from '../../src/utils/todo/dates';
+import {
+  addRef, dayRefTitle, decodeRef, MAX_FILE_REFS, MAX_PDF_BYTES, MAX_REFS, refRoute, sameRef, type ChatRef,
+} from '../../src/utils/ai/refs';
 import { useKeyboard } from '../../src/hooks/useKeyboard';
 import {
   useAiAccess, useAiConversation, useSaveMessageAsNote, useSendAiMessage, type AiArtifact, type SendAiMessage,
@@ -42,8 +60,20 @@ const SUGGESTIONS = [
 
 interface Attachment { local: string; mediaId?: string; failed?: boolean }
 
+/** Opens a sent attachment: its screen, or for a PDF its file. */
+async function openRef(ref: ChatRef) {
+  const route = refRoute(ref);
+  if (route) { router.push(route as never); return; }
+  try {
+    const url = await resolveMediaUrl(ref.id);
+    if (url) await Linking.openURL(url);
+  } catch {
+    Alert.alert('Could not open the file', 'Check your connection and try again.');
+  }
+}
+
 export default function AiChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, attach, prompt } = useLocalSearchParams<{ id: string; attach?: string; prompt?: string }>();
   const isNew = !id || id === 'new';
   const { palette } = useTheme();
   const styles = useStyles();
@@ -69,6 +99,38 @@ export default function AiChatScreen() {
 
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [refs, setRefs] = useState<ChatRef[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [picker, setPicker] = useState<PickerKind | null>(null);
+  const [dayPickerOpen, setDayPickerOpen] = useState(false);
+  const todayStr = useTodayStr();
+  // Stable dates: the picker resets its selection whenever `value` changes.
+  const todayDate = useMemo(() => parseDateStr(todayStr), [todayStr]);
+  const todayEnd = useMemo(() => new Date(todayDate.getTime() + 86_399_000), [todayDate]);
+
+  // "Ask Lumen AI" on another screen: start with that item attached; the member writes the question.
+  useEffect(() => {
+    const ref = decodeRef(attach);
+    if (ref) setRefs(prev => addRef(prev, ref));
+    if (typeof prompt === 'string' && prompt) setDraft(prev => prev || prompt);
+  }, [attach, prompt]);
+
+  // Latest refs for callbacks that finish later (a PDF upload).
+  const refsNow = useRef<ChatRef[]>([]);
+  refsNow.current = refs;
+  const attachRef = (ref: ChatRef) => {
+    const prev = refsNow.current;
+    const next = addRef(prev, ref);
+    if (next === prev) {
+      if (!prev.some(r => sameRef(r, ref))) {
+        Alert.alert('That is the limit', ref.kind === 'file' ? `You can attach up to ${MAX_FILE_REFS} PDFs to one message.` : `You can attach up to ${MAX_REFS} items to one message.`);
+      }
+      return;
+    }
+    refsNow.current = next;
+    setRefs(next);
+  };
   const [pending, setPending] = useState<SendAiMessage | null>(null);
   const [failure, setFailure] = useState<{ text: string; retry: SendAiMessage } | null>(null);
 
@@ -89,8 +151,8 @@ export default function AiChatScreen() {
   useEffect(() => () => { stopSpeaking().catch(() => {}); }, []);
 
   const messages = conversation.data?.messages ?? [];
-  const uploading = attachments.some(a => !a.mediaId && !a.failed);
-  const canSend = !send.isPending && !uploading && (draft.trim().length > 0 || attachments.some(a => a.mediaId));
+  const uploading = uploadingFiles > 0 || attachments.some(a => !a.mediaId && !a.failed);
+  const canSend = !send.isPending && !uploading && (draft.trim().length > 0 || attachments.some(a => a.mediaId) || refs.length > 0);
 
   useEffect(() => {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -116,15 +178,91 @@ export default function AiChatScreen() {
     });
   };
 
-  const onSend = (text = draft) => {
+  const onSend = async (text = draft) => {
     if (dictation.listening) dictation.cancel();
     const message = text.trim();
     const mediaIds = attachments.flatMap(a => (a.mediaId ? [a.mediaId] : []));
-    if (!message && mediaIds.length === 0) return;
+    const sending = refs;
+    if (!message && mediaIds.length === 0 && sending.length === 0) return;
     setDraft('');
     setAttachments([]);
-    submit({ conversationId: isNew ? undefined : id, message, mediaIds });
+    setRefs([]);
+    // A task made offline must reach the server before the AI can read it.
+    if (sending.some(r => r.kind === 'task' || r.kind === 'list')) await flushOutbox().catch(() => {});
+    submit({ conversationId: isNew ? undefined : id, message, mediaIds, ...(sending.length ? { refs: sending } : {}) });
   };
+
+  const addPdf = async () => {
+    if (refsNow.current.filter(r => r.kind === 'file').length >= MAX_FILE_REFS) {
+      Alert.alert('That is the limit', `You can attach up to ${MAX_FILE_REFS} PDFs to one message.`);
+      return;
+    }
+    const picked = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
+    const file = picked.canceled ? undefined : picked.assets?.[0];
+    if (!file) return;
+    if (file.size && file.size > MAX_PDF_BYTES) {
+      Alert.alert('This PDF is too large', 'Lumen AI can read PDFs up to 10 MB.');
+      return;
+    }
+    setUploadingFiles(n => n + 1);
+    try {
+      // Sensitive like health photos: lab reports and prescriptions.
+      const { mediaId } = await uploadMedia(file.uri, 'application/pdf', true, file.size ?? undefined);
+      attachRef({ kind: 'file', id: mediaId, title: file.name || 'Document.pdf' });
+    } catch {
+      Alert.alert('Could not upload the PDF', 'Check your connection and try again.');
+    } finally {
+      setUploadingFiles(n => n - 1);
+    }
+  };
+
+  const needPhotoAccess = () => {
+    Alert.alert(
+      'Photos are off for Lumen AI',
+      'Allow “Include photos” in Settings → AI & Insights to let Lumen AI look at photos.',
+      [{ text: 'Not now', style: 'cancel' }, { text: 'Open Settings', onPress: () => router.push('/settings') }],
+    );
+  };
+
+  const photoOption = (fromCamera: boolean) => () => {
+    if (!access.data?.photoAccess) { needPhotoAccess(); return; }
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      Alert.alert('That is the limit', `You can attach up to ${MAX_ATTACHMENTS} photos to one message.`);
+      return;
+    }
+    addPhoto(fromCamera).catch(() => {});
+  };
+
+  const openPicker = (kind: PickerKind) => () => setPicker(kind);
+  const attachSections: SheetSection[] = [
+    {
+      title: 'Photos and files',
+      options: [
+        { key: 'camera', label: 'Take photo', icon: Camera, onPress: photoOption(true), opensModal: true },
+        { key: 'gallery', label: 'Choose photo', icon: Images, onPress: photoOption(false), opensModal: true },
+        { key: 'pdf', label: 'PDF file', hint: 'Lab report, prescription', icon: FileText, onPress: () => { addPdf().catch(() => {}); }, opensModal: true },
+      ],
+    },
+    {
+      title: 'From Lumen',
+      options: [
+        { key: 'day', label: 'A day', hint: 'Everything logged', icon: CalendarDays, onPress: () => setDayPickerOpen(true), opensModal: true },
+        { key: 'note', label: 'Note', icon: NotebookPen, onPress: openPicker('note'), opensModal: true },
+        { key: 'task', label: 'Task or list', icon: ListTodo, onPress: openPicker('task_or_list'), opensModal: true },
+        { key: 'medication', label: 'Medicine', icon: Pill, onPress: openPicker('medication'), opensModal: true },
+        { key: 'record', label: 'Health record', icon: Stethoscope, onPress: openPicker('record'), opensModal: true },
+      ],
+    },
+    {
+      title: 'Insights',
+      options: [
+        { key: 'pattern', label: 'Insight pattern', icon: Lightbulb, onPress: openPicker('pattern'), opensModal: true },
+        { key: 'experiment', label: 'Experiment', icon: FlaskConical, onPress: openPicker('experiment'), opensModal: true },
+        { key: 'flare', label: 'Flare', icon: Flame, onPress: openPicker('flare'), opensModal: true },
+        { key: 'weekly', label: 'Weekly review', icon: CalendarRange, onPress: openPicker('weekly_report'), opensModal: true },
+      ],
+    },
+  ];
 
   const addPhoto = async (fromCamera: boolean) => {
     const perm = fromCamera
@@ -145,22 +283,6 @@ export default function AiChatScreen() {
     }
   };
 
-  const onAttach = () => {
-    if (!access.data?.photoAccess) {
-      Alert.alert(
-        'Photos are off for Lumen AI',
-        'Allow “Include photos” in Settings → AI & Insights to let Lumen AI look at photos.',
-        [{ text: 'Not now', style: 'cancel' }, { text: 'Open Settings', onPress: () => router.push('/settings') }],
-      );
-      return;
-    }
-    if (attachments.length >= MAX_ATTACHMENTS) return;
-    Alert.alert('Add a photo', undefined, [
-      { text: 'Take photo', onPress: () => { addPhoto(true).catch(() => {}); } },
-      { text: 'Choose from gallery', onPress: () => { addPhoto(false).catch(() => {}); } },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
 
   if (access.data && !access.data.fullAccess) {
     return (
@@ -220,10 +342,10 @@ export default function AiChatScreen() {
           <View style={styles.intro}>
             <Text style={styles.introTitle} maxFontSizeMultiplier={1.3}>Ask anything about your data</Text>
             <Text style={styles.introBody} maxFontSizeMultiplier={1.3}>
-              Lumen AI can read all your logs, notes, sleep, steps, medicines, records{access.data?.photoAccess ? ' and photos' : ''}. It can be wrong — check important things with your doctor.
+              Lumen AI can read all your logs, notes, sleep, steps, medicines, records{access.data?.photoAccess ? ' and photos' : ''}. Tap the paperclip to attach a day, a note, a task, a lab report PDF and more. It can be wrong — check important things with your doctor.
             </Text>
             {SUGGESTIONS.map(s => (
-              <TouchableOpacity key={s} style={styles.suggestion} onPress={() => onSend(s)} accessibilityRole="button">
+              <TouchableOpacity key={s} style={styles.suggestion} onPress={() => { onSend(s).catch(() => {}); }} accessibilityRole="button">
                 <Text style={styles.suggestionText} maxFontSizeMultiplier={1.3}>{s}</Text>
               </TouchableOpacity>
             ))}
@@ -237,13 +359,14 @@ export default function AiChatScreen() {
             role={m.role}
             text={m.text}
             mediaIds={m.mediaIds}
+            refs={m.refs}
             modelLabel={m.modelLabel ?? undefined}
             artifacts={m.artifacts}
             onSaveNote={m.role === 'assistant' && !isNew ? () => onSaveNote(m.id) : undefined}
             onSpeak={voice ? () => { speakReply(m.text, { voice: voice.ttsVoice, natural: voice.natural, id: m.id }).catch(() => {}); } : undefined}
           />
         ))}
-        {pending ? <Bubble role="user" text={pending.message} mediaIds={pending.mediaIds ?? []} /> : null}
+        {pending ? <Bubble role="user" text={pending.message} mediaIds={pending.mediaIds ?? []} refs={pending.refs} /> : null}
         {pending ? (
           <View style={[styles.bubble, styles.aiBubble, styles.typing]} accessibilityLabel="Lumen AI is looking through your data">
             <ActivityIndicator size="small" color={palette.primaryText} />
@@ -270,6 +393,19 @@ export default function AiChatScreen() {
           },
         ]}
       >
+        {refs.length > 0 || uploadingFiles > 0 ? (
+          <ScrollView horizontal contentContainerStyle={styles.attachRow} keyboardShouldPersistTaps="handled">
+            {refs.map(r => (
+              <RefChip key={`${r.kind}:${r.id}`} ref_={r} variant="composer" onRemove={() => setRefs(prev => prev.filter(x => !sameRef(x, r)))} />
+            ))}
+            {uploadingFiles > 0 ? (
+              <View style={styles.uploadingChip} accessibilityLabel="Uploading PDF">
+                <ActivityIndicator size="small" color={palette.primaryText} />
+                <Text style={styles.uploadingText}>Uploading PDF…</Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        ) : null}
         {attachments.length > 0 ? (
           <ScrollView horizontal contentContainerStyle={styles.attachRow}>
             {attachments.map(a => (
@@ -288,8 +424,8 @@ export default function AiChatScreen() {
           </ScrollView>
         ) : null}
         <View style={styles.inputRow}>
-          <TouchableOpacity style={styles.iconBtn} onPress={onAttach} accessibilityRole="button" accessibilityLabel="Attach a photo">
-            <ImagePlus size={22} color={palette.primaryText} />
+          <TouchableOpacity style={styles.iconBtn} onPress={() => setMenuOpen(true)} accessibilityRole="button" accessibilityLabel="Attach">
+            <Paperclip size={22} color={palette.primaryText} />
           </TouchableOpacity>
           <TextInput
             style={styles.input}
@@ -303,7 +439,7 @@ export default function AiChatScreen() {
             maxFontSizeMultiplier={1.3}
             accessibilityLabel="Message Lumen AI"
           />
-          {dictation.listening || (!draft.trim() && attachments.length === 0) ? (
+          {dictation.listening || (!draft.trim() && attachments.length === 0 && refs.length === 0) ? (
             <TouchableOpacity
               style={[styles.sendBtn, dictation.listening ? styles.micBtnOn : styles.micBtn, { transform: [{ scale: 1 + dictation.level * 0.15 }] }]}
               onPress={() => { if (dictation.listening) dictation.stop(); else dictation.start().catch(() => {}); }}
@@ -316,7 +452,7 @@ export default function AiChatScreen() {
           ) : (
             <TouchableOpacity
               style={[styles.sendBtn, !canSend && styles.sendBtnOff]}
-              onPress={() => onSend()}
+              onPress={() => { onSend().catch(() => {}); }}
               disabled={!canSend}
               accessibilityRole="button"
               accessibilityLabel="Send"
@@ -326,15 +462,36 @@ export default function AiChatScreen() {
           )}
         </View>
       </View>
+
+      <OptionsSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="Attach" sections={attachSections} />
+      <AttachPickerModal
+        kind={picker}
+        onClose={() => setPicker(null)}
+        onPick={ref => { setPicker(null); attachRef(ref); }}
+      />
+      <AppDateTimePicker
+        visible={dayPickerOpen}
+        mode="date"
+        title="Attach a day"
+        value={todayDate}
+        maximumDate={todayEnd}
+        onClose={() => setDayPickerOpen(false)}
+        onChange={d => {
+          setDayPickerOpen(false);
+          const date = toDateStr(d);
+          attachRef({ kind: 'day', id: date, title: dayRefTitle(date, todayStr) });
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
 
-function Bubble({ id, role, text, mediaIds, modelLabel, onSpeak, artifacts, onSaveNote }: {
+function Bubble({ id, role, text, mediaIds, refs, modelLabel, onSpeak, artifacts, onSaveNote }: {
   id?: string;
   role: 'user' | 'assistant';
   text: string;
   mediaIds: string[];
+  refs?: ChatRef[];
   modelLabel?: string;
   onSpeak?: () => void;
   artifacts?: AiArtifact[];
@@ -349,6 +506,11 @@ function Bubble({ id, role, text, mediaIds, modelLabel, onSpeak, artifacts, onSa
     <View style={[styles.bubble, mine ? styles.userBubble : styles.aiBubble]}>
       {mediaIds.length > 0 ? (
         <View style={styles.bubblePhotos}>{mediaIds.map(m => <AiPhotoThumb key={m} source={m} />)}</View>
+      ) : null}
+      {refs?.length ? (
+        <View style={styles.bubbleRefs}>
+          {refs.map(r => <RefChip key={`${r.kind}:${r.id}`} ref_={r} variant="sent" onPress={() => { openRef(r).catch(() => {}); }} />)}
+        </View>
       ) : null}
       {text ? (
         mine
@@ -446,6 +608,9 @@ const useStyles = createThemedStyles(palette => ({
   userText: { ...typography.body, color: '#fff', lineHeight: 22 },
   aiText: { ...typography.body, color: palette.text, lineHeight: 22 },
   bubblePhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  bubbleRefs: { gap: 6, alignItems: 'flex-end' },
+  uploadingChip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background },
+  uploadingText: { ...typography.footnote, color: palette.textSecondary },
   typing: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { ...typography.footnote, color: palette.textSecondary },
   errorText: { ...typography.body, color: palette.text, lineHeight: 22 },

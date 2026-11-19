@@ -259,7 +259,7 @@ export default function NoteEditorScreen() {
         </TouchableOpacity>
 
         <View style={styles.topBarRight}>
-          <NoteAiButton noteId={note._id} onResult={onAiResult} />
+          <NoteAiButton noteId={note._id} noteTitle={note.title} onResult={onAiResult} />
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => {

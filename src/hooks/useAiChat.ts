@@ -4,6 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
+import type { AiChatRefKind, IAiChatRef } from '../shared/types';
 
 export interface AiAccess {
   fullAccess: boolean;
@@ -64,6 +65,8 @@ export interface AiMessage {
   role: 'user' | 'assistant';
   text: string;
   mediaIds: string[];
+  /** Member messages: Lumen items and PDFs attached to it. */
+  refs?: IAiChatRef[];
   createdAt: string;
   /** Assistant replies: which model wrote it. */
   provider?: AiProviderId | null;
@@ -159,6 +162,8 @@ export interface SendAiMessage {
   conversationId?: string;
   message: string;
   mediaIds?: string[];
+  /** Lumen items and PDFs attached to this message. */
+  refs?: IAiChatRef[];
   /** Voice conversation: the reply is written to be spoken (short, no markdown). */
   voice?: boolean;
 }
@@ -173,6 +178,27 @@ export function useSendAiMessage() {
         qc.invalidateQueries({ queryKey: keys.conversations });
       }
     },
+  });
+}
+
+/** One row in the chat's "attach" pickers. */
+export interface Attachable {
+  id: string;
+  title: string;
+  subtitle?: string;
+  date?: string;
+}
+
+export type AttachableKind = Exclude<AiChatRefKind, 'day' | 'file'>;
+
+/** The member's items of one kind for the attach picker (newest first), searched by title on the server. */
+export function useAttachables(kind: AttachableKind | null, q = '') {
+  const query = q.trim();
+  return useQuery<Attachable[]>({
+    queryKey: ['ai', 'attachables', kind, query],
+    queryFn: () => api.get<Attachable[]>(`/ai/attachables?kind=${kind}${query ? `&q=${encodeURIComponent(query)}` : ''}`),
+    enabled: !!kind,
+    staleTime: 30_000,
   });
 }
 

@@ -9,8 +9,12 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Image,
 } from 'react-native';
-import { X, MessageSquare, Send, CornerDownRight } from 'lucide-react-native';
+import { X, MessageSquare, Send, CornerDownRight, TriangleAlert, ImagePlus } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ContentGate } from './ContentGate';
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityMessage } from '../../shared/types';
 import { useCommunityStore } from '../../store/communityStore';
@@ -24,7 +28,11 @@ interface Props {
   parent: ICommunityMessage | null;
   replies: ICommunityMessage[];
   onClose: () => void;
-  onSendReply: (parentMessageId: string, text: string) => Promise<void>;
+  onSendReply: (
+    parentMessageId: string,
+    text: string,
+    opts?: { contentWarning?: string; photoUri?: string; photoMimeType?: string }
+  ) => Promise<void>;
   onPressProfile?: (userId: string) => void;
 }
 
@@ -42,15 +50,36 @@ export const DiscordThreadModal: React.FC<Props> = ({
   const { user } = useAuthStore();
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [warningOn, setWarningOn] = useState(false);
+  const [warningText, setWarningText] = useState('');
+  const [photo, setPhoto] = useState<{ uri: string; mimeType?: string } | null>(null);
 
   if (!parent) return null;
 
+  const pickPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, exif: false });
+      if (!result.canceled && result.assets?.[0]) setPhoto({ uri: result.assets[0].uri, mimeType: result.assets[0].mimeType || undefined });
+    } catch (err: any) {
+      Alert.alert('Photo', err?.message || 'Could not open your photos');
+    }
+  };
+
   const handleSend = async () => {
-    if (!replyText.trim() || sending) return;
+    if ((!replyText.trim() && !photo) || sending) return;
     setSending(true);
     try {
-      await onSendReply(parent._id, replyText.trim());
+      await onSendReply(parent._id, replyText.trim(), {
+        contentWarning: warningOn ? warningText.trim() || undefined : undefined,
+        photoUri: photo?.uri,
+        photoMimeType: photo?.mimeType,
+      });
       setReplyText('');
+      setPhoto(null);
+      setWarningOn(false);
+      setWarningText('');
+    } catch (err: any) {
+      Alert.alert('Reply not sent', err?.message || 'Could not send reply');
     } finally {
       setSending(false);
     }
@@ -106,7 +135,12 @@ export const DiscordThreadModal: React.FC<Props> = ({
                   </View>
                 )}
               </View>
-              <Text style={[styles.messageContent, { color: palette.text }]}>{parent.content}</Text>
+              <ContentGate warning={parent.contentWarning}>
+                <Text style={[styles.messageContent, { color: palette.text }]}>{parent.content}</Text>
+                {parent.embedType === 'photo' && Boolean(parent.embedData?.photoUrl) && (
+                  <Image source={{ uri: parent.embedData!.photoUrl! }} style={styles.threadPhoto} resizeMode="cover" accessibilityLabel="Attached photo" />
+                )}
+              </ContentGate>
             </View>
 
             <View style={styles.replyDivider}>
@@ -138,11 +172,40 @@ export const DiscordThreadModal: React.FC<Props> = ({
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  <Text style={[styles.replyContent, { color: palette.text }]}>{reply.content}</Text>
+                  <ContentGate warning={reply.contentWarning}>
+                    {Boolean(reply.content) && <Text style={[styles.replyContent, { color: palette.text }]}>{reply.content}</Text>}
+                    {reply.embedType === 'photo' && Boolean(reply.embedData?.photoUrl) && (
+                      <Image source={{ uri: reply.embedData!.photoUrl! }} style={styles.threadPhoto} resizeMode="cover" accessibilityLabel="Attached photo" />
+                    )}
+                  </ContentGate>
                 </View>
               </View>
             ))}
           </ScrollView>
+
+          {warningOn && (
+            <View style={[styles.warningRow, { backgroundColor: palette.background, borderTopColor: palette.border }]}>
+              <TriangleAlert size={14} color="#F59E0B" />
+              <TextInput
+                style={{ flex: 1, color: palette.text, paddingVertical: 4 }}
+                placeholder="Content warning, e.g. flare, hospital"
+                placeholderTextColor={palette.textDisabled}
+                value={warningText}
+                onChangeText={setWarningText}
+                maxLength={60}
+                accessibilityLabel="Content warning text"
+              />
+            </View>
+          )}
+          {photo && (
+            <View style={[styles.warningRow, { backgroundColor: palette.background, borderTopColor: palette.border }]}>
+              <Image source={{ uri: photo.uri }} style={{ width: 36, height: 36, borderRadius: 6 }} />
+              <Text style={{ flex: 1, color: palette.text, fontSize: 13 }}>Photo attached</Text>
+              <TouchableOpacity onPress={() => setPhoto(null)} accessibilityRole="button" accessibilityLabel="Remove photo">
+                <X size={16} color={palette.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Composer */}
           <View
@@ -155,6 +218,12 @@ export const DiscordThreadModal: React.FC<Props> = ({
               },
             ]}
           >
+            <TouchableOpacity onPress={() => setWarningOn((v) => !v)} style={styles.iconBtn} accessibilityRole="button" accessibilityState={{ selected: warningOn }} accessibilityLabel="Add a content warning">
+              <TriangleAlert size={18} color={warningOn ? '#F59E0B' : palette.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={pickPhoto} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Attach a photo">
+              <ImagePlus size={18} color={photo ? palette.primaryText || palette.primary : palette.textSecondary} />
+            </TouchableOpacity>
             <TextInput
               style={[
                 styles.composerInput,
@@ -167,10 +236,10 @@ export const DiscordThreadModal: React.FC<Props> = ({
             />
             <TouchableOpacity
               onPress={handleSend}
-              disabled={!replyText.trim() || sending}
+              disabled={(!replyText.trim() && !photo) || sending}
               style={[
                 styles.sendBtn,
-                { backgroundColor: replyText.trim() ? palette.primary : palette.border },
+                { backgroundColor: replyText.trim() || photo ? palette.primary : palette.border },
               ]}
             >
               <Send size={16} color="#FFFFFF" />
@@ -183,6 +252,9 @@ export const DiscordThreadModal: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  threadPhoto: { width: 220, height: 220, borderRadius: 10, marginTop: 8 },
+  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  iconBtn: { width: 32, height: 36, alignItems: 'center', justifyContent: 'center' },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',

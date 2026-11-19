@@ -35,9 +35,11 @@ export async function uploadMedia(
   localUri: string,
   mimeType: string,
   sensitive = false,
+  /** Bytes, when known (documents): lets the server enforce its size limit. */
+  size?: number,
 ): Promise<UploadResult> {
   // 1. Get pre-signed URL
-  const uploadInfo = await api.post<any>('/media/upload-url', { mimeType, sensitive });
+  const uploadInfo = await api.post<any>('/media/upload-url', { mimeType, sensitive, ...(size ? { size } : {}) });
   const mediaId = uploadInfo?.mediaId || uploadInfo?.data?.mediaId;
   const uploadUrl = uploadInfo?.uploadUrl || uploadInfo?.data?.uploadUrl;
 
@@ -51,7 +53,7 @@ export async function uploadMedia(
   if (!putRes.ok) throw new Error(`Storage upload failed: ${putRes.status}`);
 
   // 3. Confirm
-  const confirmRes = await api.post<any>('/media/confirm', { mediaId });
+  const confirmRes = await api.post<any>('/media/confirm', { mediaId, ...(size ? { size } : {}) });
   return { mediaId, url: confirmRes?.url || confirmRes?.data?.url || '' };
 }
 
@@ -96,6 +98,7 @@ export function getMimeType(uri: string): string {
     jpg: 'image/jpeg', jpeg: 'image/jpeg',
     png: 'image/png', webp: 'image/webp', heic: 'image/heic',
     mp4: 'video/mp4', mov: 'video/quicktime',
+    pdf: 'application/pdf',
   };
   return map[ext] ?? 'image/jpeg';
 }

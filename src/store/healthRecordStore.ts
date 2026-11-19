@@ -232,11 +232,16 @@ export const useHealthRecordStore = create<HealthRecordState>((set, get) => ({
   updateRecord: async (id: string, updates: Partial<IHealthRecord>) => {
     // Optimistic update
     set((state) => {
+      const updatedRecord = state.records.find((r) => r._id === id)
+        ? { ...state.records.find((r) => r._id === id)!, ...updates, updatedAt: new Date().toISOString() }
+        : null;
       const updated = state.records.map((r) =>
         r._id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r,
       );
+      const updatedActive =
+        state.activeRecord?._id === id && updatedRecord ? updatedRecord : state.activeRecord;
       AsyncStorage.setItem(HEALTH_RECORDS_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
-      return { records: updated };
+      return { records: updated, activeRecord: updatedActive };
     });
 
     try {

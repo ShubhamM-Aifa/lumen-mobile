@@ -18,6 +18,8 @@ import {
   Trash2,
   Copy,
   ShieldAlert,
+  Ban,
+  Languages,
   X,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
@@ -35,6 +37,9 @@ interface DiscordMessageActionModalProps {
   onEdit: (message: ICommunityMessage) => void;
   onDelete: (message: ICommunityMessage) => void;
   onTimeoutMember?: (userId: string, displayName: string) => void;
+  onReport?: (message: ICommunityMessage) => void;
+  onTranslate?: (message: ICommunityMessage) => void;
+  onBlock?: (message: ICommunityMessage) => void;
   onReact: (messageId: string, emoji: string) => void;
 }
 
@@ -52,6 +57,9 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
   onEdit,
   onDelete,
   onTimeoutMember,
+  onReport,
+  onTranslate,
+  onBlock,
   onReact,
 }) => {
   const { palette } = useTheme();
@@ -156,6 +164,23 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
                   </TouchableOpacity>
                 )}
 
+                {/* Translate (Lumen AI) */}
+                {Boolean(message.content) && onTranslate && (
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onClose();
+                      onTranslate(message);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Translate message with Lumen AI"
+                  >
+                    <Languages size={18} color={palette.primaryText || palette.primary} style={styles.actionIcon} />
+                    <Text style={[styles.actionLabel, { color: palette.primaryText || palette.primary }]}>Translate (Lumen AI)</Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Edit Message (Author only) */}
                 {isAuthor && (
                   <TouchableOpacity
@@ -187,6 +212,38 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
                     <Text style={[styles.actionLabel, { color: '#F59E0B' }]}>
                       Timeout Member (1 hour)
                     </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Report / Block (other people's messages) */}
+                {!isAuthor && onReport && (
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onClose();
+                      onReport(message);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Report message"
+                  >
+                    <ShieldAlert size={18} color={palette.textSecondary} style={styles.actionIcon} />
+                    <Text style={[styles.actionLabel, { color: palette.text }]}>Report Message</Text>
+                  </TouchableOpacity>
+                )}
+                {!isAuthor && onBlock && (
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onClose();
+                      onBlock(message);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Block author"
+                  >
+                    <Ban size={18} color={palette.textSecondary} style={styles.actionIcon} />
+                    <Text style={[styles.actionLabel, { color: palette.text }]}>Block Author</Text>
                   </TouchableOpacity>
                 )}
 
