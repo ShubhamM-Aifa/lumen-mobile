@@ -549,7 +549,7 @@ export default function ChannelChatScreen() {
             <ArrowLeft size={22} color={palette.text} />
           </TouchableOpacity>
 
-          {isDm ? (
+          {isDm && !isGroup ? (
             <TouchableOpacity
               style={styles.dmHeaderBox}
               onPress={() => channel?.dmUser?._id && handleOpenProfile(channel.dmUser._id)}
@@ -808,7 +808,22 @@ export default function ChannelChatScreen() {
               }}
             >
               {/* Channel Welcome Hero (Matching Discord Mobile Screenshot 4) */}
-              {isDm ? (
+              {isGroup ? (
+                <View style={styles.discordWelcomeHero}>
+                  <View style={styles.discordWelcomeAvatarWrap}>
+                    {channel?.photoUrl ? (
+                      <Image source={{ uri: channel.photoUrl }} style={{ width: 80, height: 80, borderRadius: 40 }} accessibilityLabel="Group photo" />
+                    ) : (
+                      <Text style={{ fontSize: 44 }}>👥</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.discordWelcomeTitle, { color: palette.text }]}>{dmTargetName}</Text>
+                  {channel?.about ? <Text style={[styles.discordWelcomeUsername, { color: palette.textSecondary }]}>{channel.about}</Text> : null}
+                  <Text style={[styles.discordWelcomeDesc, { color: palette.textSecondary }]}>
+                    {`This is the start of the group. ${groupSubtitle(channel?.groupMembers)}. Tap the name above to see everyone, add people or change the photo.`}
+                  </Text>
+                </View>
+              ) : isDm ? (
                 <View style={styles.discordWelcomeHero}>
                   <View style={styles.discordWelcomeAvatarWrap}>
                     <ModularAvatar
@@ -946,6 +961,14 @@ export default function ChannelChatScreen() {
                         </View>
                       )}
 
+                      {msg.isSystem ? (
+                        <Text
+                          style={{ color: palette.textDisabled, fontSize: 12, textAlign: 'center', paddingHorizontal: 24, paddingVertical: 6 }}
+                          accessibilityRole="text"
+                        >
+                          {msg.content}
+                        </Text>
+                      ) : (
                       <View
                         style={[
                           styles.messageRow,
@@ -1180,6 +1203,7 @@ export default function ChannelChatScreen() {
                           </View>
                         </View>
                       </View>
+                      )}
                     </React.Fragment>
                   );
                 })

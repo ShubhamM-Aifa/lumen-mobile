@@ -30,6 +30,11 @@ const MESSAGES_CACHE_KEY = 'lumen:community:messages_v1';
 const FORUM_CACHE_KEY = 'lumen:community:forum_posts_v1';
 const DMS_CACHE_KEY = 'lumen:community:dms_v1';
 
+/** After a group change the server adds a notice line ("Sam added Priya"); reload it if that chat is open. */
+function refreshOpenChat(get: () => { messages: Array<{ channelId?: string }>; fetchMessages: (id: string) => Promise<void> }, channelId: string): void {
+  if (get().messages.some((m) => String(m.channelId) === channelId)) get().fetchMessages(channelId).catch(() => {});
+}
+
 export interface CommunityBlock {
   id: string;
   label: string;
@@ -455,11 +460,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   addGroupMembers: async (channelId, userIds) => {
     const res = await api.post<ICommunityChannel>(`/community/dms/${channelId}/members`, { userIds });
     get().upsertDm(res);
+    refreshOpenChat(get, channelId);
     return res;
   },
   removeGroupMember: async (channelId, userId) => {
     const res = await api.delete<ICommunityChannel>(`/community/dms/${channelId}/members/${userId}`);
     get().upsertDm(res);
+    refreshOpenChat(get, channelId);
     return res;
   },
   leaveGroup: async (channelId) => {
@@ -473,12 +480,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   renameGroup: async (channelId, name) => {
     const res = await api.patch<ICommunityChannel>(`/community/dms/${channelId}`, { name });
     get().upsertDm(res);
+    refreshOpenChat(get, channelId);
     return res;
   },
 
   editGroup: async (channelId, changes) => {
     const res = await api.patch<ICommunityChannel>(`/community/dms/${channelId}`, changes);
     get().upsertDm(res);
+    refreshOpenChat(get, channelId);
     return res;
   },
 
