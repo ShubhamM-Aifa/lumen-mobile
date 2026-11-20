@@ -43,7 +43,7 @@ interface DiscordMessageActionModalProps {
   onReact: (messageId: string, emoji: string) => void;
 }
 
-const QUICK_REACTIONS = ['🥄', '🫂', '❤️', '💡', '🌿', '💪'];
+const QUICK_REACTIONS = ['🥄', '👍', '❤️', '💡', '✨', '💯'];
 
 export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps> = ({
   visible,
@@ -90,180 +90,196 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-              {/* Header drag indicator / close */}
+            <View style={styles.sheet}>
+              {/* Header drag indicator */}
               <View style={styles.sheetHandle} />
 
-              {/* Quick Reactions Bar */}
-              <View style={[styles.reactionRow, { borderBottomColor: palette.border }]}>
-                {QUICK_REACTIONS.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      onReact(message._id, emoji);
-                      onClose();
-                    }}
-                    style={[styles.reactionBtn, { backgroundColor: palette.surface }]}
-                  >
-                    <Text style={styles.reactionEmoji}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {/* Quick Reactions Bar (Matching Discord Mobile Screenshot 2) */}
+                <View style={styles.reactionSection}>
+                  <View style={styles.reactionRow}>
+                    {QUICK_REACTIONS.map((emoji) => (
+                      <TouchableOpacity
+                        key={emoji}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          onReact(message._id, emoji);
+                          onClose();
+                        }}
+                        style={styles.reactionBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.reactionEmoji}>{emoji}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.quickReactHint}>Double tap a message to ❤️ React</Text>
+                </View>
 
-              {/* Action list */}
-              <View style={styles.actionsList}>
-                {/* Reply */}
-                <TouchableOpacity
-                  style={styles.actionRow}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onClose();
-                    onReply(message);
-                  }}
-                >
-                  <CornerDownRight size={18} color={palette.text} style={styles.actionIcon} />
-                  <Text style={[styles.actionLabel, { color: palette.text }]}>Reply</Text>
-                </TouchableOpacity>
+                {/* Card Block 1: Primary actions */}
+                <View style={styles.actionCard}>
+                  {isAuthor && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onClose();
+                          onEdit(message);
+                        }}
+                      >
+                        <Pencil size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Edit Message</Text>
+                      </TouchableOpacity>
+                      <View style={styles.actionDivider} />
+                    </>
+                  )}
 
-                {/* Thread */}
-                <TouchableOpacity
-                  style={styles.actionRow}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    onClose();
-                    onOpenThread(message);
-                  }}
-                >
-                  <MessageSquare size={18} color={palette.text} style={styles.actionIcon} />
-                  <Text style={[styles.actionLabel, { color: palette.text }]}>
-                    {message.threadMeta?.replyCount ? `View Thread (${message.threadMeta.replyCount})` : 'Start Thread'}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Pin / Unpin */}
-                <TouchableOpacity
-                  style={styles.actionRow}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    onClose();
-                    onTogglePin(message);
-                  }}
-                >
-                  <Pin size={18} color="#F59E0B" style={styles.actionIcon} />
-                  <Text style={[styles.actionLabel, { color: palette.text }]}>
-                    {message.isPinned ? 'Unpin Message' : 'Pin Message'}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Copy Text */}
-                {Boolean(message.content) && (
-                  <TouchableOpacity style={styles.actionRow} onPress={handleCopy}>
-                    <Copy size={18} color={palette.text} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.text }]}>Copy Text</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Translate (Lumen AI) */}
-                {Boolean(message.content) && onTranslate && (
                   <TouchableOpacity
                     style={styles.actionRow}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       onClose();
-                      onTranslate(message);
+                      onReply(message);
                     }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Translate message with Lumen AI"
                   >
-                    <Languages size={18} color={palette.primaryText || palette.primary} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.primaryText || palette.primary }]}>Translate (Lumen AI)</Text>
+                    <CornerDownRight size={18} color="#FFFFFF" style={styles.actionIcon} />
+                    <Text style={styles.actionLabel}>Reply</Text>
                   </TouchableOpacity>
-                )}
 
-                {/* Edit Message (Author only) */}
-                {isAuthor && (
+                  <View style={styles.actionDivider} />
+
                   <TouchableOpacity
                     style={styles.actionRow}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       onClose();
-                      onEdit(message);
+                      onOpenThread(message);
                     }}
                   >
-                    <Pencil size={18} color={palette.primaryText || palette.primary} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.primaryText || palette.primary }]}>
-                      Edit Message
+                    <MessageSquare size={18} color="#FFFFFF" style={styles.actionIcon} />
+                    <Text style={styles.actionLabel}>
+                      {message.threadMeta?.replyCount ? `View Thread (${message.threadMeta.replyCount})` : 'Start Thread'}
                     </Text>
                   </TouchableOpacity>
-                )}
+                </View>
 
-                {/* Timeout Member (Moderator only, non-author) */}
-                {isModerator && !isAuthor && onTimeoutMember && !message.isAnonymous && (
+                {/* Card Block 2: Secondary utilities */}
+                <View style={styles.actionCard}>
+                  {Boolean(message.content) && (
+                    <>
+                      <TouchableOpacity style={styles.actionRow} onPress={handleCopy}>
+                        <Copy size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Copy Text</Text>
+                      </TouchableOpacity>
+                      <View style={styles.actionDivider} />
+                    </>
+                  )}
+
                   <TouchableOpacity
                     style={styles.actionRow}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       onClose();
-                      onTimeoutMember(message.senderId, message.senderDisplayName);
+                      onTogglePin(message);
                     }}
                   >
-                    <ShieldAlert size={18} color="#F59E0B" style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: '#F59E0B' }]}>
-                      Timeout Member (1 hour)
+                    <Pin size={18} color="#FFFFFF" style={styles.actionIcon} />
+                    <Text style={styles.actionLabel}>
+                      {message.isPinned ? 'Unpin Message' : 'Pin Message'}
                     </Text>
                   </TouchableOpacity>
-                )}
 
-                {/* Report / Block (other people's messages) */}
-                {!isAuthor && onReport && (
-                  <TouchableOpacity
-                    style={styles.actionRow}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      onClose();
-                      onReport(message);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Report message"
-                  >
-                    <ShieldAlert size={18} color={palette.textSecondary} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.text }]}>Report Message</Text>
-                  </TouchableOpacity>
-                )}
-                {!isAuthor && onBlock && (
-                  <TouchableOpacity
-                    style={styles.actionRow}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      onClose();
-                      onBlock(message);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Block author"
-                  >
-                    <Ban size={18} color={palette.textSecondary} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.text }]}>Block Author</Text>
-                  </TouchableOpacity>
-                )}
+                  {Boolean(message.content) && onTranslate && (
+                    <>
+                      <View style={styles.actionDivider} />
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onClose();
+                          onTranslate(message);
+                        }}
+                      >
+                        <Languages size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Translate (Lumen AI)</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
 
-                {/* Delete Message (Author or Moderator) */}
+                  {!isAuthor && onReport && (
+                    <>
+                      <View style={styles.actionDivider} />
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onClose();
+                          onReport(message);
+                        }}
+                      >
+                        <ShieldAlert size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Report Message</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {!isAuthor && onBlock && (
+                    <>
+                      <View style={styles.actionDivider} />
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onClose();
+                          onBlock(message);
+                        }}
+                      >
+                        <Ban size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Block Author</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {isModerator && !isAuthor && onTimeoutMember && !message.isAnonymous && (
+                    <>
+                      <View style={styles.actionDivider} />
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          onClose();
+                          onTimeoutMember(message.senderId, message.senderDisplayName);
+                        }}
+                      >
+                        <ShieldAlert size={18} color="#F59E0B" style={styles.actionIcon} />
+                        <Text style={[styles.actionLabel, { color: '#F59E0B' }]}>
+                          Timeout Member (1 hour)
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+
+                {/* Card Block 3: Destructive Delete */}
                 {(isAuthor || isModerator) && (
-                  <TouchableOpacity
-                    style={styles.actionRow}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                      onClose();
-                      onDelete(message);
-                    }}
-                  >
-                    <Trash2 size={18} color={palette.error || '#EF4444'} style={styles.actionIcon} />
-                    <Text style={[styles.actionLabel, { color: palette.error || '#EF4444' }]}>
-                      Delete Message
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.actionCard}>
+                    <TouchableOpacity
+                      style={styles.actionRow}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                        onClose();
+                        onDelete(message);
+                      }}
+                    >
+                      <Trash2 size={18} color="#F23F43" style={styles.actionIcon} />
+                      <Text style={[styles.actionLabel, { color: '#F23F43' }]}>
+                        Delete Message
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
-              </View>
+              </ScrollView>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -275,57 +291,78 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
+    backgroundColor: '#1E1F22',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingBottom: 32,
     paddingTop: 10,
+    paddingBottom: 24,
     paddingHorizontal: 16,
+    maxHeight: '82%',
   },
   sheetHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#94A3B8',
+    backgroundColor: '#4E5058',
     alignSelf: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  scrollContent: {
+    gap: 12,
+    paddingBottom: 16,
+  },
+  reactionSection: {
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
   reactionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingBottom: 14,
-    marginBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    width: '100%',
   },
   reactionBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#2B2D31',
     alignItems: 'center',
     justifyContent: 'center',
   },
   reactionEmoji: {
     fontSize: 22,
   },
-  actionsList: {
-    gap: 4,
+  quickReactHint: {
+    fontSize: 12,
+    color: '#949BA4',
+    textAlign: 'center',
+  },
+  actionCard: {
+    backgroundColor: '#2B2D31',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   actionIcon: {
     marginRight: 14,
   },
   actionLabel: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  actionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#1E1F22',
+    marginLeft: 48,
   },
 });

@@ -6,10 +6,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Award, FileText, CheckSquare, Sparkles, MessageSquare, Mail } from 'lucide-react-native';
-import { useTheme } from '../../theme/ThemeContext';
+import * as Haptics from 'expo-haptics';
+import {
+  X,
+  FileText,
+  CheckSquare,
+  Sparkles,
+  Mail,
+  Calendar,
+  Shield,
+  AtSign,
+} from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { IDiscordUserProfile } from '../../shared/types';
 import { ModularAvatar } from '../avatar/ModularAvatar';
@@ -30,169 +40,179 @@ export const DiscordProfilePopoutModal: React.FC<Props> = ({
   onMention,
   onDirectMessage,
 }) => {
-  const { palette } = useTheme();
   const { user: me } = useAuthStore();
 
   if (!user) return null;
   const isMe = Boolean(me?._id && user.userId === me._id);
+  const usernameHandle = `@${(user.displayName || 'user').toLowerCase().replace(/\s+/g, '_')}`;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={[styles.card, { backgroundColor: palette.surface }]}>
-              {/* Top Banner */}
-              <LinearGradient
-                colors={user.bannerGradient || ['#0284C7', '#6366F1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.banner}
-              >
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                  <X size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </LinearGradient>
+            <View style={styles.sheetContainer}>
+              {/* Drag Handle */}
+              <View style={styles.sheetHandle} />
 
-              {/* Avatar Section */}
-              <View style={styles.avatarRow}>
-                <View style={[styles.avatarCircle, { borderColor: palette.surface }]}>
-                  <ModularAvatar
-                    size={66}
-                    animated={true}
-                    interactive={true}
-                    config={isMe ? undefined : getDeterministicAvatarConfig(user.userId || user.displayName)}
-                  />
-                  <View style={styles.statusDot}>
-                    <Text style={{ fontSize: 9 }}>🥄</Text>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                bounces={false}
+              >
+                {/* Profile Top Banner */}
+                <View style={styles.bannerContainer}>
+                  <LinearGradient
+                    colors={user.bannerGradient || ['#5865F2', '#3C45A5']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.banner}
+                  >
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        onClose();
+                      }}
+                      style={styles.closeBtn}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityLabel="Close profile"
+                    >
+                      <X size={16} color="#FFFFFF" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </LinearGradient>
+
+                  {/* Overlapping Avatar Section */}
+                  <View style={styles.avatarSection}>
+                    <View style={styles.avatarCircle}>
+                      <ModularAvatar
+                        size={76}
+                        animated={true}
+                        interactive={false}
+                        config={isMe ? undefined : getDeterministicAvatarConfig(user.userId || user.displayName)}
+                      />
+                      {/* Discord Online Status Dot */}
+                      <View style={styles.statusDotWrap}>
+                        <View style={styles.statusDotInner} />
+                      </View>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* User Identity */}
-              <View style={styles.content}>
-                <View style={styles.headerInfo}>
-                  <Text style={[styles.displayName, { color: palette.text }]}>{user.displayName}</Text>
+                {/* Profile Header Details */}
+                <View style={styles.headerDetails}>
+                  <Text style={styles.displayName}>{user.displayName}</Text>
+                  <Text style={styles.usernameHandle}>{usernameHandle}</Text>
+
+                  {/* Custom Energy Status / Activity if set */}
                   {Boolean(user.energyStatus) && (
-                    <Text style={[styles.energyStatus, { color: palette.primaryText }]}>{user.energyStatus}</Text>
-                  )}
-                </View>
-
-                {/* Role Badges */}
-                <View style={styles.rolesRow}>
-                  {(user.roleBadges || ['Community Member']).map((role, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.rolePill,
-                        {
-                          backgroundColor: `${user.roleColor || palette.primary}20`,
-                          borderColor: `${user.roleColor || palette.primary}60`,
-                        },
-                      ]}
-                    >
-                      <Award size={11} color={user.roleColor || palette.primary} style={{ marginRight: 4 }} />
-                      <Text style={[styles.roleText, { color: user.roleColor || palette.primary }]}>
-                        {role}
-                      </Text>
+                    <View style={styles.customStatusBox}>
+                      <Text style={styles.customStatusText}>💬 {user.energyStatus}</Text>
                     </View>
-                  ))}
+                  )}
+
+                  {/* Role / Badges Row */}
+                  <View style={styles.badgesRow}>
+                    <View style={styles.badgePill}>
+                      <Text style={styles.badgeEmoji}>🥄</Text>
+                      <Text style={styles.badgeText}>Spoonie</Text>
+                    </View>
+                    {(user.roleBadges || ['Community Member']).map((role, idx) => (
+                      <View key={idx} style={styles.badgePill}>
+                        <Shield size={11} color="#5865F2" style={{ marginRight: 4 }} />
+                        <Text style={styles.badgeText}>{role}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
 
-                {/* About Me */}
-                <View style={[styles.bioBox, { backgroundColor: palette.background }]}>
-                  <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>ABOUT ME</Text>
-                  <Text style={[styles.bioText, { color: palette.text }]}>
-                    {user.bio || 'No bio yet.'}
+                {/* Discord Content Card: About Me & Member Since */}
+                <View style={styles.contentCard}>
+                  <Text style={styles.cardSectionTitle}>ABOUT ME</Text>
+                  <Text style={[styles.bioText, !user.bio && styles.bioTextEmpty]}>
+                    {user.bio || "This user hasn't added a bio yet."}
                   </Text>
 
-                  {/* Condition Flairs */}
+                  {/* Condition Tags if available */}
                   {user.conditionTags && user.conditionTags.length > 0 && (
-                    <View style={styles.conditionTagsRow}>
+                    <View style={styles.tagsRow}>
                       {user.conditionTags.map((tag, i) => (
-                        <View key={i} style={[styles.tagPill, { backgroundColor: palette.surface }]}>
-                          <Text style={[styles.tagText, { color: palette.textSecondary }]}>#{tag}</Text>
+                        <View key={i} style={styles.tagChip}>
+                          <Text style={styles.tagChipText}>#{tag}</Text>
                         </View>
                       ))}
                     </View>
                   )}
-                </View>
 
-                {/* Contribution Stats */}
-                <View style={styles.statsRow}>
-                  <View style={[styles.statBox, { backgroundColor: palette.background }]}>
-                    <FileText size={16} color="#A855F7" />
-                    <Text style={[styles.statValue, { color: palette.text }]}>
-                      {user.stats?.sharedNotesCount || 0}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: palette.textSecondary }]}>Shared Notes</Text>
-                  </View>
+                  <View style={styles.cardDivider} />
 
-                  <View style={[styles.statBox, { backgroundColor: palette.background }]}>
-                    <CheckSquare size={16} color="#10B981" />
-                    <Text style={[styles.statValue, { color: palette.text }]}>
-                      {user.stats?.sharedTodosCount || 0}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: palette.textSecondary }]}>To-Do Routines</Text>
-                  </View>
-
-                  <View style={[styles.statBox, { backgroundColor: palette.background }]}>
-                    <Sparkles size={16} color="#F59E0B" />
-                    <Text style={[styles.statValue, { color: palette.text }]}>
-                      {user.stats?.totalClones || 0}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: palette.textSecondary }]}>Total Clones</Text>
+                  {/* Member Since Section */}
+                  <Text style={styles.cardSectionTitle}>MEMBER SINCE</Text>
+                  <View style={styles.memberSinceRow}>
+                    <Calendar size={14} color="#949BA4" style={{ marginRight: 8 }} />
+                    <Text style={styles.memberSinceText}>Lumen Member • Joined Nov 2026</Text>
                   </View>
                 </View>
 
-                {/* Actions */}
+                {/* Discord Content Card: Lumen Community Activity */}
+                <View style={styles.contentCard}>
+                  <Text style={styles.cardSectionTitle}>LUMEN ACTIVITY</Text>
+                  <View style={styles.statsRow}>
+                    <View style={styles.statBox}>
+                      <FileText size={18} color="#A855F7" />
+                      <Text style={styles.statNumber}>{user.stats?.sharedNotesCount || 0}</Text>
+                      <Text style={styles.statLabel}>Shared Notes</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <CheckSquare size={18} color="#10B981" />
+                      <Text style={styles.statNumber}>{user.stats?.sharedTodosCount || 0}</Text>
+                      <Text style={styles.statLabel}>Routines</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Sparkles size={18} color="#F59E0B" />
+                      <Text style={styles.statNumber}>{user.stats?.totalClones || 0}</Text>
+                      <Text style={styles.statLabel}>Total Clones</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Bottom Action Buttons Row */}
                 <View style={styles.actionsRow}>
                   {onDirectMessage && (
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: palette.primary, flex: 1, marginRight: 8 }]}
+                      style={styles.primaryActionBtn}
                       onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                         onClose();
                         onDirectMessage(user.userId);
                       }}
+                      activeOpacity={0.8}
                     >
-                      <Mail size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.actionBtnText}>Message</Text>
+                      <Mail size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.primaryActionBtnText}>Message</Text>
                     </TouchableOpacity>
                   )}
 
                   {onMention && (
                     <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        {
-                          backgroundColor: onDirectMessage ? palette.surface : palette.primary,
-                          borderWidth: onDirectMessage ? 1 : 0,
-                          borderColor: palette.border,
-                          flex: onDirectMessage ? 1 : undefined,
-                        },
-                      ]}
+                      style={styles.secondaryActionBtn}
                       onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         onMention(user.displayName);
                         onClose();
                       }}
+                      activeOpacity={0.8}
                     >
-                      <MessageSquare
-                        size={15}
-                        color={onDirectMessage ? palette.text : '#FFFFFF'}
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text
-                        style={[
-                          styles.actionBtnText,
-                          { color: onDirectMessage ? palette.text : '#FFFFFF' },
-                        ]}
-                      >
-                        Mention
-                      </Text>
+                      <AtSign size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.secondaryActionBtnText}>Mention</Text>
                     </TouchableOpacity>
                   )}
                 </View>
-              </View>
+              </ScrollView>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -205,167 +225,244 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    justifyContent: 'flex-end',
   },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 20,
+  sheetContainer: {
+    backgroundColor: '#1E1F22',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '88%',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#4E5058',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+  bannerContainer: {
+    position: 'relative',
+    width: '100%',
+    paddingHorizontal: 12,
+    marginBottom: 16,
   },
   banner: {
-    height: 90,
+    height: 110,
     width: '100%',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
+    borderRadius: 16,
+    overflow: 'hidden',
     padding: 12,
+    alignItems: 'flex-end',
   },
   closeBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: -36,
+  avatarSection: {
+    position: 'absolute',
+    bottom: -38,
+    left: 24,
   },
   avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#1E293B',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1E1F22',
     borderWidth: 4,
+    borderColor: '#1E1F22',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  avatarText: {
-    fontSize: 32,
-  },
-  statusDot: {
+  statusDotWrap: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#0F172A',
+    bottom: -1,
+    right: -1,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#1E1F22',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#38BDF8',
   },
-  content: {
-    padding: 16,
-    paddingTop: 10,
+  statusDotInner: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#23A55A',
   },
-  headerInfo: {
-    marginBottom: 8,
+  headerDetails: {
+    paddingHorizontal: 16,
+    marginTop: 22,
+    marginBottom: 12,
   },
   displayName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
-  energyStatus: {
-    fontSize: 12,
+  usernameHandle: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#949BA4',
     marginTop: 2,
   },
-  rolesRow: {
+  customStatusBox: {
+    backgroundColor: '#2B2D31',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  customStatusText: {
+    fontSize: 13,
+    color: '#DBDEE1',
+    fontWeight: '500',
+  },
+  badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginVertical: 8,
+    marginTop: 10,
   },
-  rolePill: {
+  badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#2B2D31',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 8,
   },
-  roleText: {
+  badgeEmoji: {
+    fontSize: 11,
+    marginRight: 4,
+  },
+  badgeText: {
     fontSize: 11,
     fontWeight: '700',
+    color: '#DBDEE1',
   },
-  bioBox: {
-    borderRadius: 12,
-    padding: 12,
-    marginVertical: 10,
+  contentCard: {
+    backgroundColor: '#2B2D31',
+    borderRadius: 16,
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 10,
+  cardSectionTitle: {
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 6,
+    color: '#949BA4',
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   bioText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#DBDEE1',
   },
-  conditionTagsRow: {
+  bioTextEmpty: {
+    color: '#80848E',
+    fontStyle: 'italic',
+  },
+  tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 8,
   },
-  tagPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  tagChip: {
+    backgroundColor: '#1E1F22',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
   },
-  tagText: {
-    fontSize: 11,
+  tagChipText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#949BA4',
+  },
+  cardDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#1E1F22',
+    marginVertical: 12,
+  },
+  memberSinceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberSinceText: {
+    fontSize: 13,
+    color: '#DBDEE1',
   },
   statsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginVertical: 8,
   },
   statBox: {
     flex: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: '#1E1F22',
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statValue: {
-    fontSize: 16,
+  statNumber: {
+    fontSize: 18,
     fontWeight: '800',
+    color: '#FFFFFF',
     marginTop: 4,
   },
   statLabel: {
     fontSize: 10,
+    fontWeight: '600',
+    color: '#949BA4',
     marginTop: 2,
   },
   actionsRow: {
-    marginTop: 12,
-  },
-  actionBtn: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 42,
-    borderRadius: 12,
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
   },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  primaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#5865F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryActionBtnText: {
+    fontSize: 14,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2B2D31',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryActionBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

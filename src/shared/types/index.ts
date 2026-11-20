@@ -830,6 +830,8 @@ export interface ICommunityMessage {
   senderDisplayName: string;
   senderAvatarEmoji?: string;
   isAnonymous: boolean;
+  /** A notice such as "Ana added Cy", drawn centred instead of as a person's message. */
+  isSystem?: boolean;
   content: string;
   isEdited?: boolean;
   editedAt?: string;
@@ -901,10 +903,18 @@ export interface ICommunityChannel {
   category: string;
   type: ChannelType;
   dmMemberIds?: string[];
+  /** A chat with 3 or more people. The owner is `dmInitiatorId`. */
+  isGroup?: boolean;
+  groupMembers?: Array<{ _id: string; displayName: string; isOwner?: boolean; isMe?: boolean }>;
+  /** Group photo link (fresh each time), description, and whether I muted this group. */
+  photoUrl?: string | null;
+  about?: string;
+  muted?: boolean;
   dmUser?: {
     _id: string;
     displayName: string;
     avatarEmoji?: string;
+    isOnline?: boolean;
   };
   order: number;
   memberCount: number;
@@ -915,6 +925,14 @@ export interface ICommunityChannel {
   dmStatus?: 'pending' | 'accepted' | 'declined';
   dmInitiatorId?: string;
   lastReadMessageId?: string;
+  lastMessage?: {
+    _id: string;
+    content: string;
+    senderId?: string;
+    senderDisplayName?: string;
+    isSelf?: boolean;
+    createdAt?: string;
+  } | null;
   createdAt: string;
 }
 

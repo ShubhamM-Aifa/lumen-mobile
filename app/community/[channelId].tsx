@@ -39,6 +39,9 @@ import {
   ImagePlus,
   TriangleAlert,
   Timer,
+  Plus,
+  ChevronRight,
+  Smile,
 } from 'lucide-react-native';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { useAuthStore } from '../../src/store/authStore';
@@ -64,6 +67,23 @@ import { useKeyboard } from '../../src/hooks/useKeyboard';
 import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
 import { getDeterministicAvatarConfig } from '../../src/store/avatarStore';
 import { safeGoBack } from '../../src/utils/navigation';
+
+function formatDateSeparator(dateString: string): string {
+  try {
+    const d = new Date(dateString);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  } catch {
+    return 'Recent';
+  }
+}
+import { GroupInfoModal } from '../../src/components/community/GroupInfoModal';
+import { GroupPickerModal } from '../../src/components/community/GroupPickerModal';
+import { groupSubtitle } from '../../src/utils/community/invites';
 
 export default function ChannelChatScreen() {
   const insets = useSafeAreaInsets();
@@ -120,6 +140,7 @@ export default function ChannelChatScreen() {
 
   const [inputText, setInputText] = useState('');
   const [attachModalOpen, setAttachModalOpen] = useState(false);
+  const [attachModalTab, setAttachModalTab] = useState<'notes' | 'todos' | 'templates'>('notes');
   const [pendingEmbed, setPendingEmbed] = useState<{
     type: CommunityEmbedType;
     data: any;
@@ -130,6 +151,8 @@ export default function ChannelChatScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFilter, setSearchFilter] = useState<'all' | 'notes' | 'todos' | 'voice' | 'me'>('all');
   const [pinnedModalOpen, setPinnedModalOpen] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [actionModalMessage, setActionModalMessage] = useState<ICommunityMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ICommunityMessage | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -137,6 +160,7 @@ export default function ChannelChatScreen() {
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [warningOn, setWarningOn] = useState(false);
   const [warningText, setWarningText] = useState('');
+  const [attachTrayOpen, setAttachTrayOpen] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
@@ -155,8 +179,11 @@ export default function ChannelChatScreen() {
       : [...channels, ...dmChannels].find((c) => c._id === channelId || c.slug === channelId);
 
   const isDm = channel?.type === 'dm';
+  const isGroup = Boolean(channel?.isGroup);
   const dmTargetName = isDm
-    ? (channel?.dmUser?.displayName || (channel?.name && !channel.name.startsWith('dm-') ? channel.name : 'Direct Message'))
+    ? (isGroup
+      ? (channel?.name || 'Group chat')
+      : (channel?.dmUser?.displayName || (channel?.name && !channel.name.startsWith('dm-') ? channel.name : 'Direct Message')))
     : '';
   const channelDisplayName = isDm
     ? dmTargetName
@@ -374,10 +401,10 @@ export default function ChannelChatScreen() {
 
   const isStaff = Boolean(
     channel?.serverId &&
-      activeServer &&
-      activeServer._id === channel.serverId &&
-      user?._id &&
-      (activeServer.ownerId === user._id || activeServer.modIds?.includes(user._id)),
+    activeServer &&
+    activeServer._id === channel.serverId &&
+    user?._id &&
+    (activeServer.ownerId === user._id || activeServer.modIds?.includes(user._id)),
   );
 
   const handleSlowMode = () => {
@@ -418,7 +445,7 @@ export default function ChannelChatScreen() {
     if (!channel) return;
     try {
       await respondToDmRequest(channel._id, action);
-      if (action === 'decline') safeGoBack('/community');
+      if (action === 'decline') safeGoBack('/(tabs)/community');
     } catch (err: any) {
       Alert.alert('Could not answer', err?.message || 'Please try again.');
     }
@@ -515,41 +542,66 @@ export default function ChannelChatScreen() {
         <View style={[styles.header, { borderBottomColor: palette.border }]}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => safeGoBack('/community')}
+            onPress={() => safeGoBack('/(tabs)/community')}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
             <ArrowLeft size={22} color={palette.text} />
           </TouchableOpacity>
 
-          <View style={styles.headerTitleBox}>
-            <View style={styles.channelNameRow}>
-              {isDm ? (
-                <View style={styles.headerAvatarContainer}>
-                  <ModularAvatar
-                    size={26}
-                    animated={false}
-                    config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
-                  />
-                </View>
-              ) : (
-                <Text style={{ fontSize: 16, marginRight: 4 }}>
-                  {channel?.icon || (channel?.type === 'forum' ? '🏷️' : '💬')}
+          {isDm ? (
+            <TouchableOpacity
+              style={styles.dmHeaderBox}
+              onPress={() => channel?.dmUser?._id && handleOpenProfile(channel.dmUser._id)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${dmTargetName}'s profile`}
+            >
+              <View style={styles.dmHeaderAvatarWrap}>
+                <ModularAvatar
+                  size={34}
+                  animated={false}
+                  config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
+                />
+                <View style={styles.dmOnlineDot} />
+              </View>
+              <Text style={[styles.dmHeaderTitle, { color: palette.text }]} numberOfLines={1}>
+                {dmTargetName}
+              </Text>
+              <ChevronRight size={16} color="#949BA4" style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.headerTitleBox}
+              onPress={() => isGroup && setGroupInfoOpen(true)}
+              activeOpacity={isGroup ? 0.7 : 1}
+            >
+              <View style={styles.channelNameRow}>
+                {isGroup && channel?.photoUrl ? (
+                  <Image source={{ uri: channel.photoUrl }} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} accessibilityLabel="Group photo" />
+                ) : isGroup ? (
+                  <Text style={{ fontSize: 18, marginRight: 6 }}>👥</Text>
+                ) : (
+                  <Text style={{ fontSize: 16, marginRight: 4 }}>
+                    {channel?.icon || (channel?.type === 'forum' ? '🏷️' : '💬')}
+                  </Text>
+                )}
+                <Text style={[styles.channelTitle, { color: palette.text }]} numberOfLines={1}>
+                  {channelDisplayName}
+                </Text>
+                {channel?.type === 'forum' && (
+                  <View style={[styles.typeBadge, { backgroundColor: `${palette.primary}25` }]}>
+                    <Text style={[styles.typeBadgeText, { color: palette.primaryText }]}>Forum</Text>
+                  </View>
+                )}
+              </View>
+              {Boolean(isGroup ? groupSubtitle(channel?.groupMembers) : (channel?.topic || channel?.description)) && (
+                <Text style={[styles.channelTopic, { color: palette.textSecondary }]} numberOfLines={1}>
+                  {isGroup ? `${channel?.about ? `${channel.about} · ` : ''}${groupSubtitle(channel?.groupMembers)}${channel?.muted ? ' · Muted' : ''}` : (channel?.topic || channel?.description)}
                 </Text>
               )}
-              <Text style={[styles.channelTitle, { color: palette.text }]} numberOfLines={1}>
-                {channelDisplayName}
-              </Text>
-              {channel?.type === 'forum' && (
-                <View style={[styles.typeBadge, { backgroundColor: `${palette.primary}25` }]}>
-                  <Text style={[styles.typeBadgeText, { color: palette.primaryText }]}>Forum</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.channelTopic, { color: palette.textSecondary }]} numberOfLines={1}>
-              {isDm ? (channel?.topic || 'Private 1-on-1 conversation') : (channel?.topic || channel?.description)}
-            </Text>
-          </View>
+            </TouchableOpacity>
+          )}
 
           {/* Header Action Buttons */}
           <View style={styles.headerActionsRight}>
@@ -571,6 +623,18 @@ export default function ChannelChatScreen() {
                 color={isSearching ? palette.primaryText || palette.primary : palette.textSecondary}
               />
             </TouchableOpacity>
+
+            {/* Group info: people, add, rename, leave */}
+            {isGroup && (
+              <TouchableOpacity
+                style={styles.headerIconBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setGroupInfoOpen(true); }}
+                accessibilityRole="button"
+                accessibilityLabel="Group info"
+              >
+                <Text style={{ fontSize: 16 }}>👥</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Slow mode (owner and moderators) */}
             {isStaff && channel?.type !== 'dm' && (
@@ -602,32 +666,34 @@ export default function ChannelChatScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Anonymous Spoonie Toggle */}
-            <TouchableOpacity
-              style={[
-                styles.anonToggle,
-                {
-                  backgroundColor: isAnonymous ? 'rgba(245, 158, 11, 0.2)' : palette.surface,
-                  borderColor: isAnonymous ? '#F59E0B' : palette.border,
-                },
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                toggleAnonymous();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Toggle anonymous spoonie mode"
-            >
-              <Text style={styles.anonToggleEmoji}>{isAnonymous ? '🥄' : '👤'}</Text>
-              <Text
+            {/* Anonymous Spoonie Toggle - Server channels only */}
+            {!isGroup && !isDm && (
+              <TouchableOpacity
                 style={[
-                  styles.anonToggleText,
-                  { color: isAnonymous ? '#F59E0B' : palette.textSecondary },
+                  styles.anonToggle,
+                  {
+                    backgroundColor: isAnonymous ? 'rgba(245, 158, 11, 0.2)' : palette.surface,
+                    borderColor: isAnonymous ? '#F59E0B' : palette.border,
+                  },
                 ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  toggleAnonymous();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle anonymous spoonie mode"
               >
-                {isAnonymous ? 'Anon' : isDm ? 'Named' : 'Public'}
-              </Text>
-            </TouchableOpacity>
+                <Text style={styles.anonToggleEmoji}>{isAnonymous ? '🥄' : '👤'}</Text>
+                <Text
+                  style={[
+                    styles.anonToggleText,
+                    { color: isAnonymous ? '#F59E0B' : palette.textSecondary },
+                  ]}
+                >
+                  {isAnonymous ? 'Anon' : 'Public'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -741,36 +807,74 @@ export default function ChannelChatScreen() {
                 if (nearBottomRef.current) scrollViewRef.current?.scrollToEnd({ animated: false });
               }}
             >
-              {/* Channel Welcome Banner */}
-              <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
-                {isDm ? (
-                  <>
-                    <View style={styles.welcomeAvatarContainer}>
-                      <ModularAvatar
-                        size={52}
-                        animated={false}
-                        config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
-                      />
-                    </View>
-                    <Text style={[styles.welcomeTitle, { color: palette.text }]}>
-                      {dmTargetName}
-                    </Text>
-                    <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
-                      This is the start of your 1-on-1 direct message history with {dmTargetName}. Messages are private between the two of you.
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
-                    <Text style={[styles.welcomeTitle, { color: palette.text }]}>
-                      Welcome to #{channel?.name || 'Channel'}!
-                    </Text>
-                    <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
-                      This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
-                    </Text>
-                  </>
-                )}
-              </View>
+              {/* Channel Welcome Hero (Matching Discord Mobile Screenshot 4) */}
+              {isDm ? (
+                <View style={styles.discordWelcomeHero}>
+                  <View style={styles.discordWelcomeAvatarWrap}>
+                    <ModularAvatar
+                      size={80}
+                      animated={false}
+                      config={getDeterministicAvatarConfig(channel?.dmUser?._id || dmTargetName)}
+                    />
+                    <View style={styles.discordOnlineDotBig} />
+                  </View>
+                  <Text style={styles.discordWelcomeTitle}>
+                    {dmTargetName}
+                  </Text>
+                  <Text style={styles.discordWelcomeUsername}>
+                    {`@${(channel?.dmUser?.displayName || dmTargetName).toLowerCase().replace(/\s+/g, '_')}`}
+                  </Text>
+                  <Text style={styles.discordWelcomeDesc}>
+                    {`This is the very beginning of your direct message history with ${dmTargetName}.`}
+                  </Text>
+                  <View style={styles.discordHeroBtnRow}>
+                    <TouchableOpacity
+                      style={styles.discordHeroBtn}
+                      onPress={() => channel?.dmUser?._id && handleOpenProfile(channel.dmUser._id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.discordHeroBtnText}>Mutual Communities</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.discordHeroBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          'Block User',
+                          `Are you sure you want to block ${dmTargetName}?`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Block',
+                              style: 'destructive',
+                              onPress: () => {
+                                const theirMsg = messages.find((m) => String(m.senderId) === String(channel?.dmUser?._id));
+                                if (theirMsg) {
+                                  blockAuthorOf(theirMsg);
+                                } else {
+                                  safeGoBack('/(tabs)/community');
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.discordHeroBtnText}>Block</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.channelWelcomeCard, { backgroundColor: palette.surface }]}>
+                  <Text style={styles.welcomeEmoji}>{channel?.icon || '💬'}</Text>
+                  <Text style={[styles.welcomeTitle, { color: palette.text }]}>
+                    Welcome to #{channel?.name || 'Channel'}!
+                  </Text>
+                  <Text style={[styles.welcomeDesc, { color: palette.textSecondary }]}>
+                    This is a safe, moderated chronic illness space. Share your stories, ask questions, or exchange Lumen Notes, To-Do routines, and Tracking Templates.
+                  </Text>
+                </View>
+              )}
 
               {messages.length >= 50 && !noMoreOlder && !isSearching && (
                 <TouchableOpacity
@@ -794,6 +898,27 @@ export default function ChannelChatScreen() {
                 </View>
               ) : (
                 displayedMessages.map((msg, index) => {
+                  const prevMsg = index > 0 ? displayedMessages[index - 1] : null;
+
+                  // Date separator check
+                  const isDifferentDay =
+                    !prevMsg ||
+                    new Date(msg.createdAt).toDateString() !==
+                    new Date(prevMsg.createdAt).toDateString();
+
+                  // Consecutive grouping check
+                  const isConsecutive =
+                    !isDifferentDay &&
+                    Boolean(prevMsg) &&
+                    String(prevMsg?.senderId) === String(msg.senderId) &&
+                    prevMsg?.isAnonymous === msg.isAnonymous &&
+                    !msg.replyTo &&
+                    !msg.embedType &&
+                    Math.abs(
+                      new Date(msg.createdAt).getTime() -
+                      new Date(prevMsg!.createdAt).getTime()
+                    ) < 5 * 60 * 1000;
+
                   // Determine if unread divider should be displayed before this message
                   const showUnreadDivider =
                     Boolean(lastReadId) &&
@@ -802,6 +927,17 @@ export default function ChannelChatScreen() {
 
                   return (
                     <React.Fragment key={msg._id}>
+                      {/* Date Separator (Discord style) */}
+                      {isDifferentDay && (
+                        <View style={styles.discordDateSeparator}>
+                          <View style={styles.discordDateLine} />
+                          <Text style={styles.discordDateText}>
+                            {formatDateSeparator(msg.createdAt)}
+                          </Text>
+                          <View style={styles.discordDateLine} />
+                        </View>
+                      )}
+
                       {showUnreadDivider && (
                         <View style={styles.unreadDivider}>
                           <View style={styles.unreadDividerLine} />
@@ -810,7 +946,12 @@ export default function ChannelChatScreen() {
                         </View>
                       )}
 
-                      <View style={styles.messageRow}>
+                      <View
+                        style={[
+                          styles.messageRow,
+                          isConsecutive && styles.messageRowConsecutive,
+                        ]}
+                      >
                         {/* Inline Reply Header Banner if this message is replying to another */}
                         {msg.replyTo && (
                           <View style={styles.replyHeaderRow}>
@@ -825,87 +966,94 @@ export default function ChannelChatScreen() {
                         )}
 
                         <View style={styles.messageMainRow}>
-                          {/* Avatar with tap to open profile popout */}
-                          <TouchableOpacity
-                            onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
-                            style={[
-                              styles.avatarWell,
-                              {
-                                backgroundColor: msg.isAnonymous
-                                  ? 'rgba(245, 158, 11, 0.15)'
-                                  : 'rgba(56, 189, 248, 0.15)',
-                              },
-                            ]}
-                          >
-                            {!msg.isAnonymous && (msg.senderId === user?._id || msg.senderId === 'me' || (user?.name && msg.senderDisplayName === user.name)) ? (
-                              <ModularAvatar size={38} animated={false} />
-                            ) : msg.isAnonymous ? (
-                              <Text style={styles.avatarEmoji}>🥄</Text>
-                            ) : (
-                              <ModularAvatar
-                                size={38}
-                                animated={false}
-                                config={getDeterministicAvatarConfig(msg.senderId || msg.senderDisplayName)}
-                              />
-                            )}
-                          </TouchableOpacity>
+                          {/* Avatar with tap to open profile popout, or empty spacer for consecutive messages */}
+                          {!isConsecutive ? (
+                            <TouchableOpacity
+                              onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
+                              style={[
+                                styles.avatarWell,
+                                {
+                                  backgroundColor: msg.isAnonymous
+                                    ? 'rgba(245, 158, 11, 0.15)'
+                                    : 'rgba(56, 189, 248, 0.15)',
+                                },
+                              ]}
+                            >
+                              {!msg.isAnonymous && (msg.senderId === user?._id || msg.senderId === 'me' || (user?.name && msg.senderDisplayName === user.name)) ? (
+                                <ModularAvatar size={38} animated={false} />
+                              ) : msg.isAnonymous ? (
+                                <Text style={styles.avatarEmoji}>🥄</Text>
+                              ) : (
+                                <ModularAvatar
+                                  size={38}
+                                  animated={false}
+                                  config={getDeterministicAvatarConfig(msg.senderId || msg.senderDisplayName)}
+                                />
+                              )}
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.consecutiveAvatarSpacer} />
+                          )}
 
                           {/* Message Body */}
                           <View style={styles.messageBody}>
-                            {/* Sender & Badges & Timestamp */}
-                            <View style={styles.senderRow}>
-                              <TouchableOpacity
-                                onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
-                              >
-                                <Text
-                                  style={[
-                                    styles.senderName,
-                                    {
-                                      color: msg.isAnonymous
-                                        ? '#F59E0B'
-                                        : msg.senderRoleColor || palette.text,
-                                    },
-                                  ]}
+                            {/* Sender & Badges & Timestamp (only for first message in group) */}
+                            {!isConsecutive && (
+                              <View style={styles.senderRow}>
+                                <TouchableOpacity
+                                  onPress={() => !msg.isAnonymous && handleOpenProfile(msg.senderId)}
                                 >
-                                  {msg.senderDisplayName}
-                                </Text>
-                              </TouchableOpacity>
-
-                              {msg.isAnonymous ? (
-                                <View style={styles.anonBadge}>
-                                  <Text style={styles.anonBadgeText}>ANON</Text>
-                                </View>
-                              ) : (
-                                msg.senderRoleBadges?.[0] && (
-                                  <View
+                                  <Text
                                     style={[
-                                      styles.roleBadge,
-                                      { backgroundColor: `${msg.senderRoleColor || palette.primary}20` },
+                                      styles.senderName,
+                                      {
+                                        color: msg.isAnonymous
+                                          ? '#F59E0B'
+                                          : msg.senderRoleColor || palette.text,
+                                      },
                                     ]}
                                   >
-                                    <Text
+                                    {msg.senderDisplayName}
+                                  </Text>
+                                </TouchableOpacity>
+
+                                {msg.isAnonymous ? (
+                                  <View style={styles.anonBadge}>
+                                    <Text style={styles.anonBadgeText}>ANON</Text>
+                                  </View>
+                                ) : (
+                                  !isDm &&
+                                  msg.senderRoleBadges?.[0] && (
+                                    <View
                                       style={[
-                                        styles.roleBadgeText,
-                                        { color: msg.senderRoleColor || palette.primary },
+                                        styles.roleBadge,
+                                        { backgroundColor: `${msg.senderRoleColor || palette.primary}20` },
                                       ]}
                                     >
-                                      {msg.senderRoleBadges[0]}
-                                    </Text>
+                                      <Text
+                                        style={[
+                                          styles.roleBadgeText,
+                                          { color: msg.senderRoleColor || palette.primary },
+                                        ]}
+                                      >
+                                        {msg.senderRoleBadges[0]}
+                                      </Text>
+                                    </View>
+                                  )
+                                )}
+
+                                {msg.isPinned && (
+                                  <View style={styles.pinnedInlineBadge}>
+                                    <Pin size={10} color="#F59E0B" style={{ marginRight: 2 }} />
+                                    <Text style={styles.pinnedInlineText}>Pinned</Text>
                                   </View>
-                                )
-                              )}
+                                )}
 
-                              {msg.isPinned && (
-                                <View style={styles.pinnedInlineBadge}>
-                                  <Pin size={10} color="#F59E0B" style={{ marginRight: 2 }} />
-                                  <Text style={styles.pinnedInlineText}>Pinned</Text>
-                                </View>
-                              )}
-
-                              <Text style={[styles.timeText, { color: palette.textDisabled }]}>
-                                {formatTimeRelative(msg.createdAt)}
-                              </Text>
-                            </View>
+                                <Text style={[styles.timeText, { color: palette.textDisabled }]}>
+                                  {formatTimeRelative(msg.createdAt)}
+                                </Text>
+                              </View>
+                            )}
 
                             {/* Content warning: the message stays hidden until the reader chooses to see it */}
                             {Boolean(msg.contentWarning) && !revealedIds.has(msg._id) && (
@@ -964,7 +1112,7 @@ export default function ChannelChatScreen() {
                               <View style={{ marginTop: 6 }}>
                                 <TouchableOpacity
                                   activeOpacity={0.9}
-                                  onPress={() => Linking.openURL(msg.embedData!.photoUrl!).catch(() => {})}
+                                  onPress={() => Linking.openURL(msg.embedData!.photoUrl!).catch(() => { })}
                                   accessibilityRole="imagebutton"
                                   accessibilityLabel={`Photo from ${msg.senderDisplayName}${msg.embedData?.caption ? `: ${msg.embedData.caption}` : ''}`}
                                 >
@@ -1008,7 +1156,7 @@ export default function ChannelChatScreen() {
                               />
                             )}
 
-                            {/* Footer: Empathy Reactions & Reply / Thread Buttons */}
+                            {/* Footer: Empathy Reactions & Thread Indicator */}
                             <View style={styles.footerRow}>
                               <EmpathyReactionBar
                                 messageId={msg._id}
@@ -1016,29 +1164,18 @@ export default function ChannelChatScreen() {
                                 userReactions={msg.userReactions || []}
                               />
 
-                              <View style={styles.msgActionsRight}>
-                                <TouchableOpacity
-                                  onPress={() => handleReplyMessage(msg)}
-                                  style={styles.replyIconBtn}
-                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                  <CornerDownRight size={14} color={palette.textDisabled} />
-                                  <Text style={[styles.actionBtnLabel, { color: palette.textDisabled }]}>
-                                    Reply
-                                  </Text>
-                                </TouchableOpacity>
-
+                              {(msg.threadMeta?.replyCount ?? 0) > 0 && (
                                 <TouchableOpacity
                                   onPress={() => openThread(msg)}
-                                  style={styles.threadIconBtn}
+                                  style={styles.discordThreadPill}
                                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 >
-                                  <MessageSquare size={14} color={palette.primaryText} />
-                                  <Text style={[styles.threadBtnLabel, { color: palette.primaryText }]}>
-                                    {msg.threadMeta?.replyCount ? `${msg.threadMeta.replyCount} replies` : 'Thread'}
+                                  <MessageSquare size={13} color="#5865F2" />
+                                  <Text style={styles.discordThreadPillText}>
+                                    {`${msg.threadMeta?.replyCount} ${msg.threadMeta?.replyCount === 1 ? 'reply' : 'replies'}`}
                                   </Text>
                                 </TouchableOpacity>
-                              </View>
+                              )}
                             </View>
                           </View>
                         </View>
@@ -1111,8 +1248,8 @@ export default function ChannelChatScreen() {
                     {pendingEmbed.type === 'note'
                       ? pendingEmbed.data.note?.title
                       : pendingEmbed.type === 'todo_list'
-                      ? pendingEmbed.data.todo?.listName
-                      : 'Tracking Template'}
+                        ? pendingEmbed.data.todo?.listName
+                        : 'Tracking Template'}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setPendingEmbed(null)}>
@@ -1180,7 +1317,98 @@ export default function ChannelChatScreen() {
               </View>
             )}
 
-            {/* Voice Recorder vs Standard Chat Composer */}
+            {/* Discord Attachment Tray (toggled by + button) */}
+            {attachTrayOpen && (
+              <View style={styles.discordAttachTray}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.discordAttachTrayScroll}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      handlePickPhoto();
+                    }}
+                    disabled={isSendingPhoto}
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach photo"
+                  >
+                    <ImagePlus size={16} color="#5865F2" />
+                    <Text style={styles.discordAttachPillText}>Photo</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      setAttachModalTab('notes');
+                      setAttachModalOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach Lumen Note"
+                  >
+                    <FileText size={16} color="#A855F7" />
+                    <Text style={styles.discordAttachPillText}>Lumen Note</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      setAttachModalTab('todos');
+                      setAttachModalOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach To-Do Routine"
+                  >
+                    <ListTodo size={16} color="#10B981" />
+                    <Text style={styles.discordAttachPillText}>Routine</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      setAttachModalTab('templates');
+                      setAttachModalOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Attach Tracking Template"
+                  >
+                    <ClipboardList size={16} color="#38BDF8" />
+                    <Text style={styles.discordAttachPillText}>Template</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.discordAttachPill,
+                      warningOn && { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderColor: '#F59E0B' },
+                    ]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      setWarningOn((v) => !v);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle content warning"
+                  >
+                    <TriangleAlert size={16} color={warningOn ? '#F59E0B' : '#949BA4'} />
+                    <Text style={[styles.discordAttachPillText, warningOn && { color: '#F59E0B' }]}>
+                      {warningOn ? 'CW Active' : 'Content Warning'}
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Voice Recorder vs Discord Pill Composer */}
             {isRecordingVoice ? (
               <VoiceNoteRecorder
                 onSend={handleSendVoice}
@@ -1191,110 +1419,92 @@ export default function ChannelChatScreen() {
                 style={[
                   styles.composerContainer,
                   {
-                    backgroundColor: palette.surface,
-                    borderTopColor: palette.border,
+                    backgroundColor: '#1E1F22',
+                    borderTopColor: '#2B2D31',
                     paddingBottom: isKeyboardVisible
                       ? (Platform.OS === 'ios' ? 8 : 6)
                       : (Platform.OS === 'android' ? Math.max(insets.bottom, 24) : Math.max(insets.bottom, 12)),
                   },
                 ]}
               >
-                {/* Attach Button */}
+                {/* Circular + Button (Discord style, rotates to X when tray open) */}
                 <TouchableOpacity
-                  style={styles.attachBtn}
+                  style={[styles.discordPlusBtn, attachTrayOpen && { backgroundColor: '#5865F2' }]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setAttachModalOpen(true);
+                    setAttachTrayOpen((v) => !v);
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="Attach Lumen Note or Routine"
+                  accessibilityLabel={attachTrayOpen ? 'Close attachment tray' : 'Add attachments'}
                 >
-                  <Paperclip size={20} color={palette.textSecondary} />
-                </TouchableOpacity>
-
-                {/* Content warning toggle */}
-                <TouchableOpacity
-                  style={styles.micBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setWarningOn((v) => !v);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: warningOn }}
-                  accessibilityLabel="Add a content warning"
-                >
-                  <TriangleAlert size={20} color={warningOn ? '#F59E0B' : palette.textSecondary} />
-                </TouchableOpacity>
-
-                {/* Photo Button */}
-                <TouchableOpacity
-                  style={styles.micBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    handlePickPhoto();
-                  }}
-                  disabled={isSendingPhoto}
-                  accessibilityRole="button"
-                  accessibilityLabel="Send a photo"
-                >
-                  {isSendingPhoto ? (
-                    <ActivityIndicator size="small" color={palette.textSecondary} />
+                  {attachTrayOpen ? (
+                    <X size={20} color="#FFFFFF" strokeWidth={2.5} />
                   ) : (
-                    <ImagePlus size={20} color={palette.textSecondary} />
+                    <Plus size={20} color="#949BA4" strokeWidth={2.4} />
                   )}
                 </TouchableOpacity>
 
-                {/* Voice Note Button */}
-                <TouchableOpacity
-                  style={styles.micBtn}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setIsRecordingVoice(true);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Record voice note"
-                >
-                  <Mic size={20} color={palette.textSecondary} />
-                </TouchableOpacity>
+                {/* Discord Pill Text Composer */}
+                <View style={styles.discordInputPill}>
+                  <TextInput
+                    style={styles.discordInput}
+                    placeholder={
+                      isAnonymous
+                        ? 'Message as Anonymous Spoonie 🥄...'
+                        : isGroup
+                          ? `Message ${dmTargetName}...`
+                          : isDm
+                            ? `Message @${dmTargetName}...`
+                            : `Message #${channel?.slug || channel?.name || 'chat'}...`
+                    }
+                    placeholderTextColor="#949BA4"
+                    value={inputText}
+                    onChangeText={handleTextChange}
+                    multiline
+                    maxLength={3000}
+                  />
 
-                {/* Text Composer Input */}
-                <TextInput
-                  style={[styles.input, { color: palette.text }]}
-                  placeholder={
-                    isAnonymous
-                      ? 'Message as Anonymous Spoonie 🥄...'
-                      : isDm
-                      ? `Message @${dmTargetName}...`
-                      : `Message #${channel?.slug || channel?.name || 'chat'}...`
-                  }
-                  placeholderTextColor={palette.textDisabled}
-                  value={inputText}
-                  onChangeText={handleTextChange}
-                  multiline
-                  maxLength={3000}
-                />
+                  {/* Discord Emoji / Empathy Quick Picker Button inside pill */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setInputText((prev) => `${prev}🥄 `);
+                    }}
+                    style={styles.pillIconBtn}
+                    accessibilityLabel="Insert spoon emoji"
+                  >
+                    <Smile size={20} color="#949BA4" />
+                  </TouchableOpacity>
+                </View>
 
-                {/* Send Button / Confirm Edit Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.sendBtn,
-                    {
-                      backgroundColor:
-                        inputText.trim().length > 0 || pendingEmbed ? palette.primary : palette.border,
-                    },
-                  ]}
-                  onPress={handleSend}
-                  disabled={inputText.trim().length === 0 && !pendingEmbed}
-                  accessibilityRole="button"
-                  accessibilityLabel={editingMessage ? 'Confirm edit' : 'Send message'}
-                >
-                  {editingMessage ? (
-                    <Check size={16} color="#FFFFFF" />
-                  ) : (
-                    <Send size={16} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
+                {/* Right Action: Voice Note or Send Button */}
+                {inputText.trim().length > 0 || pendingEmbed || editingMessage ? (
+                  <TouchableOpacity
+                    style={styles.discordSendBtn}
+                    onPress={handleSend}
+                    accessibilityRole="button"
+                    accessibilityLabel={editingMessage ? 'Confirm edit' : 'Send message'}
+                  >
+                    {editingMessage ? (
+                      <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
+                    ) : (
+                      <Send size={16} color="#FFFFFF" strokeWidth={2.5} />
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.discordMicBtn}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setIsRecordingVoice(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Record voice note"
+                  >
+                    <Mic size={20} color="#949BA4" />
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </>
@@ -1304,6 +1514,7 @@ export default function ChannelChatScreen() {
       {/* Attach Artifact Modal */}
       <AttachArtifactModal
         visible={attachModalOpen}
+        initialTab={attachModalTab}
         onClose={() => setAttachModalOpen(false)}
         onAttach={handleAttachArtifact}
       />
@@ -1345,9 +1556,9 @@ export default function ChannelChatScreen() {
         currentUserId={user?._id}
         isModerator={Boolean(
           channel?.serverId &&
-            activeServer &&
-            activeServer._id === channel.serverId &&
-            (activeServer.ownerId === user?._id || Boolean(user?._id && activeServer.modIds?.includes(user._id))),
+          activeServer &&
+          activeServer._id === channel.serverId &&
+          (activeServer.ownerId === user?._id || Boolean(user?._id && activeServer.modIds?.includes(user._id))),
         )}
         onClose={() => setActionModalMessage(null)}
         onReply={(msg) => handleReplyMessage(msg)}
@@ -1360,6 +1571,19 @@ export default function ChannelChatScreen() {
         onBlock={handleBlock}
         onTranslate={handleTranslate}
         onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
+      />
+      <GroupInfoModal
+        visible={groupInfoOpen}
+        channel={channel}
+        onClose={() => setGroupInfoOpen(false)}
+        onAddPeople={() => setAddPeopleOpen(true)}
+        onLeft={() => safeGoBack('/(tabs)/community')}
+      />
+      <GroupPickerModal
+        visible={addPeopleOpen}
+        addToGroupId={channel?._id}
+        existingIds={(channel?.groupMembers ?? []).map((m) => m._id)}
+        onClose={() => setAddPeopleOpen(false)}
       />
     </SafeAreaView>
   );
@@ -1383,6 +1607,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 6,
+  },
+  dmHeaderBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dmHeaderAvatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    position: 'relative',
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dmOnlineDot: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#23A55A',
+    borderWidth: 2,
+    borderColor: '#000000',
+    zIndex: 2,
+  },
+  dmHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   headerTitleBox: {
     flex: 1,
@@ -1753,8 +2008,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
   },
   attachBtn: {
     width: 36,
@@ -1786,5 +2042,193 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  headerAvatarWrap: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  onlineDotMini: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#34C759',
+    borderWidth: 2,
+    borderColor: '#000000',
+    zIndex: 2,
+  },
+  discordWelcomeHero: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 20,
+    alignItems: 'flex-start',
+  },
+  discordWelcomeAvatarWrap: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  discordOnlineDotBig: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#34C759',
+    borderWidth: 3,
+    borderColor: '#000000',
+    zIndex: 3,
+  },
+  discordWelcomeTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  discordWelcomeUsername: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#949BA4',
+    marginBottom: 10,
+  },
+  discordWelcomeDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#DBDEE1',
+    marginBottom: 14,
+  },
+  discordHeroBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  discordHeroBtn: {
+    backgroundColor: '#2B2D31',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  discordHeroBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  discordDateSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+    paddingHorizontal: 8,
+  },
+  discordDateLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2B2D31',
+  },
+  discordDateText: {
+    marginHorizontal: 10,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#949BA4',
+  },
+  messageRowConsecutive: {
+    marginBottom: 2,
+  },
+  consecutiveAvatarSpacer: {
+    width: 38,
+    marginRight: 10,
+  },
+  discordThreadPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(88, 101, 242, 0.15)',
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  discordThreadPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5865F2',
+  },
+  discordAttachTray: {
+    backgroundColor: '#1E1F22',
+    borderTopWidth: 1,
+    borderTopColor: '#2B2D31',
+    paddingVertical: 10,
+  },
+  discordAttachTrayScroll: {
+    paddingHorizontal: 12,
+    gap: 8,
+    alignItems: 'center',
+  },
+  discordAttachPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#2B2D31',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#35373C',
+  },
+  discordAttachPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  discordPlusBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#2B2D31',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discordInputPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2B2D31',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    minHeight: 40,
+    maxHeight: 110,
+  },
+  discordInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    paddingVertical: 8,
+    marginRight: 4,
+  },
+  pillIconBtn: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discordSendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#5865F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discordMicBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#2B2D31',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

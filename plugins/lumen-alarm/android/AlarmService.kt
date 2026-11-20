@@ -173,8 +173,12 @@ class AlarmService : Service() {
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)
             .setDeleteIntent(servicePendingIntent(this, ACTION_STOP, 2))
-            .addAction(0, "Snooze $SNOOZE_MINUTES min", servicePendingIntent(this, ACTION_SNOOZE, 1))
-            .addAction(0, "Stop", servicePendingIntent(this, ACTION_STOP, 2))
+            // Same two buttons as the phone's own clock alarm; snooze length stays in the notification text.
+            .setSubText("Reminder · snooze $SNOOZE_MINUTES min")
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
+            .addAction(0, "Dismiss", servicePendingIntent(this, ACTION_STOP, 2))
+            .addAction(0, "Snooze", servicePendingIntent(this, ACTION_SNOOZE, 1))
             .build()
     }
 

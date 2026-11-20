@@ -129,7 +129,7 @@ class AlarmActivity : Activity() {
         root.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
 
         root.addView(button("Snooze ${AlarmService.SNOOZE_MINUTES} min", "#2A2E36", Color.WHITE) { snooze() })
-        root.addView(button("Stop", "#FF6B35", Color.WHITE) { stop() }, buttonParams(top = 14))
+        root.addView(button("Dismiss","#FF6B35", Color.WHITE) { stop() }, buttonParams(top = 14))
         root.addView(button("Open Lumen", "#00000000", Color.parseColor("#C9CDD4")) { openApp() }, buttonParams(top = 10))
         return root
     }

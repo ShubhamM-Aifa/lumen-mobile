@@ -10,6 +10,7 @@ interface Props {
   servers: ICommunityServer[];
   activeServerId?: string;
   isDmsActive?: boolean;
+  unreadDmsCount?: number;
   onSelectDms?: () => void;
   onSelectServer: (server: ICommunityServer) => void;
   onPressAddServer: () => void;
@@ -20,6 +21,7 @@ export const DiscordServerRail: React.FC<Props> = ({
   servers,
   activeServerId,
   isDmsActive = false,
+  unreadDmsCount = 0,
   onSelectDms,
   onSelectServer,
   onPressAddServer,
@@ -27,8 +29,14 @@ export const DiscordServerRail: React.FC<Props> = ({
 }) => {
   const { palette } = useTheme();
 
+  const getServerInitials = (name: string): string => {
+    const words = name.trim().split(/\s+/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <View style={[styles.rail, { backgroundColor: palette.surface, borderRightColor: palette.border }]}>
+    <View style={[styles.rail, { backgroundColor: '#1C1C1E', borderRightColor: '#38383A' }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -41,7 +49,7 @@ export const DiscordServerRail: React.FC<Props> = ({
                 style={[
                   styles.activeIndicator,
                   {
-                    backgroundColor: isDmsActive ? palette.primary : 'transparent',
+                    backgroundColor: isDmsActive ? '#0066CC' : 'transparent',
                     height: isDmsActive ? 34 : 0,
                   },
                 ]}
@@ -55,8 +63,8 @@ export const DiscordServerRail: React.FC<Props> = ({
                   styles.serverIconBtn,
                   {
                     backgroundColor: isDmsActive
-                      ? palette.primary
-                      : `${palette.primary}20`,
+                      ? '#0066CC'
+                      : 'rgba(0,102,204,0.2)',
                     borderRadius: isDmsActive ? 16 : 24,
                   },
                 ]}
@@ -66,11 +74,16 @@ export const DiscordServerRail: React.FC<Props> = ({
               >
                 <MessageCircle
                   size={22}
-                  color={isDmsActive ? '#FFFFFF' : palette.primaryText || palette.primary}
+                  color={isDmsActive ? '#FFFFFF' : '#0A84FF'}
                 />
+                {Boolean(unreadDmsCount && unreadDmsCount > 0) && (
+                  <View style={styles.unreadRedBadge}>
+                    <Text style={styles.unreadRedBadgeText}>{unreadDmsCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
-            <View style={[styles.divider, { backgroundColor: palette.border }]} />
+            <View style={[styles.divider, { backgroundColor: '#38383A' }]} />
           </>
         )}
 
@@ -84,7 +97,7 @@ export const DiscordServerRail: React.FC<Props> = ({
                 style={[
                   styles.activeIndicator,
                   {
-                    backgroundColor: isActive ? palette.primary : 'transparent',
+                    backgroundColor: isActive ? '#0066CC' : 'transparent',
                     height: isActive ? 34 : 0,
                   },
                 ]}
@@ -99,17 +112,31 @@ export const DiscordServerRail: React.FC<Props> = ({
                   styles.serverIconBtn,
                   {
                     backgroundColor: isActive
-                      ? server.color || palette.primary
-                      : `${server.color || palette.primary}25`,
+                      ? (server.color || '#0066CC')
+                      : server.isOfficial
+                        ? 'rgba(0,102,204,0.25)'
+                        : `${server.color || palette.primary}33`,
                     borderRadius: isActive ? 16 : 24,
                   },
                 ]}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={server.name}
               >
                 {server.isOfficial ? (
                   <LumenIcon size={24} />
+                ) : server.icon && server.icon.length <= 4 && /[\u{1F300}-\u{1FAFF}]/u.test(server.icon) ? (
+                  <Text style={{ fontSize: 22 }}>{server.icon}</Text>
                 ) : (
-                  <Text style={{ fontSize: 22 }}>{server.icon || '🌟'}</Text>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: '800',
+                      color: isActive ? '#FFFFFF' : (server.color || '#FFFFFF'),
+                    }}
+                  >
+                    {getServerInitials(server.name)}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -117,7 +144,7 @@ export const DiscordServerRail: React.FC<Props> = ({
         })}
 
         {/* Divider */}
-        <View style={[styles.divider, { backgroundColor: palette.border }]} />
+        <View style={[styles.divider, { backgroundColor: '#38383A' }]} />
 
         {/* Create Server Button (+) */}
         <View style={styles.serverItemWrapper}>
@@ -126,26 +153,26 @@ export const DiscordServerRail: React.FC<Props> = ({
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               onPressAddServer();
             }}
-            style={[styles.actionBtn, { borderColor: palette.primary, backgroundColor: `${palette.primary}15` }]}
+            style={styles.actionBtnSolid}
             accessibilityRole="button"
             accessibilityLabel="Create a new community server"
           >
-            <Plus size={22} color={palette.primaryText} strokeWidth={2.4} />
+            <Plus size={22} color="#34C759" strokeWidth={2.4} />
           </TouchableOpacity>
         </View>
 
-        {/* Join by Code Button (Key) */}
+        {/* Join by Code Button (Key/Compass) */}
         <View style={styles.serverItemWrapper}>
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               onPressJoinServer();
             }}
-            style={[styles.actionBtn, { borderColor: palette.border, backgroundColor: palette.background }]}
+            style={styles.actionBtnSolid}
             accessibilityRole="button"
             accessibilityLabel="Join community by invite code"
           >
-            <KeyRound size={18} color={palette.textSecondary} />
+            <Compass size={20} color="#34C759" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -155,19 +182,20 @@ export const DiscordServerRail: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   rail: {
-    width: 68,
-    borderRightWidth: StyleSheet.hairlineWidth,
+    width: 72,
+    borderRightWidth: 1,
   },
   scrollContent: {
     paddingVertical: 12,
     alignItems: 'center',
+    gap: 8,
   },
   serverItemWrapper: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   activeIndicator: {
     position: 'absolute',
@@ -177,24 +205,43 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   serverIconBtn: {
+    position: 'relative',
     width: 48,
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
+  unreadRedBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#1C1C1E',
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadRedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   divider: {
     width: 32,
     height: 2,
     borderRadius: 1,
-    marginVertical: 6,
+    marginVertical: 4,
   },
-  actionBtn: {
+  actionBtnSolid: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
+    backgroundColor: '#2C2C2E',
     justifyContent: 'center',
     alignItems: 'center',
   },

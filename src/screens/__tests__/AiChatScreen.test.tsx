@@ -65,6 +65,11 @@ beforeEach(() => {
 });
 
 describe('Lumen AI chat screen', () => {
+  it('renders the medical disclaimer under the composer', async () => {
+    const t = await render();
+    expect(texts(t)).toContain('Lumen AI can be wrong. Check important things with your doctor.');
+  });
+
   it('asks the member to turn Lumen AI on first', async () => {
     (useAiAccess as jest.Mock).mockReturnValue({ data: { ...on, fullAccess: false } });
     const t = await render();

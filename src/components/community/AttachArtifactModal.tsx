@@ -26,19 +26,27 @@ interface AttachArtifactModalProps {
   visible: boolean;
   onClose: () => void;
   onAttach: (type: CommunityEmbedType, data: any) => void;
+  initialTab?: 'notes' | 'todos' | 'templates';
 }
 
 export const AttachArtifactModal: React.FC<AttachArtifactModalProps> = ({
   visible,
   onClose,
   onAttach,
+  initialTab = 'notes',
 }) => {
   const { palette } = useTheme();
   const { notes } = useNoteStore();
   const { lists, tasks } = useTaskStore();
   const { config } = useConfigStore();
 
-  const [activeTab, setActiveTab] = useState<'notes' | 'todos' | 'templates'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes' | 'todos' | 'templates'>(initialTab);
+
+  React.useEffect(() => {
+    if (visible && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [visible, initialTab]);
 
   const handleSelectNote = (note: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

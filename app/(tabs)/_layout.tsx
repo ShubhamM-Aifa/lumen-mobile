@@ -16,8 +16,10 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="today" options={{ title: 'Today' }} />
       <Tabs.Screen name="timeline" options={{ title: 'Timeline' }} />
-      <Tabs.Screen name="insights" options={{ title: 'Insights' }} />
-      <Tabs.Screen name="customize" options={{ title: 'Customize' }} />
+      <Tabs.Screen name="lumen" options={{ title: 'Lumen' }} />
+      <Tabs.Screen name="community" options={{ title: 'Community' }} />
+      <Tabs.Screen name="insights" options={{ title: 'Insights', href: null }} />
+      <Tabs.Screen name="customize" options={{ title: 'Customize', href: null }} />
       {/* The "+" button lives in the floating bar; this route only redirects to /log. */}
       <Tabs.Screen name="action" options={{ href: null }} />
     </Tabs>

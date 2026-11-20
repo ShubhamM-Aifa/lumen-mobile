@@ -18,6 +18,7 @@ import {
   CreateCommunityChannelDto,
 } from '../shared/schemas';
 import { api } from '../api/client';
+import { useAuthStore } from './authStore';
 import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
 import { communitySocket } from '../services/communitySocket';
@@ -52,6 +53,15 @@ export interface CommunityReportItem {
 export interface CommunityPerson {
   userId: string;
   displayName: string;
+  handle?: string | null;
+}
+
+export interface DmInvite {
+  code: string;
+  handle: string | null;
+  enabled: boolean;
+  /** lumen://community/invite/<code> */
+  link: string;
 }
 
 export interface CommunityMember {
@@ -111,6 +121,21 @@ interface CommunityState {
   respondToDmRequest: (channelId: string, action: 'accept' | 'decline') => Promise<void>;
   translateMessage: (messageId: string, target: 'english' | 'hinglish') => Promise<string>;
   searchPeople: (query: string) => Promise<CommunityPerson[]>;
+  /** Exact @handle lookup; null when there is no such (reachable) member. */
+  lookupHandle: (handle: string) => Promise<CommunityPerson | null>;
+  getMyInvite: () => Promise<DmInvite>;
+  setMyHandle: (handle: string | null) => Promise<DmInvite>;
+  rotateMyInvite: () => Promise<DmInvite>;
+  setInviteEnabled: (enabled: boolean) => Promise<DmInvite>;
+  previewInvite: (codeOrLink: string) => Promise<{ displayName: string; handle: string | null }>;
+  openInvite: (codeOrLink: string) => Promise<ICommunityChannel>;
+  createGroup: (memberIds: string[], name?: string) => Promise<ICommunityChannel>;
+  addGroupMembers: (channelId: string, userIds: string[]) => Promise<ICommunityChannel>;
+  removeGroupMember: (channelId: string, userId: string) => Promise<ICommunityChannel>;
+  leaveGroup: (channelId: string) => Promise<void>;
+  renameGroup: (channelId: string, name: string) => Promise<ICommunityChannel>;
+  editGroup: (channelId: string, changes: { name?: string; about?: string; photoMediaId?: string | null }) => Promise<ICommunityChannel>;
+  muteGroup: (channelId: string, muted: boolean) => Promise<ICommunityChannel>;
 
   // Safety
   blocks: CommunityBlock[];
@@ -157,6 +182,7 @@ interface CommunityState {
 
   // Direct Messages & Moderation
   fetchDms: () => Promise<void>;
+  upsertDm: (channel: ICommunityChannel) => void;
   createOrGetDm: (targetUserId: string) => Promise<ICommunityChannel>;
   timeoutMember: (
     serverId: string,
@@ -397,6 +423,84 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch {
       return [];
     }
+  },
+
+  lookupHandle: async (handle) => {
+    try {
+      const h = handle.trim().replace(/^@/, '').toLowerCase();
+      if (!h) return null;
+      return await api.get<CommunityPerson>(`/community/people/handle/${encodeURIComponent(h)}`);
+    } catch {
+      return null;
+    }
+  },
+
+  getMyInvite: () => api.get<DmInvite>('/community/me/invite'),
+  setMyHandle: (handle) => api.put<DmInvite>('/community/me/invite/handle', { handle }),
+  rotateMyInvite: () => api.post<DmInvite>('/community/me/invite/rotate', {}),
+  setInviteEnabled: (enabled) => api.put<DmInvite>('/community/me/invite/enabled', { enabled }),
+  previewInvite: (codeOrLink) => api.get<{ displayName: string; handle: string | null }>(`/community/invite/${encodeURIComponent(codeOrLink.trim().slice(-200))}`),
+
+  openInvite: async (codeOrLink) => {
+    const res = await api.post<ICommunityChannel>('/community/dms/by-invite', { code: codeOrLink.trim() });
+    get().upsertDm(res);
+    return res;
+  },
+
+  createGroup: async (memberIds, name) => {
+    const res = await api.post<ICommunityChannel>('/community/dms/groups', { memberIds, ...(name?.trim() ? { name: name.trim() } : {}) });
+    get().upsertDm(res);
+    return res;
+  },
+  addGroupMembers: async (channelId, userIds) => {
+    const res = await api.post<ICommunityChannel>(`/community/dms/${channelId}/members`, { userIds });
+    get().upsertDm(res);
+    return res;
+  },
+  removeGroupMember: async (channelId, userId) => {
+    const res = await api.delete<ICommunityChannel>(`/community/dms/${channelId}/members/${userId}`);
+    get().upsertDm(res);
+    return res;
+  },
+  leaveGroup: async (channelId) => {
+    await api.post(`/community/dms/${channelId}/leave`, {});
+    set((state) => {
+      const updated = state.dmChannels.filter((c) => c._id !== channelId);
+      AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+      return { dmChannels: updated, activeChannel: state.activeChannel?._id === channelId ? null : state.activeChannel };
+    });
+  },
+  renameGroup: async (channelId, name) => {
+    const res = await api.patch<ICommunityChannel>(`/community/dms/${channelId}`, { name });
+    get().upsertDm(res);
+    return res;
+  },
+
+  editGroup: async (channelId, changes) => {
+    const res = await api.patch<ICommunityChannel>(`/community/dms/${channelId}`, changes);
+    get().upsertDm(res);
+    return res;
+  },
+
+  muteGroup: async (channelId, muted) => {
+    const res = await api.put<ICommunityChannel>(`/community/dms/${channelId}/mute`, { muted });
+    get().upsertDm(res);
+    return res;
+  },
+
+  /** Adds or replaces one chat in the DM list (and its cache). */
+  upsertDm: (channel) => {
+    set((state) => {
+      const exists = state.dmChannels.some((c) => c._id === channel._id);
+      const updated = exists
+        ? state.dmChannels.map((c) => (c._id === channel._id ? { ...c, ...channel } : c))
+        : [channel, ...state.dmChannels];
+      AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(updated)).catch(() => {});
+      return {
+        dmChannels: updated,
+        activeChannel: state.activeChannel?._id === channel._id ? { ...state.activeChannel, ...channel } : state.activeChannel,
+      };
+    });
   },
 
   translateMessage: async (messageId, target) => {
@@ -670,6 +774,36 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           `${MESSAGES_CACHE_KEY}:${channelId}`,
           JSON.stringify(finalized)
         );
+
+        // Update lastMessage for DM channels
+        set((state) => {
+          const isDm = state.dmChannels.some((c) => c._id === channelId || c.slug === channelId);
+          if (!isDm) return state;
+          let snippet = serverMsg.content || '';
+          if (serverMsg.embedType === 'note') snippet = `Shared a note: ${serverMsg.embedData?.note?.title || 'Note'}`;
+          else if (serverMsg.embedType === 'todo_list') snippet = `Shared a task list: ${serverMsg.embedData?.todo?.listName || 'List'}`;
+          else if (serverMsg.embedType === 'log_template') snippet = `Shared a template: ${serverMsg.embedData?.logTemplate?.title || 'Template'}`;
+          else if (serverMsg.embedType === 'photo') snippet = 'Shared a photo';
+
+          const updatedDms = state.dmChannels.map((c) =>
+            c._id === channelId || c.slug === channelId
+              ? {
+                  ...c,
+                  lastMessage: {
+                    _id: serverMsg._id,
+                    content: snippet,
+                    senderId: serverMsg.senderId,
+                    senderDisplayName: serverMsg.senderDisplayName,
+                    isSelf: true,
+                    createdAt: serverMsg.createdAt,
+                  },
+                }
+              : c
+          );
+          AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(updatedDms)).catch(() => {});
+          return { dmChannels: updatedDms };
+        });
+
         return serverMsg;
       }
     } catch (err) {
@@ -796,8 +930,41 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     try {
       const res = await api.get<ICommunityChannel[]>('/community/dms');
       if (res && Array.isArray(res)) {
-        set({ dmChannels: res });
-        await AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(res));
+        // Enrich any DM channel whose lastMessage was not populated by the server
+        const enriched = await Promise.all(
+          res.map(async (channel) => {
+            if (channel.lastMessage) return channel;
+            try {
+              const msgs = await api.get<ICommunityMessage[]>(
+                `/community/channels/${channel._id}/messages?limit=1`
+              );
+              if (msgs && Array.isArray(msgs) && msgs.length > 0) {
+                const lm = msgs[0];
+                const meId = useAuthStore.getState().user?._id;
+                let snippet = lm.content || '';
+                if (lm.embedType === 'note') snippet = `Shared a note: ${lm.embedData?.note?.title || 'Note'}`;
+                else if (lm.embedType === 'todo_list') snippet = `Shared a task list: ${lm.embedData?.todo?.listName || 'List'}`;
+                else if (lm.embedType === 'log_template') snippet = `Shared a template: ${lm.embedData?.logTemplate?.title || 'Template'}`;
+                else if (lm.embedType === 'photo') snippet = 'Shared a photo';
+
+                return {
+                  ...channel,
+                  lastMessage: {
+                    _id: lm._id,
+                    content: snippet,
+                    senderId: lm.senderId,
+                    senderDisplayName: lm.senderDisplayName,
+                    isSelf: Boolean(meId && String(lm.senderId) === String(meId)),
+                    createdAt: lm.createdAt,
+                  },
+                };
+              }
+            } catch {}
+            return channel;
+          })
+        );
+        set({ dmChannels: enriched });
+        await AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(enriched));
       }
     } catch {}
   },
@@ -833,6 +1000,37 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           return { messages: [...state.messages, message] };
         });
       }
+
+      // Update lastMessage and unread count in dmChannels if this message is in a DM
+      const meId = useAuthStore.getState().user?._id;
+      let snippet = message.content || '';
+      if (message.embedType === 'note') snippet = `Shared a note: ${message.embedData?.note?.title || 'Note'}`;
+      else if (message.embedType === 'todo_list') snippet = `Shared a task list: ${message.embedData?.todo?.listName || 'List'}`;
+      else if (message.embedType === 'log_template') snippet = `Shared a template: ${message.embedData?.logTemplate?.title || 'Template'}`;
+      else if (message.embedType === 'photo') snippet = 'Shared a photo';
+
+      set((state) => {
+        const isDm = state.dmChannels.some((c) => c._id === channelId || c.slug === channelId);
+        if (!isDm) return state;
+        const updatedDms = state.dmChannels.map((c) => {
+          if (c._id !== channelId && c.slug !== channelId) return c;
+          const isCurrentActive = activeCh && (activeCh._id === c._id || activeCh.slug === c.slug);
+          return {
+            ...c,
+            lastMessage: {
+              _id: message._id,
+              content: snippet,
+              senderId: message.senderId,
+              senderDisplayName: message.senderDisplayName,
+              isSelf: Boolean(meId && String(message.senderId) === String(meId)),
+              createdAt: message.createdAt,
+            },
+            unreadCount: isCurrentActive ? 0 : (c.unreadCount || 0) + 1,
+          };
+        });
+        AsyncStorage.setItem(DMS_CACHE_KEY, JSON.stringify(updatedDms)).catch(() => {});
+        return { dmChannels: updatedDms };
+      });
     });
 
     const unsubUpdated = communitySocket.onMessageUpdated(({ channelId, message }) => {

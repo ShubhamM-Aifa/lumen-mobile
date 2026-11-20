@@ -298,7 +298,7 @@ export default function AiChatScreen() {
   if (access.data && !access.data.fullAccess) {
     return (
       <View style={styles.screen}>
-        <ScreenTopBar title="Lumen AI" fallbackRoute="/(tabs)/insights" />
+        <ScreenTopBar title="Lumen AI" fallbackRoute="/(tabs)/lumen" />
         <AiSetupNotice configured={access.data.configured} />
       </View>
     );
@@ -312,7 +312,7 @@ export default function AiChatScreen() {
       <View style={[styles.headerContainer, { backgroundColor: palette.background, borderBottomColor: palette.border }]}>
         <ScreenTopBar
           title={conversation.data?.title ?? 'Lumen AI'}
-          fallbackRoute="/ai"
+          fallbackRoute="/(tabs)/lumen"
           right={(
             <TouchableOpacity
               style={styles.headerBtn}
@@ -472,6 +472,9 @@ export default function AiChatScreen() {
             </TouchableOpacity>
           )}
         </View>
+        <Text style={styles.disclaimerText} maxFontSizeMultiplier={1.3}>
+          Lumen AI can be wrong. Check important things with your doctor.
+        </Text>
       </View>
 
       <OptionsSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="Attach" sections={attachSections} />
@@ -628,6 +631,11 @@ const useStyles = createThemedStyles(palette => ({
   retry: { minHeight: 36, justifyContent: 'center' },
   retryText: { ...typography.bodyBold, color: palette.primaryText },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, backgroundColor: palette.surface, paddingTop: 8, paddingHorizontal: 10, gap: 8 },
+  disclaimerText: {
+    ...typography.caption,
+    color: palette.textSecondary,
+    textAlign: 'center',
+  },
   attachRow: { gap: 8, paddingHorizontal: 4 },
   attachSpinner: { position: 'absolute', top: 22, left: 22 },
   attachRemove: { position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#0009', alignItems: 'center', justifyContent: 'center' },

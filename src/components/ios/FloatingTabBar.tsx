@@ -3,21 +3,23 @@ import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native
 import { BlurView } from 'expo-blur';
 import { router, Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, CalendarDays, Sparkles, SlidersHorizontal, Plus } from 'lucide-react-native';
+import { Home, CalendarDays, Sparkles, Users, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { useCategoryProgress } from '../../hooks/useCategoryProgress';
+import { useCommunityStore } from '../../store/communityStore';
+import { useAuthStore } from '../../store/authStore';
 import { ProgressRing } from './ProgressRing';
 import { useIosSurfaces } from './iosTheme';
 
 const TAB_ICONS: Record<string, typeof Home> = {
   today: Home,
   timeline: CalendarDays,
-  insights: Sparkles,
-  customize: SlidersHorizontal,
+  lumen: Sparkles,
+  community: Users,
 };
-const TAB_ORDER = ['today', 'timeline', 'insights', 'customize'];
+const TAB_ORDER = ['today', 'timeline', 'lumen', 'community'];
 
 type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
@@ -30,6 +32,14 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const s = useIosSurfaces();
   const insets = useSafeAreaInsets();
   const { overallProgress, overallPercentage } = useCategoryProgress();
+  const { channels, dmChannels } = useCommunityStore();
+  const { user } = useAuthStore();
+
+  const unreadChannelsTotal = channels.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
+  const pendingDmRequests = dmChannels.filter(
+    c => c.dmStatus === 'pending' && !!user?._id && c.dmInitiatorId !== user._id
+  ).length;
+  const communityBadgeCount = unreadChannelsTotal + pendingDmRequests;
 
   const routes = TAB_ORDER
     .map(name => state.routes.find(r => r.name === name))
@@ -67,10 +77,22 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                 onPress={() => {
                   const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                   if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-                  Haptics.selectionAsync().catch(() => {});
+                  Haptics.selectionAsync().catch(() => { });
                 }}
               >
-                <Icon size={22} color={focused ? palette.tint : palette.text} strokeWidth={focused ? 2.4 : 1.9} />
+                <View style={styles.iconWrap}>
+                  <Icon size={22} color={focused ? palette.tint : palette.text} strokeWidth={focused ? 2.4 : 1.9} />
+                  {route.name === 'community' && communityBadgeCount > 0 ? (
+                    <View
+                      style={[styles.badge, { backgroundColor: palette.primary }]}
+                      accessibilityLabel={`${communityBadgeCount} unread items`}
+                    >
+                      <Text style={styles.badgeText} maxFontSizeMultiplier={1.1}>
+                        {communityBadgeCount > 99 ? '99+' : communityBadgeCount}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text
                   style={[styles.label, { color: focused ? palette.primaryText : palette.text }]}
                   maxFontSizeMultiplier={1.2}
@@ -87,7 +109,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
           router.push('/log');
         }}
         accessibilityRole="button"
@@ -137,6 +159,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+  },
+  iconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    left: '50%',
+    marginLeft: 6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 14,
   },
   label: { ...typography.tabLabel },
   plusShadow: {

@@ -34,6 +34,7 @@ import { api } from '../../src/api/client';
 import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
+import { AppDateTimePicker } from '../../src/components/common/AppDateTimePicker';
 
 type TypeFilter = 'all' | 'detailed' | 'quick' | 'photos' | 'bodymap';
 
@@ -67,6 +68,7 @@ export default function TimelineScreen() {
     return p.length === 3 ? parseInt(p[1], 10) - 1 : new Date().getMonth();
   });
   const [calViewMode, setCalViewMode] = useState<'week' | 'month'>('week');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (routeDate && routeDate !== selectedDate) {
@@ -343,6 +345,19 @@ export default function TimelineScreen() {
           title="Timeline"
           actions={
             <View style={styles.headerActions}>
+              {!isToday && (
+                <TouchableOpacity
+                  style={styles.todayBtn}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    jumpToDate(today);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Jump to today"
+                >
+                  <Text style={[styles.todayBtnText, { color: palette.tint }]}>Today</Text>
+                </TouchableOpacity>
+              )}
               <GlassCircleButton
                 accessibilityLabel="Ask Lumen AI about this day"
                 onPress={() => ask({ kind: 'day', id: selectedDate, title: dayRefTitle(selectedDate, today) })}
@@ -350,13 +365,13 @@ export default function TimelineScreen() {
                 <Sparkles size={20} color={palette.tint} strokeWidth={2.2} />
               </GlassCircleButton>
               <GlassCircleButton
-                accessibilityLabel={isToday ? 'Showing today' : 'Jump to today'}
+                accessibilityLabel="Choose date from calendar"
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  jumpToDate(today);
+                  setDatePickerOpen(true);
                 }}
               >
-                <Calendar size={20} color={isToday ? palette.textSecondary : palette.tint} strokeWidth={2.2} />
+                <Calendar size={20} color={palette.tint} strokeWidth={2.2} />
               </GlassCircleButton>
             </View>
           }
@@ -581,12 +596,38 @@ export default function TimelineScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Date Picker Modal for jumping directly to any date */}
+      <AppDateTimePicker
+        visible={datePickerOpen}
+        onClose={() => setDatePickerOpen(false)}
+        value={parseDay(selectedDate)}
+        maximumDate={new Date()}
+        mode="date"
+        title="Jump to Date"
+        onChange={(newDate) => {
+          const dStr = toLocalDateString(newDate);
+          jumpToDate(dStr);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const useStyles = createThemedStyles(palette => ({
-  headerActions: { flexDirection: 'row', gap: 10 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  todayBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: `${palette.tint}1A`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: `${palette.tint}40`,
+  },
+  todayBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   safe: { flex: 1, backgroundColor: palette.background },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: 6, paddingBottom: TAB_BAR_CLEARANCE },

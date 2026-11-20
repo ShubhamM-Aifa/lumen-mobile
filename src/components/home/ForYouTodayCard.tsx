@@ -67,7 +67,7 @@ export function ForYouTodayCard() {
         const isWatch = candidate.type === 'TRIGGER_WATCH';
         // Written by Lumen AI on the server; opens its chat (or the check-in screen) to reply.
         const isAi = candidate.type === 'AI_NOTE';
-        const linkText = isAi ? (route?.startsWith('/check-in') ? 'Log it' : 'Open chat') : isWatch ? 'See Pattern' : 'See details';
+        const linkText = isAi ? (route?.startsWith('/check-in') ? 'Log it' : 'Ask Lumen about this') : isWatch ? 'See Pattern' : 'See details';
         return (
           <View key={candidate.id} style={[styles.item, (index > 0 || flareActive) && styles.itemSeparated]}>
             <View style={styles.head}>
@@ -87,7 +87,39 @@ export function ForYouTodayCard() {
               </>
             )}
 
-            {route ? (
+            {isAi && !route?.startsWith('/check-in') ? (
+              <View style={styles.aiActionRow}>
+                <TouchableOpacity
+                  style={styles.askLumenBtn}
+                  onPress={() => {
+                    if (route && route !== '/ai' && route !== '/(tabs)/lumen') {
+                      router.push(route as never);
+                    } else {
+                      router.push({
+                        pathname: '/ai/[id]',
+                        params: { id: 'new', prompt: `${candidate.title}. ${candidate.body}` },
+                      });
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ask Lumen about this"
+                >
+                  <Text style={styles.askLumenBtnText} maxFontSizeMultiplier={1.3}>
+                    Ask Lumen about this
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dismissBtn}
+                  onPress={() => dismiss(candidate.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                >
+                  <Text style={styles.dismissBtnText} maxFontSizeMultiplier={1.3}>
+                    Dismiss
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : route ? (
               <TouchableOpacity
                 style={styles.primaryLink}
                 onPress={() => router.push(route as never)}
@@ -165,6 +197,25 @@ const useStyles = createThemedStyles(palette => ({
   body: { ...typography.subhead, color: palette.textSecondary },
   primaryLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   primaryLinkText: { ...typography.subheadBold, color: palette.primaryText },
+  aiActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  askLumenBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 23,
+    backgroundColor: palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askLumenBtnText: { ...typography.subheadBold, color: '#FFFFFF', fontSize: 15 },
+  dismissBtn: {
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderRadius: 23,
+    backgroundColor: palette.surfaceAlt || palette.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dismissBtnText: { ...typography.subheadBold, color: palette.text, fontSize: 15 },
   provenance: { backgroundColor: palette.surfaceAlt, borderRadius: 14, padding: 12, gap: 4 },
   provenanceLine: { ...typography.footnote, color: palette.textSecondary },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 },

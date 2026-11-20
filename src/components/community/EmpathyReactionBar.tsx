@@ -31,9 +31,17 @@ export const EmpathyReactionBar: React.FC<EmpathyReactionBarProps> = ({
     toggleReaction(messageId, emoji);
   };
 
+  const activeEmojis = EMPATHY_EMOJIS.filter(({ emoji }) => {
+    const count = reactions[emoji] || 0;
+    const hasReacted = userReactions.includes(emoji);
+    return count > 0 || hasReacted;
+  });
+
+  if (activeEmojis.length === 0) return null;
+
   return (
     <View style={styles.container}>
-      {EMPATHY_EMOJIS.map(({ emoji, label }) => {
+      {activeEmojis.map(({ emoji, label }) => {
         const count = reactions[emoji] || 0;
         const hasReacted = userReactions.includes(emoji);
 
@@ -43,25 +51,23 @@ export const EmpathyReactionBar: React.FC<EmpathyReactionBarProps> = ({
             style={[
               styles.reactionPill,
               hasReacted
-                ? { backgroundColor: 'rgba(56, 189, 248, 0.2)', borderColor: '#38BDF8' }
-                : { backgroundColor: 'rgba(128, 128, 128, 0.12)', borderColor: 'rgba(128, 128, 128, 0.18)' },
+                ? { backgroundColor: 'rgba(88, 101, 242, 0.25)', borderColor: '#5865F2' }
+                : { backgroundColor: '#2B2D31', borderColor: 'transparent' },
             ]}
             onPress={() => handleReact(emoji)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`React with ${label}`}
+            accessibilityLabel={`React with ${label}, ${count} reactions`}
           >
             <Text style={styles.emojiText}>{emoji}</Text>
-            {count > 0 && (
-              <Text
-                style={[
-                  styles.countText,
-                  { color: hasReacted ? '#38BDF8' : palette.textSecondary },
-                ]}
-              >
-                {count}
-              </Text>
-            )}
+            <Text
+              style={[
+                styles.countText,
+                { color: hasReacted ? '#C9CDFB' : '#949BA4' },
+              ]}
+            >
+              {count > 0 ? count : 1}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -80,17 +86,17 @@ const styles = StyleSheet.create({
   reactionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
   },
   emojiText: {
-    fontSize: 13,
+    fontSize: 14,
   },
   countText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

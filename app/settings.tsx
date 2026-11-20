@@ -70,6 +70,7 @@ import {
   Target,
   Minus,
   Search,
+  SlidersHorizontal,
 } from 'lucide-react-native';
 
 import { useTheme } from '../src/theme/ThemeContext';
@@ -734,6 +735,16 @@ export default function SettingsScreen() {
     },
 
     // Appearance
+    {
+      id: 'customize',
+      title: 'Customize Categories & Questions',
+      sub: 'Categories, questions, items & quick taps',
+      section: 'General',
+      icon: SlidersHorizontal,
+      tile: TILE.gray,
+      keywords: ['customize', 'categories', 'questions', 'quick taps', 'tracking', 'fields'],
+      onPress: () => router.push('/(tabs)/customize'),
+    },
     {
       id: 'appearance',
       title: 'Appearance & Theme',
@@ -1579,6 +1590,7 @@ export default function SettingsScreen() {
         <InsetGroup>
           <GroupedRow icon={Bell} tile={TILE.red} label="Notifications & Intelligence" chevron onPress={() => router.push('/notification-settings')} />
           <GroupedRow icon={SunMoon} tile={TILE.blue} label="Appearance" value={THEME_OPTIONS.find(o => o.key === preference)?.label} chevron onPress={() => openSection('appearance')} />
+          <GroupedRow icon={SlidersHorizontal} tile={TILE.gray} label="Customize" sub="Categories, questions & quick taps" chevron onPress={() => router.push('/(tabs)/customize')} />
         </InsetGroup>
 
         <InsetGroup title="AI & Insights" footer="Off by default. When on, Lumen sends only pattern counts and item labels to Gemini to write a plain-language version — never your notes, timestamps or raw logs.">

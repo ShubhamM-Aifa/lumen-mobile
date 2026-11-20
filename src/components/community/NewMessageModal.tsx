@@ -11,23 +11,27 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Search } from 'lucide-react-native';
+import { X, Search, Users, Link2 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { useCommunityStore, CommunityPerson } from '../../store/communityStore';
 import { ModularAvatar } from '../avatar/ModularAvatar';
 import { getDeterministicAvatarConfig } from '../../store/avatarStore';
+import { parsePeopleQuery } from '../../utils/community/invites';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   /** Called with the DM channel that was opened or created. */
   onOpened: (channelSlugOrId: string) => void;
+  /** Open the group maker / my invite link (the parent shows them, so two modals never stack). */
+  onNewGroup?: () => void;
+  onMyInvite?: () => void;
 }
 
 /** Start a direct message by searching for a member, without going through a channel. */
-export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened }) => {
+export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened, onNewGroup, onMyInvite }) => {
   const { palette } = useTheme();
-  const { searchPeople, createOrGetDm } = useCommunityStore();
+  const { searchPeople, createOrGetDm, lookupHandle, previewInvite, openInvite } = useCommunityStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CommunityPerson[]>([]);
   const [searching, setSearching] = useState(false);
@@ -40,9 +44,19 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
     }
   }, [visible]);
 
+  /** Set when the box holds an invite link or code: who it belongs to. */
+  const [inviteOwner, setInviteOwner] = useState<{ code: string; displayName: string } | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
   useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
+    if (!visible) setInviteOwner(null);
+  }, [visible]);
+
+  useEffect(() => {
+    const parsed = parsePeopleQuery(query);
+    setInviteOwner(null);
+    setNotFound(false);
+    if (parsed.kind === 'empty') {
       setResults([]);
       setSearching(false);
       return;
@@ -50,17 +64,45 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
     setSearching(true);
     let stale = false;
     const t = setTimeout(async () => {
-      const found = await searchPeople(q);
-      if (!stale) {
-        setResults(found);
-        setSearching(false);
+      try {
+        if (parsed.kind === 'invite') {
+          const who = await previewInvite(parsed.code).catch(() => null);
+          if (stale) return;
+          setResults([]);
+          if (who) setInviteOwner({ code: parsed.code, displayName: who.displayName }); else setNotFound(true);
+        } else if (parsed.kind === 'handle') {
+          const person = await lookupHandle(parsed.handle);
+          if (stale) return;
+          setResults(person ? [person] : []);
+          setNotFound(!person);
+        } else {
+          const found = await searchPeople(parsed.text);
+          if (stale) return;
+          setResults(found);
+        }
+      } finally {
+        if (!stale) setSearching(false);
       }
     }, 300);
     return () => {
       stale = true;
       clearTimeout(t);
     };
-  }, [query, searchPeople]);
+  }, [query, searchPeople, lookupHandle, previewInvite]);
+
+  const openFromInvite = async () => {
+    if (!inviteOwner || opening) return;
+    setOpening(inviteOwner.code);
+    try {
+      const dm = await openInvite(inviteOwner.code);
+      onClose();
+      onOpened(dm.slug || dm._id);
+    } catch (err: any) {
+      Alert.alert('Could not open the chat', err?.message || 'Please try again.');
+    } finally {
+      setOpening(null);
+    }
+  };
 
   const open = async (person: CommunityPerson) => {
     if (opening) return;
@@ -90,17 +132,37 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
           <Search size={16} color={palette.textSecondary} />
           <TextInput
             style={[styles.input, { color: palette.text }]}
-            placeholder="Search for a member by name"
+            placeholder="Name, @name, or paste an invite link"
             placeholderTextColor={palette.textDisabled}
             value={query}
             onChangeText={setQuery}
             autoFocus
             autoCapitalize="none"
             autoCorrect={false}
-            accessibilityLabel="Search for a member"
+            accessibilityLabel="Search by name, @name or invite link"
           />
           {searching && <ActivityIndicator size="small" color={palette.primaryText} />}
         </View>
+
+        <View style={styles.shortcuts}>
+          {onNewGroup ? (
+            <TouchableOpacity style={[styles.shortcut, { backgroundColor: palette.surface }]} onPress={onNewGroup} accessibilityRole="button" accessibilityLabel="New group">
+              <Users size={16} color={palette.primaryText} /><Text style={[styles.shortcutText, { color: palette.text }]}>New group</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onMyInvite ? (
+            <TouchableOpacity style={[styles.shortcut, { backgroundColor: palette.surface }]} onPress={onMyInvite} accessibilityRole="button" accessibilityLabel="My invite link">
+              <Link2 size={16} color={palette.primaryText} /><Text style={[styles.shortcutText, { color: palette.text }]}>My invite link</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {inviteOwner ? (
+          <TouchableOpacity style={[styles.inviteRow, { backgroundColor: palette.surface }]} onPress={openFromInvite} disabled={!!opening} accessibilityRole="button" accessibilityLabel={`Message ${inviteOwner.displayName}`}>
+            <Text style={[styles.name, { color: palette.text }]} numberOfLines={1}>Message {inviteOwner.displayName}</Text>
+            {opening ? <ActivityIndicator size="small" color={palette.primaryText} /> : <Text style={{ color: palette.primaryText, fontWeight: '700' }}>Open</Text>}
+          </TouchableOpacity>
+        ) : null}
 
         <FlatList
           data={results}
@@ -109,11 +171,13 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
           ListEmptyComponent={
             <Text style={[styles.hint, { color: palette.textSecondary }]}>
-              {query.trim().length < 2
-                ? 'Type at least 2 letters. You can message people from the communities you can see.'
-                : searching
+              {parsePeopleQuery(query).kind === 'empty'
+                ? 'Type at least 2 letters, an @name, or paste an invite link. You can message people from the communities you can see.'
+                : searching || inviteOwner
                   ? ''
-                  : 'No one found with that name.'}
+                  : notFound
+                    ? 'That link or @name does not work (it may be switched off or replaced).'
+                    : 'No one found with that name.'}
             </Text>
           }
           renderItem={({ item }) => (
@@ -132,7 +196,7 @@ export const NewMessageModal: React.FC<Props> = ({ visible, onClose, onOpened })
                 />
               </View>
               <Text style={[styles.name, { color: palette.text }]} numberOfLines={1}>
-                {item.displayName}
+                {item.displayName}{item.handle ? `  @${item.handle}` : ''}
               </Text>
               {opening === item.userId && <ActivityIndicator size="small" color={palette.primaryText} />}
             </TouchableOpacity>
@@ -149,6 +213,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '800' },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 16, paddingHorizontal: 14, minHeight: 46, borderRadius: 23 },
   input: { flex: 1, minHeight: 44, fontSize: 15 },
+  shortcuts: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginBottom: 6 },
+  shortcut: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 22 },
+  shortcutText: { fontSize: 14, fontWeight: '700' },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 6, paddingHorizontal: 16, minHeight: 52, borderRadius: 18 },
   hint: { textAlign: 'center', marginTop: 24, fontSize: 14, lineHeight: 20, paddingHorizontal: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

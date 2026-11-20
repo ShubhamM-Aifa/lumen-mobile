@@ -106,8 +106,8 @@ describe('ForYouTodayCard with a Lumen AI note', () => {
     useIntelligenceStore.setState({ inbox: [{ candidate, reason: 'watch', addedAt: Date.now() }] });
     let t!: ReactTestRenderer;
     await act(async () => { t = create(<ForYouTodayCard />); });
-    expect(texts(t)).toEqual(expect.arrayContaining(['From Lumen AI', 'Good morning', 'Keep today light.', 'Open chat']));
-    const open = t.root.findAll(n => n.props.accessibilityLabel === 'Open chat' && n.props.onPress)[0];
+    expect(texts(t)).toEqual(expect.arrayContaining(['From Lumen AI', 'Good morning', 'Keep today light.', 'Ask Lumen about this']));
+    const open = t.root.findAll(n => n.props.accessibilityLabel === 'Ask Lumen about this' && n.props.onPress)[0];
     await act(async () => { open.props.onPress(); });
     expect(router.push).toHaveBeenCalledWith('/ai/c1');
   });

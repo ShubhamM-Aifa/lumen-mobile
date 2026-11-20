@@ -23,6 +23,7 @@ import {
   Zap,
   Flame,
   Plus,
+  MessageCircle,
 } from 'lucide-react-native';
 
 import { IQuickAction } from '@lumen/shared';
@@ -39,6 +40,7 @@ import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceCon
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
 import { useWeatherStore } from '../../src/store/weatherStore';
 import { useTaskStore } from '../../src/store/taskStore';
+import { useCommunityStore } from '../../src/store/communityStore';
 import { syncLiveWidgetsFromStores } from '../../src/widgets/widgetSync';
 
 import { DayClockCard } from '../../src/components/DayClockCard';
@@ -85,6 +87,11 @@ export default function TodayScreen() {
   const { fetchGlanceConfig, isMetricEnabled, compactOrder } = useGlanceConfigStore();
   const { isSleeping, lastSleepRecord, loadState: loadSleepState } = useSleepTrackerStore();
   const { weather, activeFlareAlert, initWeather, fetchWeather } = useWeatherStore();
+  const { dmChannels } = useCommunityStore();
+
+  const hasUnreadDms = dmChannels.some(
+    c => (c.unreadCount ?? 0) > 0 || (c.dmStatus === 'pending' && !!user?._id && c.dmInitiatorId !== user._id)
+  );
 
   const flareActive = useIntelligenceStore(st => st.policy.flareMode.active);
   const setFlareMode = useIntelligenceStore(st => st.setFlareMode);
@@ -344,6 +351,13 @@ export default function TodayScreen() {
           actions={
             <>
               <GlassCircleButton
+                accessibilityLabel={hasUnreadDms ? 'Messages, unread messages' : 'Messages'}
+                onPress={() => router.push({ pathname: '/(tabs)/community', params: { mode: 'dms' } })}
+                badge={hasUnreadDms}
+              >
+                <MessageCircle size={20} color={palette.text} />
+              </GlassCircleButton>
+              <GlassCircleButton
                 accessibilityLabel={
                   unreadNotifications > 0
                     ? `Notifications, ${unreadNotifications} unread`
@@ -434,8 +448,6 @@ export default function TodayScreen() {
                 onToggle={v => { setFlareMode(v); }}
               />
             </InsetGroup>
-
-            <ChatShortcutsCard />
 
             {summaryRows.length > 0 ? (
               <View style={styles.block}>
