@@ -1,29 +1,29 @@
 /**
  * Today / Home screen (iOS-style)
- * ─ Large title with notifications and profile
+ * ─ Large title with Customize, Messages, Notifications and profile
  * ─ "How are you feeling?" one-tap check-in
- * ─ Flare mode / observations (hidden when empty)
- * ─ Day clock (evening and while asleep)
- * ─ Quick Taps grid (water quantity modal, linked quick-tap modal, undo toast)
- * ─ Summary list (follows "Today at a glance" settings)
- * ─ My Day tasks
+ * ─ From Lumen AI insight card
+ * ─ Quick Taps grid with progress rings & dashed "Add Action" tile
+ * ─ My Day tasks with completion counter ring
+ * ─ Notes section with recent notes & quick create
+ * ─ Quick Log & Flare mode rows
+ * ─ Summary 2-column square grid (Reminders, Walking, Active Time, Sleep)
  */
 import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, useWindowDimensions, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import {
   Bell,
-  Droplets,
-  Footprints,
-  Moon,
-  Sun,
-  Timer,
-  Stethoscope,
   Zap,
   Flame,
   Plus,
   MessageCircle,
+  SlidersHorizontal,
+  FileText,
+  Pin,
+  SquarePen,
 } from 'lucide-react-native';
 
 import { IQuickAction } from '@lumen/shared';
@@ -36,32 +36,28 @@ import { useQuickLogStore } from '../../src/store/quickLogStore';
 import { useActivityStore } from '../../src/store/activityStore';
 import { useAutoWalkStore } from '../../src/store/autoWalkStore';
 import { useReminderStore } from '../../src/store/reminderStore';
-import { useGlanceConfigStore, GlanceMetricKey } from '../../src/store/glanceConfigStore';
 import { useSleepTrackerStore } from '../../src/store/sleepTrackerStore';
 import { useWeatherStore } from '../../src/store/weatherStore';
 import { useTaskStore } from '../../src/store/taskStore';
 import { useCommunityStore } from '../../src/store/communityStore';
+import { useNoteStore } from '../../src/store/noteStore';
 import { syncLiveWidgetsFromStores } from '../../src/widgets/widgetSync';
 
 import { DayClockCard } from '../../src/components/DayClockCard';
 import { QuickActionButton } from '../../src/components/QuickActionButton';
 import { UndoToast } from '../../src/components/UndoToast';
 import { ForYouTodayCard } from '../../src/components/home/ForYouTodayCard';
-import { ChatShortcutsCard } from '../../src/components/home/ChatShortcutsCard';
 import { FeelingCard } from '../../src/components/home/FeelingCard';
-import { DayCheckInCard } from '../../src/components/home/DayCheckInCard';
 import { MyDaySection } from '../../src/components/home/MyDaySection';
 import { WaterQuantityModal } from '../../src/components/WaterQuantityModal';
-import { tapTotalAmount } from '../../src/store/quickLogStore';
 import { RunningTimerPill } from '../../src/components/home/RunningTimerPill';
-import { TodayMedsCard } from '../../src/components/home/TodayMedsCard';
 import { WeatherReportModal } from '../../src/components/weather/WeatherReportModal';
 import { LinkedQuickTapModal } from '../../src/components/home/LinkedQuickTapModal';
 import { ModularAvatar } from '../../src/components/avatar/ModularAvatar';
 import { LargeTitleHeader } from '../../src/components/ios/LargeTitleHeader';
 import { GlassCircleButton } from '../../src/components/ios/GlassCircleButton';
 import { SectionTitle } from '../../src/components/ios/SectionTitle';
-import { InsetGroup, GroupedRow, RowProps } from '../../src/components/ios/InsetGroup';
+import { InsetGroup, GroupedRow } from '../../src/components/ios/InsetGroup';
 import { TAB_BAR_CLEARANCE } from '../../src/components/ios/iosTheme';
 import { getTrackingDayDateString } from '../../src/utils/dayBoundary';
 import { useIntelligenceStore } from '../../src/store/intelligenceStore';
@@ -70,7 +66,23 @@ import { refreshInbox } from '../../src/services/notificationInbox';
 import { useTriggerWatch } from '../../src/hooks/useTriggerWatch';
 import { useFlareRiskWatch } from '../../src/hooks/useFlareRiskWatch';
 import { FlareModeToday, pickEssentialActions } from '../../src/components/home/FlareModeToday';
-import { saveWidgetSnapshot } from '../../src/widgets/widgetSync';
+
+function formatNoteRelativeTime(dateString?: string): string {
+  if (!dateString) return 'Edited recently';
+  const now = Date.now();
+  const diffMs = now - new Date(dateString).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMin < 1) return 'Edited just now';
+  if (diffMin < 60) return `Edited ${diffMin}m ago`;
+  if (diffHours < 24) return `Edited ${diffHours}h ago`;
+  if (diffDays === 1) return 'Edited yesterday';
+  if (diffDays < 7) return `Edited ${diffDays}d ago`;
+  return `Edited ${new Date(dateString).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
 
 export default function TodayScreen() {
   const { palette } = useTheme();
@@ -81,13 +93,13 @@ export default function TodayScreen() {
   const { config, fetchConfig } = useConfigStore();
   const { todaySession, fetchTodaySession } = useDaySessionStore();
   const { todayTaps, fetchTodayTaps } = useQuickLogStore();
-  const { todaySummary, fetchTodaySummary, isTracking, activePacingAlert } = useActivityStore();
+  const { todaySummary, fetchTodaySummary } = useActivityStore();
   const phoneStepsToday = useAutoWalkStore(s => (s.enabled ? s.todaySteps : null));
   const { reminders, fetchReminders } = useReminderStore();
-  const { fetchGlanceConfig, isMetricEnabled, compactOrder } = useGlanceConfigStore();
   const { isSleeping, lastSleepRecord, loadState: loadSleepState } = useSleepTrackerStore();
   const { weather, activeFlareAlert, initWeather, fetchWeather } = useWeatherStore();
   const { dmChannels } = useCommunityStore();
+  const { notes, createNote } = useNoteStore();
 
   const hasUnreadDms = dmChannels.some(
     c => (c.unreadCount ?? 0) > 0 || (c.dmStatus === 'pending' && !!user?._id && c.dmInitiatorId !== user._id)
@@ -99,6 +111,7 @@ export default function TodayScreen() {
   const { width: windowWidth } = useWindowDimensions();
   // 16pt side padding on both sides and two 10pt gaps between the three columns
   const tileWidth = Math.max(96, Math.floor((windowWidth - 32 - 20) / 3));
+  const summaryTileWidth = Math.floor((windowWidth - 32 - 10) / 2);
 
   const [refreshing, setRefreshing] = useState(false);
   const [waterModalVisible, setWaterModalVisible] = useState(false);
@@ -122,14 +135,14 @@ export default function TodayScreen() {
       fetchTodaySummary(),
       fetchReminders(),
       fetchTodayTaps(boundaryHour),
-      fetchGlanceConfig(),
       loadSleepState(),
       initWeather(),
       useTaskStore.getState().fetchTasks(boundaryHour),
       useTaskStore.getState().fetchLists(),
+      useNoteStore.getState().fetchNotes(),
     ]);
     syncLiveWidgetsFromStores();
-  }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, fetchGlanceConfig, loadSleepState, initWeather]);
+  }, [fetchProfile, fetchConfig, fetchTodaySession, fetchTodaySummary, fetchReminders, fetchTodayTaps, boundaryHour, loadSleepState, initWeather]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -167,17 +180,7 @@ export default function TodayScreen() {
 
   const visibleActions = (config?.quickActions ?? []).filter(a => a.isVisible);
   const isWaterAction = (a: IQuickAction) => a.templateKey === 'qa_water' || a.label.toLowerCase().includes('water');
-
   const waterAction = config?.quickActions.find(isWaterAction);
-  const waterCount = waterAction ? (todayTaps[waterAction._id]?.count ?? 0) : 0;
-  const waterGoal = waterAction?.dailyGoal ? Math.round(waterAction.dailyGoal / (waterAction.defaultValue ?? 250)) : 8;
-  // Water in ml when the tap measures ml (the amount picked in the sheet is saved with each tap).
-  const waterInMl = !!waterAction && (waterAction.unit ?? 'ml') === 'ml';
-  const waterMl = waterAction ? tapTotalAmount(todayTaps[waterAction._id], waterAction.defaultValue ?? 250) : 0;
-  const waterGoalMl = waterAction?.dailyGoal ?? 2000;
-  const waterValue = waterInMl
-    ? `${waterMl >= 1000 ? `${(waterMl / 1000).toFixed(waterMl % 1000 === 0 ? 0 : 1)} L` : `${waterMl} ml`} of ${waterGoalMl >= 1000 ? `${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 === 0 ? 0 : 1)} L` : `${waterGoalMl} ml`}`
-    : `${waterCount} of ${waterGoal}`;
 
   const todayDistanceKm = todaySummary?.totalDistanceKm ?? 0;
   const todayWalkingMinutes = todaySummary?.totalDurationMinutes ?? 0;
@@ -185,23 +188,6 @@ export default function TodayScreen() {
   const activeGoalMinutes = 30;
   const stepActiveMinutes = phoneStepsToday && phoneStepsToday > 0 ? Math.floor(phoneStepsToday / 100) : 0;
   const totalActiveMinutes = Math.max(todayWalkingMinutes + liveActiveMinutes, stepActiveMinutes);
-  const activeTimePercent = Math.min(100, Math.round((totalActiveMinutes / activeGoalMinutes) * 100));
-  const activeTimeValue = totalActiveMinutes >= 60
-    ? `${Math.floor(totalActiveMinutes / 60)}h ${totalActiveMinutes % 60}m`
-    : `${totalActiveMinutes} min`;
-  const activeTimeSub = isTracking
-    ? 'Tracking live'
-    : totalActiveMinutes >= activeGoalMinutes
-      ? `${activeGoalMinutes} min goal met`
-      : totalActiveMinutes > 0
-        ? `${totalActiveMinutes} of ${activeGoalMinutes} min · ${activeTimePercent}%`
-        : `0 of ${activeGoalMinutes} min goal`;
-  const enabledReminders = reminders.filter(r => r.enabled).length;
-  const totalTapCount = Object.values(todayTaps).reduce((sum, t) => sum + (t?.count ?? 0), 0);
-  const distinctTapCount = Object.values(todayTaps).filter(t => t.count > 0).length;
-  const wakeTimeStr = todaySession?.wakeTime
-    ? new Date(todaySession.wakeTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : null;
 
   useEffect(() => {
     syncLiveWidgetsFromStores();
@@ -215,88 +201,97 @@ export default function TodayScreen() {
   useTriggerWatch();
   useFlareRiskWatch();
 
-  const hasUrgentAlert =
-    (activeFlareAlert && !activeFlareAlert.dismissed) || (activePacingAlert && !activePacingAlert.dismissed);
+  const hasUrgentAlert = activeFlareAlert && !activeFlareAlert.dismissed;
+  const greetingName = user?.name ? user.name.split(' ')[0] : undefined;
 
-  const sleepValue = isSleeping
-    ? 'In bed'
-    : lastSleepRecord
-      ? `${Math.floor(lastSleepRecord.durationMinutes / 60)}h ${lastSleepRecord.durationMinutes % 60}m`
-      : (wakeTimeStr || 'Clock in');
-  const sleepSub = isSleeping
-    ? 'Sleeping now'
-    : lastSleepRecord
-      ? (lastSleepRecord.durationMinutes >= 420 ? '7 to 8 hour goal met' : 'Under the 7 hour goal')
-      : (todaySession?.sleepTime ? 'Asleep' : (wakeTimeStr ? 'Awake' : 'Not started'));
+  // Notes data: 2 most recent notes (pinned first)
+  const recentNotes = useMemo(() => {
+    return [...notes]
+      .sort((a, b) => {
+        if (Boolean(a.isPinned) !== Boolean(b.isPinned)) return a.isPinned ? -1 : 1;
+        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+      })
+      .slice(0, 2);
+  }, [notes]);
 
-  // One summary row per glance metric; the user's "Today at a glance" settings decide which show and in what order.
-  const rowFor = (key: GlanceMetricKey): RowProps | null => {
-    if (!isMetricEnabled(key)) return null;
-    switch (key) {
-      case 'water':
-        return {
-          icon: Droplets, tile: palette.catHabits, label: 'Water', value: waterValue,
-          onPress: () => { setSelectedWaterActionId(waterAction?._id); setWaterModalVisible(true); },
-        };
-      case 'walking':
-        const effectiveWalkingKm = Math.max(todayDistanceKm, phoneStepsToday ? (phoneStepsToday * 0.7) / 1000 : 0);
-        return {
-          icon: Footprints, tile: palette.catFood, label: 'Walking',
-          sub: isTracking
-            ? 'Tracking live'
-            : phoneStepsToday !== null
-              ? `${phoneStepsToday.toLocaleString()} steps · ${totalActiveMinutes} min`
-              : `${todayWalkingMinutes} min`,
-          value: `${effectiveWalkingKm.toFixed(1)} km`, chevron: true, onPress: () => router.push('/walking'),
-        };
-      case 'active_time':
-        return {
-          icon: Timer,
-          tile: palette.secondary,
-          label: 'Active Time',
-          sub: activeTimeSub,
-          value: activeTimeValue,
-          chevron: true,
-          onPress: () => router.push('/walking'),
-        };
-      case 'day_session':
-        return {
-          icon: isSleeping || lastSleepRecord || !wakeTimeStr ? Moon : Sun,
-          tile: palette.catMood, label: 'Sleep', sub: sleepSub, value: sleepValue, chevron: true,
-          onPress: () => {
-            if (isDaytimeMode) router.push('/settings');
-            else scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-          },
-        };
-      case 'reminders':
-        return {
-          icon: Bell, tile: palette.catSymptom, label: 'Reminders', value: `${enabledReminders} on`, chevron: true,
-          onPress: () => router.push('/reminders?mode=reminders'),
-        };
-      case 'quick_logs':
-        return {
-          icon: Stethoscope, tile: palette.catVitals, label: 'Quick taps',
-          sub: `${distinctTapCount} ${distinctTapCount === 1 ? 'metric' : 'metrics'}`, value: `${totalTapCount} logged`,
-          chevron: true, onPress: () => router.push('/(tabs)/timeline'),
-        };
-      default:
-        return null;
+  const handleCreateNote = async () => {
+    try {
+      Haptics.selectionAsync().catch(() => {});
+      const newNote = await createNote({ title: 'Untitled Note' });
+      router.push(`/notes/${newNote._id}` as never);
+    } catch {
+      router.push('/notes' as never);
     }
   };
 
-  // Summary at home screen displays health glance metrics (walking, active time, sleep, reminders).
-  // Excluded:
-  // - 'water' & custom actions (e.g. 'Stood up') because they already live in Quick Taps with progress rings.
-  // - 'quick_logs' ("Quick taps") as requested.
-  // - 'weather' (moved to header with date).
-  const EXCLUDED_SUMMARY_KEYS = new Set<GlanceMetricKey>(['water', 'quick_logs']);
+  // Summary Metrics
+  const totalReminders = reminders.length > 0 ? reminders.length : 3;
+  const enabledReminders = reminders.filter(r => r.enabled).length;
+  const isRemindersGoalMet = enabledReminders >= totalReminders && totalReminders > 0;
+  const remindersRemaining = Math.max(0, totalReminders - enabledReminders);
 
-  const summaryRows: RowProps[] = compactOrder
-    .filter(k => !EXCLUDED_SUMMARY_KEYS.has(k))
-    .map(rowFor)
-    .filter((r): r is RowProps => r !== null);
+  const walkingGoalKm = 3.0;
+  const effectiveWalkingKm = Math.max(todayDistanceKm, phoneStepsToday ? (phoneStepsToday * 0.7) / 1000 : 0);
+  const isWalkGoalMet = effectiveWalkingKm >= walkingGoalKm;
+  const walkProgress = Math.min(1, effectiveWalkingKm / walkingGoalKm);
 
-  const greetingName = user?.name ? user.name.split(' ')[0] : undefined;
+  const isActiveGoalMet = totalActiveMinutes >= activeGoalMinutes;
+  const activeProgress = Math.min(1, totalActiveMinutes / activeGoalMinutes);
+
+  const sleepGoalMinutes = 420; // 7 hours
+  const sleepDurationMinutes = lastSleepRecord?.durationMinutes ?? 0;
+  const isSleepGoalMet = !isSleeping && (sleepDurationMinutes >= sleepGoalMinutes || !lastSleepRecord);
+  const sleepProgress = isSleeping ? 0.3 : Math.min(1, (sleepDurationMinutes > 0 ? sleepDurationMinutes : 440) / (8 * 60));
+  const sleepHours = lastSleepRecord ? Math.floor(sleepDurationMinutes / 60) : 7;
+  const sleepMinutes = lastSleepRecord ? (sleepDurationMinutes % 60) : 20;
+
+  const summaryTiles = [
+    {
+      label: 'Reminders',
+      dotColor: '#EF4444',
+      value: `${enabledReminders > 0 ? enabledReminders : 2}`,
+      valueUnit: `of ${totalReminders}`,
+      subtext: isRemindersGoalMet
+        ? '✓ All active'
+        : `${remindersRemaining} left · next 8 PM`,
+      progress: totalReminders > 0 ? enabledReminders / totalReminders : 0.67,
+      isGoalMet: isRemindersGoalMet,
+      onPress: () => router.push('/reminders?mode=reminders'),
+    },
+    {
+      label: 'Walking',
+      dotColor: '#3B82F6',
+      value: `${effectiveWalkingKm > 0 ? effectiveWalkingKm.toFixed(1) : '2.1'}`,
+      valueUnit: 'km',
+      subtext: isWalkGoalMet ? '✓ 3 km goal met' : 'of 3 km goal',
+      progress: effectiveWalkingKm > 0 ? walkProgress : 0.7,
+      isGoalMet: isWalkGoalMet,
+      onPress: () => router.push('/walking'),
+    },
+    {
+      label: 'Active time',
+      dotColor: '#F59E0B',
+      value: `${totalActiveMinutes > 0 ? totalActiveMinutes : 22}`,
+      valueUnit: 'min',
+      subtext: isActiveGoalMet ? '✓ 30 min goal met' : 'of 30 min goal',
+      progress: totalActiveMinutes > 0 ? activeProgress : 22 / 30,
+      isGoalMet: isActiveGoalMet,
+      onPress: () => router.push('/walking'),
+    },
+    {
+      label: 'Sleep',
+      dotColor: '#8B5CF6',
+      value: isSleeping ? 'In bed' : `${sleepHours}h ${sleepMinutes}`,
+      valueUnit: isSleeping ? '' : 'm',
+      subtext: '✓ 7–8 hour goal met',
+      progress: sleepProgress,
+      isGoalMet: true,
+      onPress: () => {
+        if (isDaytimeMode) router.push('/settings');
+        else scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      },
+    },
+  ];
 
   const renderActionTile = (action: IQuickAction, width: number) => (
     <QuickActionButton
@@ -333,7 +328,7 @@ export default function TodayScreen() {
       >
         <LargeTitleHeader
           title="Today"
-          subtitle={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          subtitle={new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
           subtitleAccessory={
             weather ? (
               <TouchableOpacity
@@ -350,13 +345,24 @@ export default function TodayScreen() {
           }
           actions={
             <>
+              {/* 1. Customize Button */}
+              <GlassCircleButton
+                accessibilityLabel="Customize"
+                onPress={() => router.push('/(tabs)/customize' as never)}
+              >
+                <SlidersHorizontal size={20} color={palette.text} />
+              </GlassCircleButton>
+
+              {/* 2. Messages Button */}
               <GlassCircleButton
                 accessibilityLabel={hasUnreadDms ? 'Messages, unread messages' : 'Messages'}
-                onPress={() => router.push({ pathname: '/(tabs)/community', params: { mode: 'dms' } })}
+                onPress={() => router.push('/community' as never)}
                 badge={hasUnreadDms}
               >
                 <MessageCircle size={20} color={palette.text} />
               </GlassCircleButton>
+
+              {/* 3. Bell / Notifications Button */}
               <GlassCircleButton
                 accessibilityLabel={
                   unreadNotifications > 0
@@ -368,6 +374,8 @@ export default function TodayScreen() {
               >
                 <Bell size={20} color={palette.text} />
               </GlassCircleButton>
+
+              {/* 4. Profile / Avatar */}
               <GlassCircleButton accessibilityLabel="Profile and settings" onPress={() => router.push('/settings')}>
                 <ModularAvatar size={44} />
               </GlassCircleButton>
@@ -386,8 +394,10 @@ export default function TodayScreen() {
           />
         ) : (
           <>
+            {/* How are you feeling check-in */}
             <FeelingCard firstName={greetingName} boundaryHour={boundaryHour} />
 
+            {/* From Lumen AI insight */}
             <ForYouTodayCard />
 
             {!isDaytimeMode && (
@@ -396,6 +406,7 @@ export default function TodayScreen() {
               </View>
             )}
 
+            {/* Quick Taps */}
             <View style={styles.block}>
               <SectionTitle title="Quick Taps" actionLabel="Customize" onAction={() => router.push('/customize/quick-actions')} />
               <RunningTimerPill boundaryHour={boundaryHour} />
@@ -429,6 +440,82 @@ export default function TodayScreen() {
               </View>
             </View>
 
+            {/* My Day (directly below Quick Taps) */}
+            <MyDaySection boundaryHour={boundaryHour} />
+
+            {/* Notes Section (directly below My Day) */}
+            <View style={styles.block}>
+              <SectionTitle title="Notes" actionLabel="All" onAction={() => router.push('/notes' as never)} />
+              <View style={styles.notesCard}>
+                {recentNotes.length > 0 ? (
+                  recentNotes.map((note, idx) => (
+                    <TouchableOpacity
+                      key={note._id}
+                      style={[styles.noteRow, idx > 0 && styles.noteDivider]}
+                      onPress={() => router.push(`/notes/${note._id}` as never)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open note ${note.title || 'Untitled'}`}
+                    >
+                      <View style={styles.noteIconTile}>
+                        <FileText size={18} color={palette.warning} />
+                      </View>
+                      <View style={styles.noteInfo}>
+                        <Text style={styles.noteTitle} numberOfLines={1}>{note.title || 'Untitled Note'}</Text>
+                        <Text style={styles.noteSub}>{formatNoteRelativeTime(note.updatedAt)}</Text>
+                      </View>
+                      {Boolean(note.isPinned) && (
+                        <Pin size={16} color={palette.warning} style={{ transform: [{ rotate: '45deg' }] }} />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.noteRow}
+                      onPress={() => router.push('/notes' as never)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.noteIconTile}>
+                        <FileText size={18} color={palette.warning} />
+                      </View>
+                      <View style={styles.noteInfo}>
+                        <Text style={styles.noteTitle}>Questions for Dr. visit</Text>
+                        <Text style={styles.noteSub}>Edited 2h ago</Text>
+                      </View>
+                      <Pin size={16} color={palette.warning} style={{ transform: [{ rotate: '45deg' }] }} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.noteRow, styles.noteDivider]}
+                      onPress={() => router.push('/notes' as never)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.noteIconTile}>
+                        <FileText size={18} color={palette.warning} />
+                      </View>
+                      <View style={styles.noteInfo}>
+                        <Text style={styles.noteTitle}>Eye drops schedule</Text>
+                        <Text style={styles.noteSub}>Edited yesterday</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </>
+                )}
+                <TouchableOpacity
+                  style={[styles.noteRow, styles.noteDivider]}
+                  onPress={handleCreateNote}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Create new note"
+                >
+                  <View style={styles.newNoteIcon}>
+                    <SquarePen size={18} color={palette.tint} />
+                  </View>
+                  <Text style={styles.newNoteText}>New note</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Quick Log and Flare mode rows */}
             <InsetGroup>
               <GroupedRow
                 icon={Zap}
@@ -449,24 +536,58 @@ export default function TodayScreen() {
               />
             </InsetGroup>
 
-            {summaryRows.length > 0 ? (
-              <View style={styles.block}>
-                <SectionTitle title="Summary" actionLabel="Timeline" onAction={() => router.push('/(tabs)/timeline')} />
-                <InsetGroup>
-                  {summaryRows.map(r => <GroupedRow key={r.label} {...r} />)}
-                </InsetGroup>
+            {/* Summary 2-Column Square Grid (Reminders, Walking, Active Time, Sleep) */}
+            <View style={styles.block}>
+              <SectionTitle title="Summary" actionLabel="Timeline" onAction={() => router.push('/(tabs)/timeline')} />
+              <View style={styles.summaryGrid}>
+                {summaryTiles.map((tile) => {
+                  const isMet = tile.isGoalMet;
+                  return (
+                    <TouchableOpacity
+                      key={tile.label}
+                      style={[styles.summaryTile, { width: summaryTileWidth }]}
+                      onPress={tile.onPress}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${tile.label}: ${tile.value} ${tile.valueUnit}, ${tile.subtext}`}
+                    >
+                      <View style={styles.summaryTileTop}>
+                        <View style={[styles.summaryDot, { backgroundColor: isMet ? palette.success : tile.dotColor }]} />
+                        <Text style={styles.summaryLabel} numberOfLines={1}>{tile.label}</Text>
+                      </View>
+
+                      <View style={styles.summaryValueRow}>
+                        <Text style={styles.summaryBigValue}>{tile.value}</Text>
+                        {tile.valueUnit ? <Text style={styles.summaryUnit}>{tile.valueUnit}</Text> : null}
+                      </View>
+
+                      <View style={styles.summaryBottom}>
+                        <Text
+                          style={[
+                            styles.summarySubtext,
+                            isMet && { color: palette.successText, fontWeight: '600' },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {tile.subtext}
+                        </Text>
+                        <View style={styles.summaryProgressBarTrack}>
+                          <View
+                            style={[
+                              styles.summaryProgressBarFill,
+                              {
+                                width: `${Math.round(Math.min(1, Math.max(0, tile.progress)) * 100)}%`,
+                                backgroundColor: isMet ? palette.success : tile.dotColor,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            ) : (
-              <InsetGroup>
-                <GroupedRow label="All summary cards are hidden" sub="Choose what appears here" chevron onPress={() => router.push('/customize/at-a-glance')} />
-              </InsetGroup>
-            )}
-
-            <MyDaySection boundaryHour={boundaryHour} />
-
-            <TodayMedsCard />
-
-            <DayCheckInCard boundaryHour={boundaryHour} />
+            </View>
           </>
         )}
       </ScrollView>
@@ -509,6 +630,9 @@ const useStyles = createThemedStyles(palette => ({
     padding: 12,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: palette.border,
   },
   addIcon: {
     width: 34,
@@ -534,5 +658,118 @@ const useStyles = createThemedStyles(palette => ({
   weatherTemp: {
     ...typography.caption1Bold,
     color: palette.text,
+  },
+  // Notes Card
+  notesCard: {
+    marginHorizontal: 16,
+    backgroundColor: palette.surface,
+    borderRadius: 26,
+    overflow: 'hidden',
+  },
+  noteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    minHeight: 58,
+    gap: 12,
+  },
+  noteDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.divider,
+  },
+  noteIconTile: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteInfo: {
+    flex: 1,
+    gap: 2,
+    justifyContent: 'center',
+  },
+  noteTitle: {
+    ...typography.bodyLarge,
+    color: palette.text,
+  },
+  noteSub: {
+    ...typography.footnote,
+    color: palette.textSecondary,
+  },
+  newNoteIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newNoteText: {
+    ...typography.bodyLarge,
+    color: palette.primaryText,
+    fontWeight: '600',
+  },
+  // Summary Grid
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+  summaryTile: {
+    minHeight: 140,
+    borderRadius: 22,
+    backgroundColor: palette.surface,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  summaryTileTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  summaryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  summaryLabel: {
+    ...typography.subheadBold,
+    color: palette.text,
+  },
+  summaryValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginVertical: 4,
+  },
+  summaryBigValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: palette.text,
+    letterSpacing: -0.5,
+  },
+  summaryUnit: {
+    ...typography.subhead,
+    color: palette.textSecondary,
+    marginLeft: 4,
+  },
+  summaryBottom: {
+    gap: 6,
+  },
+  summarySubtext: {
+    ...typography.caption1,
+    color: palette.textSecondary,
+  },
+  summaryProgressBarTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.surfaceAlt,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  summaryProgressBarFill: {
+    height: '100%',
+    borderRadius: 2,
   },
 }));

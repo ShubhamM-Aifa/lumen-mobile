@@ -96,7 +96,7 @@ export function getMimeType(uri: string): string {
   const ext = cleanUri.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+    png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', gif: 'image/gif',
     mp4: 'video/mp4', mov: 'video/quicktime',
     pdf: 'application/pdf',
   };

@@ -15,6 +15,7 @@ const SOCKET_URL = BASE_URL.replace(/\/api\/v1\/?$/, '');
 class CommunitySocketService {
   private socket: Socket | null = null;
   private currentJoinedChannelId: string | null = null;
+  private lastAppState: 'active' | 'background' = 'active';
 
   async initSocket(): Promise<Socket> {
     if (this.socket && this.socket.connected) {
@@ -41,6 +42,7 @@ class CommunitySocketService {
     });
 
     this.socket.on('connect', () => {
+      this.socket?.emit('app_state', { state: this.lastAppState });
       if (this.currentJoinedChannelId) {
         this.socket?.emit('join_channel', { channelId: this.currentJoinedChannelId });
       }
@@ -131,6 +133,28 @@ class CommunitySocketService {
     return () => {
       this.socket?.off('user_typing', handler);
     };
+  }
+
+  onReceiptUpdated(handler: (data: { channelId: string; userId: string; lastDeliveredMessageId?: string; lastReadMessageId?: string; at?: string }) => void) {
+    if (!this.socket) this.initSocket();
+    this.socket?.on('receipt_updated', handler);
+    return () => {
+      this.socket?.off('receipt_updated', handler);
+    };
+  }
+
+  onPresence(handler: (data: { userId: string; online: boolean; lastSeenAt: string | null }) => void) {
+    if (!this.socket) this.initSocket();
+    this.socket?.on('presence', handler);
+    return () => {
+      this.socket?.off('presence', handler);
+    };
+  }
+
+  /** Tells the server whether the app is on screen, so a chat that is open is not also pushed. */
+  sendAppState(state: 'active' | 'background') {
+    this.lastAppState = state;
+    this.socket?.emit('app_state', { state });
   }
 
   disconnect() {

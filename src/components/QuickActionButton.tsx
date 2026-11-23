@@ -109,17 +109,11 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
     ? `Running · ${runningMin} min · tap to stop`
     : isTimer && count === 0
       ? 'Tap to start timer'
-      : amountMode
-    ? `${amountToday}/${action.dailyGoal} ml${isGoalMet ? ' · Goal met' : lastAt ? ` · ${lastAt}` : ''}`
-    : hasGoal && target
-    ? isGoalMet
-      ? `${count}/${target} · Goal met`
-      : count > 0
-        ? `${count}/${target}${lastAt ? ` · ${lastAt}` : ''}`
-        : `0/${target} · Tap to log`
-    : count > 0
-      ? `${count} today${lastAt ? ` · ${lastAt}` : ''}`
-      : 'Tap to log';
+      : hasGoal && target
+        ? `${count} of ${target}`
+        : count > 0
+          ? `${count} today${lastAt ? ` · ${lastAt}` : ''}`
+          : 'Tap to log';
 
   const accessibilityLabel = running
     ? `${action.label}, timer running for ${runningMin} minutes. Tap to stop and log it.`
@@ -154,22 +148,12 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
           </View>
           {hasGoal && target ? (
             <ProgressRing
-              size={26}
-              strokeWidth={2.8}
+              size={24}
+              strokeWidth={2.6}
               progress={clampedProgress}
               color={isGoalMet ? palette.success : action.color}
               trackColor={action.color ? `${action.color}22` : palette.surfaceAlt}
-            >
-              {isGoalMet ? (
-                <Check size={12} color={palette.success} strokeWidth={3} />
-              ) : count > 0 ? (
-                <Text style={[styles.ringCountText, { color: action.color }]}>
-                  {count > 99 ? '99+' : count}
-                </Text>
-              ) : (
-                <Target size={11} color={palette.textSecondary} strokeWidth={2} opacity={0.6} />
-              )}
-            </ProgressRing>
+            />
           ) : null}
         </View>
         <View style={styles.text}>
@@ -181,19 +165,6 @@ export function QuickActionButton({ action, onLongPress, onPressOverride, width 
           >
             {status}
           </Text>
-          {hasGoal && target ? (
-            <View style={styles.progressBarTrack}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${percent}%`,
-                    backgroundColor: isGoalMet ? palette.success : action.color,
-                  },
-                ]}
-              />
-            </View>
-          ) : null}
         </View>
       </TouchableOpacity>
     </Animated.View>

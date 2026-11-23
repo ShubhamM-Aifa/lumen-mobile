@@ -51,6 +51,7 @@ export function CommunityDirectoryView({ isTab = false }: CommunityDirectoryView
     activeChannel,
     dmChannels,
     fetchDms,
+    setupSocketListeners,
     isLoading,
     isAnonymous,
     toggleAnonymous,
@@ -72,6 +73,9 @@ export function CommunityDirectoryView({ isTab = false }: CommunityDirectoryView
       setIsDmsMode(true);
     }
   }, [params.mode]);
+
+  // Live unread counts, "typing…" and online status in the list.
+  useEffect(() => setupSocketListeners(), [setupSocketListeners]);
 
   useEffect(() => {
     fetchServers();

@@ -791,7 +791,7 @@ export interface INoteBreadcrumb {
 
 // ────────── Community Chat & Health Artifact Exchange ──────────
 
-export type CommunityEmbedType = 'note' | 'todo_list' | 'log_template' | 'photo';
+export type CommunityEmbedType = 'note' | 'todo_list' | 'log_template' | 'photo' | 'gif';
 
 export interface INoteEmbedPayload {
   noteId?: string;
@@ -832,6 +832,9 @@ export interface ICommunityMessage {
   isAnonymous: boolean;
   /** A notice such as "Ana added Cy", drawn centred instead of as a person's message. */
   isSystem?: boolean;
+  /** Forwarded from another chat (the name is left out when the original was anonymous). */
+  isForwarded?: boolean;
+  forwardedFrom?: { displayName?: string };
   content: string;
   isEdited?: boolean;
   editedAt?: string;
@@ -861,7 +864,17 @@ export interface ICommunityMessage {
     todo?: ITodoEmbedPayload;
     logTemplate?: ILogTemplateEmbedPayload;
     photoUrl?: string;
+    photoMediaId?: string;
+    /** Several photos in one message; each has a fresh link in photoUrl. */
+    photos?: Array<{ photoMediaId?: string; photoUrl?: string; width?: number; height?: number; isGif?: boolean }>;
     caption?: string;
+    /** A GIF from GIF search. */
+    gifUrl?: string;
+    previewUrl?: string;
+    gifId?: string;
+    width?: number;
+    height?: number;
+    description?: string;
   };
   reactions: Record<string, number>;
   userReactions?: string[];
@@ -914,7 +927,9 @@ export interface ICommunityChannel {
     _id: string;
     displayName: string;
     avatarEmoji?: string;
+    /** Undefined = unknown (either of you hides it), not "offline". */
     isOnline?: boolean;
+    lastSeenAt?: string | null;
   };
   order: number;
   memberCount: number;

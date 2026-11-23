@@ -7,6 +7,7 @@ import { useTheme, createThemedStyles } from '../../theme/ThemeContext';
 import { typography } from '../../theme/typography';
 import { useTaskStore } from '../../store/taskStore';
 import { SectionTitle } from '../ios/SectionTitle';
+import { ProgressRing } from '../ios/ProgressRing';
 
 const MAX_ROWS = 5;
 
@@ -22,6 +23,10 @@ export function MyDaySection({ boundaryHour }: { boundaryHour: number }) {
   const myDay = tasks.filter(t => t.inMyDay);
   const open = myDay.filter(t => !t.isCompleted);
   const done = myDay.filter(t => t.isCompleted);
+  const total = myDay.length;
+  const doneCount = done.length;
+  const progress = total > 0 ? doneCount / total : 0;
+  const isAllDone = total > 0 && doneCount === total;
   const rows = [...open, ...done].slice(0, MAX_ROWS);
   const hidden = myDay.length - rows.length;
 
@@ -39,7 +44,27 @@ export function MyDaySection({ boundaryHour }: { boundaryHour: number }) {
 
   return (
     <View style={styles.wrap}>
-      <SectionTitle title="My Day" actionLabel="All" onAction={() => router.push('/todo/list/my-day' as never)} />
+      <SectionTitle
+        title="My Day"
+        actionLabel="All"
+        onAction={() => router.push('/todo/list/my-day' as never)}
+        rightAccessory={
+          total > 0 ? (
+            <View style={styles.counterRow}>
+              <ProgressRing
+                size={16}
+                strokeWidth={2.4}
+                progress={progress}
+                color={isAllDone ? palette.success : palette.tint}
+                trackColor={palette.divider}
+              />
+              <Text style={styles.counterText}>
+                {`${doneCount} of ${total} done`}
+              </Text>
+            </View>
+          ) : null
+        }
+      />
       <View style={styles.card}>
         {rows.map(t => (
           <View key={t._id} style={styles.row}>
@@ -97,6 +122,8 @@ export function MyDaySection({ boundaryHour }: { boundaryHour: number }) {
 
 const useStyles = createThemedStyles(palette => ({
   wrap: { gap: 10 },
+  counterRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  counterText: { ...typography.subhead, color: palette.textSecondary },
   card: { marginHorizontal: 16, backgroundColor: palette.surface, borderRadius: 26, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 16 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

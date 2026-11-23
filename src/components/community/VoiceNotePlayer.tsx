@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Play, Pause } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useTheme } from '../../theme/ThemeContext';
+import { nextRate } from '../../utils/community/voiceNote';
+
+/** Only one voice note plays at a time: starting one pauses the one before. */
+let nowPlaying: { pause: () => void } | null = null;
 
 interface VoiceNotePlayerProps {
   audioUrl: string;
@@ -17,6 +21,15 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   const { palette } = useTheme();
   const player = useAudioPlayer(audioUrl);
   const status = useAudioPlayerStatus(player);
+  const [rate, setRate] = useState(1);
+  const selfRef = useRef({ pause: () => { try { player.pause(); } catch { /* released */ } } });
+  useEffect(() => () => { if (nowPlaying === selfRef.current) nowPlaying = null; }, []);
+
+  const changeRate = () => {
+    const r = nextRate(rate);
+    setRate(r);
+    try { player.setPlaybackRate(r); } catch { /* not supported on this platform */ }
+  };
 
   const isPlaying = Boolean(status.playing);
   const currentTime = status.currentTime || 0;
@@ -30,6 +43,9 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
       if (currentTime >= totalDuration && totalDuration > 0) {
         player.seekTo(0);
       }
+      if (nowPlaying && nowPlaying !== selfRef.current) nowPlaying.pause();
+      nowPlaying = selfRef.current;
+      try { player.setPlaybackRate(rate); } catch { /* ignore */ }
       player.play();
     }
   };
@@ -92,7 +108,15 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
           <Text style={[styles.timeText, { color: palette.textSecondary }]}>
             {isPlaying ? formatTime(currentTime) : formatTime(totalDuration)}
           </Text>
-          <Text style={[styles.voiceTag, { color: palette.textDisabled }]}>🎙️ Voice Note</Text>
+          <TouchableOpacity
+            onPress={changeRate}
+            style={[styles.rateChip, { backgroundColor: `${palette.primary}25` }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Playback speed ${rate} times. Tap to change`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.rateText, { color: palette.primaryText || palette.primary }]}>{rate}×</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -142,6 +166,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  rateChip: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: 8 },
+  rateText: { fontSize: 11, fontWeight: '800' },
   voiceTag: {
     fontSize: 10,
   },

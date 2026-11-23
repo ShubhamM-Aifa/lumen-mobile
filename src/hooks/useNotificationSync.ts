@@ -4,7 +4,8 @@
  */
 import { useEffect } from 'react';
 import { router } from 'expo-router';
-import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
+import { Platform, NativeEventEmitter, NativeModules, AppState } from 'react-native';
+import { communitySocket } from '../services/communitySocket';
 import { useReminderStore } from '../store/reminderStore';
 import {
   syncReminders,
@@ -97,6 +98,12 @@ export function useNotificationSync() {
     } catch {
       return undefined;
     }
+  }, []);
+
+  // Tell the chat server whether the app is on screen, so an open chat is not also pushed to.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => communitySocket.sendAppState(state === 'active' ? 'active' : 'background'));
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

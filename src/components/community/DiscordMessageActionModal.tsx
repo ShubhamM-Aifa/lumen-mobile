@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ICommunityMessage } from '../../shared/types';
+import { Share2 } from 'lucide-react-native';
 
 interface DiscordMessageActionModalProps {
   visible: boolean;
@@ -41,6 +42,10 @@ interface DiscordMessageActionModalProps {
   onTranslate?: (message: ICommunityMessage) => void;
   onBlock?: (message: ICommunityMessage) => void;
   onReact: (messageId: string, emoji: string) => void;
+  /** Forward this message to other chats (direct chats and groups). */
+  onForward?: (message: ICommunityMessage) => void;
+  /** Opens the full emoji picker to react with any emoji. */
+  onMoreReactions?: (message: ICommunityMessage) => void;
 }
 
 const QUICK_REACTIONS = ['🥄', '👍', '❤️', '💡', '✨', '💯'];
@@ -61,6 +66,8 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
   onTranslate,
   onBlock,
   onReact,
+  onMoreReactions,
+  onForward,
 }) => {
   const { palette } = useTheme();
 
@@ -112,6 +119,21 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
                         <Text style={styles.reactionEmoji}>{emoji}</Text>
                       </TouchableOpacity>
                     ))}
+                    {onMoreReactions ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onMoreReactions(message);
+                          onClose();
+                        }}
+                        style={styles.reactionBtn}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="More reactions"
+                      >
+                        <Text style={styles.reactionEmoji}>➕</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                   <Text style={styles.quickReactHint}>Double tap a message to ❤️ React</Text>
                 </View>
@@ -146,6 +168,25 @@ export const DiscordMessageActionModal: React.FC<DiscordMessageActionModalProps>
                     <CornerDownRight size={18} color="#FFFFFF" style={styles.actionIcon} />
                     <Text style={styles.actionLabel}>Reply</Text>
                   </TouchableOpacity>
+
+                  {onForward && !message.isSystem ? (
+                    <>
+                      <View style={styles.actionDivider} />
+                      <TouchableOpacity
+                        style={styles.actionRow}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          onClose();
+                          onForward(message);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Forward message"
+                      >
+                        <Share2 size={18} color="#FFFFFF" style={styles.actionIcon} />
+                        <Text style={styles.actionLabel}>Forward</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : null}
 
                   <View style={styles.actionDivider} />
 

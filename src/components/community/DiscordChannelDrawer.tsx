@@ -88,7 +88,7 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
   const { palette } = useTheme();
   const { user } = useAuthStore();
   const meId = user?._id;
-  const { collapsedCategories, toggleCategoryCollapsed, isAnonymous, toggleAnonymous } =
+  const { collapsedCategories, toggleCategoryCollapsed, isAnonymous, toggleAnonymous, typingUsers } =
     useCommunityStore();
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [showRequestsOnly, setShowRequestsOnly] = useState(false);
@@ -284,7 +284,9 @@ export const DiscordChannelDrawer: React.FC<Props> = ({
                       style={[styles.dmSnippet, hasUnread && styles.dmSnippetUnread]}
                       numberOfLines={1}
                     >
-                      {lastMsg
+                      {typingUsers[channel._id]?.length
+                        ? (isGroup ? `${typingUsers[channel._id].join(', ')} typing…` : 'typing…')
+                        : lastMsg
                         ? `${lastMsg.isSelf ? 'You: ' : isGroup && lastMsg.senderDisplayName ? `${lastMsg.senderDisplayName}: ` : ''}${lastMsg.content}`
                         : isGroup ? `${(channel.groupMembers ?? []).length} people` : `Say hello to ${displayName}`}
                     </Text>

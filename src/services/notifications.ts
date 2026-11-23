@@ -26,18 +26,31 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let N: any = null;
+/** The chat open on screen (id or slug), so its own notifications stay quiet. */
+let activeCommunityChat: string[] = [];
+/** Ids and slugs that name the chat open on screen (empty when none is open). */
+export function setActiveCommunityChat(ids: Array<string | undefined | null>): void {
+  activeCommunityChat = ids.filter((x): x is string => Boolean(x));
+}
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   N = require('expo-notifications');
   N.setNotificationHandler({
-    handleNotification: async () => ({
+    handleNotification: async (notification: any) => {
+      // A message for the chat you have open is already on screen: no banner or sound for it.
+      const d = notification?.request?.content?.data;
+      if (d?.type === 'COMMUNITY' && activeCommunityChat.length > 0 && (activeCommunityChat.includes(d.channelId) || activeCommunityChat.some((id) => d.route === `/community/${id}`))) {
+        return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false };
+      }
+      return {
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
       priority: N?.AndroidNotificationPriority?.MAX ?? 'max',
-    }),
+      };
+    },
   });
 } catch {
   // Graceful fallback for environments where expo-notifications is not available
@@ -57,7 +70,10 @@ export const CHANNEL_ID_SAFETY = 'lumen_safety_v1';        // MAX, alarm audio, 
 export const CHANNEL_ID_HEADS_UP = 'lumen_heads_up_v1';    // HIGH, default sound, respects DND
 export const CHANNEL_ID_INSIGHTS = 'lumen_insights_v1';    // LOW, silent
 // Lumen AI notifications (pushed by the server): briefing, nudge, check-in. The server names this id.
-export const CHANNEL_ID_COMMUNITY = 'lumen_community_v1'; // DEFAULT, sound, text hidden on the lock screen
+// Community messages (the server names these ids): HIGH so they pop up as a banner like a chat app.
+export const CHANNEL_ID_COMMUNITY = 'lumen_community_v2';                 // HIGH, sender and text shown on the lock screen
+export const CHANNEL_ID_COMMUNITY_PRIVATE = 'lumen_community_private_v2'; // HIGH, text hidden on the lock screen
+const CHANNEL_ID_COMMUNITY_OLD = 'lumen_community_v1';                    // replaced: Android cannot raise a channel's importance
 export const CHANNEL_ID_AI = 'lumen_ai_v1';                // DEFAULT, sound, text hidden on the lock screen
 export const CHANNEL_ID_WALK_ACTIVE = 'lumen_walk_active_v2'; // LOW, silent, public lockscreen for live activity
 export const NOTIFICATION_ID_WALK_ACTIVE = 'lumen_active_walk_session';
@@ -88,6 +104,7 @@ export const NOTIF_CATEGORIES = {
   SLEEP: 'lumen_category_sleep',
   TASK: 'lumen_category_task',
   DEFAULT: 'lumen_category_default',
+  COMMUNITY: 'lumen_category_community',
 };
 
 export const NOTIF_ACTIONS = {
@@ -107,6 +124,8 @@ export const NOTIF_ACTIONS = {
   SNOOZE_30: 'action_snooze_30',
   DISMISS: 'action_dismiss',
   COMPLETE_TASK: 'action_complete_task',
+  COMMUNITY_REPLY: 'action_community_reply',
+  COMMUNITY_MARK_READ: 'action_community_mark_read',
 };
 
 /**
@@ -150,6 +169,16 @@ export async function setupNotificationCategories(): Promise<void> {
       createCategorySafe(NOTIF_CATEGORIES.STAND, [
         { identifier: NOTIF_ACTIONS.IM_MOVING, buttonTitle: "I'm Moving", options: { opensAppToForeground: false } },
         { identifier: NOTIF_ACTIONS.SNOOZE_10, buttonTitle: 'Snooze 10m', options: { opensAppToForeground: false } },
+      ]),
+      // Chat messages: reply right from the notification, or just mark it read.
+      createCategorySafe(NOTIF_CATEGORIES.COMMUNITY, [
+        {
+          identifier: NOTIF_ACTIONS.COMMUNITY_REPLY,
+          buttonTitle: 'Reply',
+          textInput: { submitButtonTitle: 'Send', placeholder: 'Message' },
+          options: { opensAppToForeground: false },
+        },
+        { identifier: NOTIF_ACTIONS.COMMUNITY_MARK_READ, buttonTitle: 'Mark as read', options: { opensAppToForeground: false } },
       ]),
       createCategorySafe(NOTIF_CATEGORIES.TASK, [
         { identifier: NOTIF_ACTIONS.COMPLETE_TASK, buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
@@ -294,16 +323,29 @@ export async function ensureNotificationChannel(): Promise<void> {
         vibrationPattern: [0, 200],
         lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
       }),
-      // 7c. Community: direct messages, replies and @mentions pushed by the server
+      // 7c. Community: direct messages, replies and @mentions pushed by the server.
+      // HIGH importance = a banner that pops up, like WhatsApp. Sender and text show on the lock screen
+      // unless the member switched that off (then the private channel is used).
       createChannelSafe(CHANNEL_ID_COMMUNITY, {
-        name: 'Community',
+        name: 'Community messages',
         description: 'Direct messages, replies and mentions from the Lumen community',
-        importance: N.AndroidImportance?.DEFAULT ?? 3,
+        importance: N.AndroidImportance?.HIGH ?? 4,
         sound: 'default',
         enableVibrate: true,
-        vibrationPattern: [0, 200],
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: N.AndroidNotificationVisibility?.PUBLIC ?? 1,
+      }),
+      createChannelSafe(CHANNEL_ID_COMMUNITY_PRIVATE, {
+        name: 'Community messages (private)',
+        description: 'Same messages, with the sender and text hidden on the lock screen',
+        importance: N.AndroidImportance?.HIGH ?? 4,
+        sound: 'default',
+        enableVibrate: true,
+        vibrationPattern: [0, 250, 150, 250],
         lockscreenVisibility: N.AndroidNotificationVisibility?.PRIVATE ?? 0,
       }),
+      // The first community channel could not be made louder after creation: remove it.
+      (async () => { try { await N.deleteNotificationChannelAsync?.(CHANNEL_ID_COMMUNITY_OLD); } catch { /* already gone */ } })(),
       // 8. Legacy channel alias for backwards compatibility
       createChannelSafe('lumen_reminders_v1', {
         name: 'General Reminders',
@@ -946,6 +988,25 @@ export async function handleNotificationActionResponse(response: any): Promise<v
 
     case NOTIF_ACTIONS.VIEW_WALK:
       router.push('/walking');
+      break;
+
+    case NOTIF_ACTIONS.COMMUNITY_REPLY: {
+      const text = String(response.userText ?? '').trim();
+      if (data.channelId && text) {
+        try {
+          await api.post(`/community/channels/${data.channelId}/messages`, { channelId: data.channelId, content: text.slice(0, 3000) });
+          api.post(`/community/channels/${data.channelId}/read`, { lastReadMessageId: data.messageId }).catch(() => {});
+        } catch (err) {
+          console.warn('[Notifications] Could not send the reply:', err);
+        }
+      }
+      break;
+    }
+
+    case NOTIF_ACTIONS.COMMUNITY_MARK_READ:
+      if (data.channelId) {
+        await api.post(`/community/channels/${data.channelId}/read`, { lastReadMessageId: data.messageId }).catch(() => {});
+      }
       break;
 
     case NOTIF_ACTIONS.COMPLETE_TASK:

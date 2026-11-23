@@ -90,17 +90,22 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
     it('creates all specialized notification channels on Android', async () => {
       await ensureNotificationChannel();
 
-      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(11);
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(12);
 
       // Lumen AI notes (pushed by the server): audible, but their text stays off the lock screen.
       expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
         'lumen_ai_v1',
         expect.objectContaining({ importance: 3, sound: 'default', lockscreenVisibility: 0 }),
       );
-      // Community pushes (DMs, replies, mentions) are private on the lock screen too.
+      // Community messages pop up as a banner (HIGH). The default channel shows the text on the lock screen;
+      // the private one hides it for members who switched that off.
       expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
-        'lumen_community_v1',
-        expect.objectContaining({ importance: 3, sound: 'default', lockscreenVisibility: 0 }),
+        'lumen_community_v2',
+        expect.objectContaining({ importance: 4, sound: 'default', lockscreenVisibility: 1 }),
+      );
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        'lumen_community_private_v2',
+        expect.objectContaining({ importance: 4, sound: 'default', lockscreenVisibility: 0 }),
       );
 
       // Intelligent-notification channels: only safety may bypass Do Not Disturb,
@@ -186,10 +191,10 @@ describe('Lumen Notification Engine & Clinical Alert Architecture', () => {
   });
 
   describe('2. Interactive Action Categories', () => {
-    it('registers all 8 actionable notification categories', async () => {
+    it('registers all 9 actionable notification categories', async () => {
       await setupNotificationCategories();
 
-      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledTimes(8);
+      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledTimes(9);
 
       // Task reminders can be completed from the notification
       expect(mockSetNotificationCategoryAsync).toHaveBeenCalledWith(

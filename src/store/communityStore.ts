@@ -23,12 +23,17 @@ import { useNoteStore } from './noteStore';
 import { useTaskStore } from './taskStore';
 import { communitySocket } from '../services/communitySocket';
 import { uploadMedia } from '../services/mediaUpload';
+import { ReceiptState, applyReceiptEvent } from '../utils/community/receipts';
 
 const SERVERS_CACHE_KEY = 'lumen:community:servers_v1';
 const CHANNELS_CACHE_KEY = 'lumen:community:channels_v1';
 const MESSAGES_CACHE_KEY = 'lumen:community:messages_v1';
 const FORUM_CACHE_KEY = 'lumen:community:forum_posts_v1';
 const DMS_CACHE_KEY = 'lumen:community:dms_v1';
+
+// The chat list and an open chat both need live events; they share one set of listeners (no double counting).
+let socketSubscribers = 0;
+let socketTeardown: (() => void) | null = null;
 
 /** After a group change the server adds a notice line ("Sam added Priya"); reload it if that chat is open. */
 function refreshOpenChat(get: () => { messages: Array<{ channelId?: string }>; fetchMessages: (id: string) => Promise<void> }, channelId: string): void {
@@ -101,6 +106,10 @@ interface CommunityState {
   // Discord Real-time, Pins, DMs, & Read State
   pinnedMessages: Record<string, ICommunityMessage[]>;
   typingUsers: Record<string, string[]>;
+  /** Delivered / seen ticks per direct chat or group. */
+  receipts: Record<string, ReceiptState>;
+  fetchReceipts: (channelId: string) => Promise<void>;
+  forwardMessage: (messageId: string, channelIds: string[]) => Promise<Array<{ channelId: string; ok: boolean; message?: string }>>;
   readStates: Record<string, string>;
   dmChannels: ICommunityChannel[];
 
@@ -120,8 +129,8 @@ interface CommunityState {
   setModerator: (serverId: string, userId: string, isMod: boolean) => Promise<void>;
 
   // My settings
-  fetchMySettings: () => Promise<{ status: string; push: boolean; quiet: boolean }>;
-  updateMySettings: (changes: { status?: string; push?: boolean; quiet?: boolean }) => Promise<void>;
+  fetchMySettings: () => Promise<{ status: string; push: boolean; quiet: boolean; lockscreenText: boolean; readReceipts: boolean; showOnline: boolean }>;
+  updateMySettings: (changes: { status?: string; push?: boolean; quiet?: boolean; lockscreenText?: boolean; readReceipts?: boolean; showOnline?: boolean }) => Promise<void>;
   setSlowMode: (channelId: string, seconds: number) => Promise<void>;
   respondToDmRequest: (channelId: string, action: 'accept' | 'decline') => Promise<void>;
   translateMessage: (messageId: string, target: 'english' | 'hinglish') => Promise<string>;
@@ -195,7 +204,9 @@ interface CommunityState {
     durationMinutes?: number,
     reason?: string
   ) => Promise<void>;
+  /** Listens for live chat events. Safe to call from several screens: they share one set of listeners. */
   setupSocketListeners: () => () => void;
+  _buildSocketListeners: () => () => void;
 
   // Discord Profile & Threads
   fetchUserPopout: (userId: string) => Promise<IDiscordUserProfile | null>;
@@ -255,6 +266,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   pinnedMessages: {},
   typingUsers: {},
+  receipts: {},
   readStates: {},
   dmChannels: [],
   blocks: [],
@@ -391,10 +403,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   fetchMySettings: async () => {
     try {
-      const res = await api.get<{ status: string; push: boolean; quiet: boolean }>('/community/me/settings');
-      if (res) return res;
+      const res = await api.get<{ status: string; push: boolean; quiet: boolean; lockscreenText?: boolean; readReceipts?: boolean; showOnline?: boolean }>('/community/me/settings');
+      if (res) return { ...res, lockscreenText: res.lockscreenText !== false, readReceipts: res.readReceipts !== false, showOnline: res.showOnline !== false };
     } catch {}
-    return { status: '', push: true, quiet: false };
+    return { status: '', push: true, quiet: false, lockscreenText: true, readReceipts: true, showOnline: true };
   },
 
   updateMySettings: async (changes) => {
@@ -918,6 +930,21 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     } catch {}
   },
 
+  forwardMessage: async (messageId, channelIds) => {
+    const res = await api.post<Array<{ channelId: string; ok: boolean; message?: string }>>(`/community/messages/${messageId}/forward`, { channelIds });
+    get().fetchDms().catch(() => {});
+    return Array.isArray(res) ? res : [];
+  },
+
+  fetchReceipts: async (channelId: string) => {
+    try {
+      const res = await api.get<ReceiptState>(`/community/channels/${channelId}/receipts`);
+      if (res && Array.isArray(res.members)) set((state) => ({ receipts: { ...state.receipts, [channelId]: res } }));
+    } catch {
+      // Ticks are optional: the chat works without them.
+    }
+  },
+
   fetchReadState: async (channelId: string) => {
     try {
       const res = await api.get<{ lastReadMessageId?: string }>(`/community/channels/${channelId}/read`);
@@ -999,6 +1026,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   setupSocketListeners: () => {
+    if (socketSubscribers++ === 0) socketTeardown = get()._buildSocketListeners();
+    return () => {
+      socketSubscribers = Math.max(0, socketSubscribers - 1);
+      if (socketSubscribers === 0 && socketTeardown) { socketTeardown(); socketTeardown = null; }
+    };
+  },
+
+  _buildSocketListeners: () => {
     const unsubCreated = communitySocket.onMessageCreated(({ channelId, message }) => {
       const activeCh = get().activeChannel;
       if (activeCh && (activeCh._id === channelId || activeCh.slug === channelId)) {
@@ -1016,7 +1051,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       if (message.embedType === 'note') snippet = `Shared a note: ${message.embedData?.note?.title || 'Note'}`;
       else if (message.embedType === 'todo_list') snippet = `Shared a task list: ${message.embedData?.todo?.listName || 'List'}`;
       else if (message.embedType === 'log_template') snippet = `Shared a template: ${message.embedData?.logTemplate?.title || 'Template'}`;
-      else if (message.embedType === 'photo') snippet = 'Shared a photo';
+      else if (message.embedType === 'photo') {
+        const n = Array.isArray(message.embedData?.photos) ? message.embedData.photos.length : 1;
+        snippet = n > 1 ? `Shared ${n} photos` : 'Shared a photo';
+      } else if (message.embedType === 'gif') snippet = 'Sent a GIF';
+      else if (message.audioUrl && !snippet) snippet = 'Voice note';
 
       set((state) => {
         const isDm = state.dmChannels.some((c) => c._id === channelId || c.slug === channelId);
@@ -1093,7 +1132,29 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       });
     });
 
+    const unsubReceipt = communitySocket.onReceiptUpdated((evt) => {
+      set((state) => {
+        const key = Object.keys(state.receipts).find((k) => k === evt.channelId) ?? evt.channelId;
+        const next = applyReceiptEvent(state.receipts[key], evt);
+        return next ? { receipts: { ...state.receipts, [key]: next } } : state;
+      });
+    });
+
+    // Online / last seen of the people you chat with, live.
+    const unsubPresence = communitySocket.onPresence(({ userId, online, lastSeenAt }) => {
+      set((state) => {
+        if (!state.dmChannels.some((c) => c.dmUser?._id === userId)) return state;
+        return {
+          dmChannels: state.dmChannels.map((c) =>
+            c.dmUser?._id === userId ? { ...c, dmUser: { ...c.dmUser, isOnline: online, lastSeenAt } } : c,
+          ),
+        };
+      });
+    });
+
     return () => {
+      unsubPresence();
+      unsubReceipt();
       unsubCreated();
       unsubUpdated();
       unsubDeleted();

@@ -15,7 +15,22 @@ import {
   Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadMedia } from '../../src/services/mediaUpload';
+import { uploadMedia, getMimeType } from '../../src/services/mediaUpload';
+import { EmojiPickerSheet } from '../../src/components/community/EmojiPickerSheet';
+import { GifPickerSheet, GifChoice } from '../../src/components/community/GifPickerSheet';
+import { PhotoGrid } from '../../src/components/community/PhotoGrid';
+import { BigEmoji } from '../../src/components/community/BigEmoji';
+import { emojiOnly } from '../../src/utils/emoji/emoji';
+import { messagePhotos, MAX_PHOTOS_PER_MESSAGE } from '../../src/utils/community/photoGrid';
+import { Camera as CameraIcon, Film as FilmIcon } from 'lucide-react-native';
+import { setActiveCommunityChat } from '../../src/services/notifications';
+import { ForwardSheet } from '../../src/components/community/ForwardSheet';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { CornerDownRight as ReplyIcon } from 'lucide-react-native';
+import { MessageTicks } from '../../src/components/community/MessageTicks';
+import { MessageInfoSheet } from '../../src/components/community/MessageInfoSheet';
+import { tickFor, statusLine, messageInfo } from '../../src/utils/community/receipts';
+import { presenceText } from '../../src/utils/community/presence';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -110,6 +125,8 @@ export default function ChannelChatScreen() {
     pinnedMessages,
     markChannelAsRead,
     fetchReadState,
+    fetchReceipts,
+    receipts,
     readStates,
     typingUsers,
     timeoutMember,
@@ -157,6 +174,14 @@ export default function ChannelChatScreen() {
   const [editingMessage, setEditingMessage] = useState<ICommunityMessage | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isSendingPhoto, setIsSendingPhoto] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
+  const [forwardId, setForwardId] = useState<string | null>(null);
+  const swipeRefs = useRef(new Map<string, { close: () => void }>());
+  const [reactionTarget, setReactionTarget] = useState<string | null>(null);
+  const [gifOpen, setGifOpen] = useState(false);
+  const [pendingPhotos, setPendingPhotos] = useState<Array<{ uri: string; mimeType: string; width?: number; height?: number }>>([]);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [warningOn, setWarningOn] = useState(false);
   const [warningText, setWarningText] = useState('');
@@ -214,6 +239,7 @@ export default function ChannelChatScreen() {
         setReadStateLoaded(true);
       });
       communitySocket.joinChannel(channelId);
+      fetchReceipts(channelId);
     }
     const unsub = setupSocketListeners();
     return () => {
@@ -319,7 +345,30 @@ export default function ChannelChatScreen() {
     });
   }, [messages, isSearching, searchQuery, searchFilter, user?._id]);
 
+  // While this chat is open its own notifications stay quiet (the message is already on screen).
+  useEffect(() => {
+    setActiveCommunityChat([channelId, channel?._id, channel?.slug]);
+    return () => setActiveCommunityChat([]);
+  }, [channelId, channel?._id, channel?.slug]);
+
+  // Ticks and "Seen" only exist in accepted direct chats and groups.
+  const chatReceipts = isDm ? receipts[channel?._id ?? channelId] ?? receipts[channelId] : undefined;
+  const isMine = (m: { senderId: string; senderDisplayName?: string; isAnonymous?: boolean }) =>
+    !m.isAnonymous && (String(m.senderId) === String(user?._id) || m.senderId === 'me');
+  const myLastMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (!m.isSystem && (String(m.senderId) === String(user?._id) || m.senderId === 'me')) return m._id;
+    }
+    return null;
+  }, [messages, user?._id]);
+
   const handleSend = async () => {
+    if (pendingPhotos.length > 0 && !editingMessage) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await sendPendingPhotos();
+      return;
+    }
     if (!inputText.trim() && !pendingEmbed) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -376,27 +425,109 @@ export default function ChannelChatScreen() {
     }, 100);
   };
 
-  const handlePickPhoto = async () => {
+  /** Adds picked photos to the preview strip above the composer (up to ${MAX_PHOTOS_PER_MESSAGE} per message). */
+  const addPhotos = (assets: ImagePicker.ImagePickerAsset[]) => {
+    setPendingPhotos((prev) => {
+      const room = MAX_PHOTOS_PER_MESSAGE - prev.length;
+      if (assets.length > room) Alert.alert('Photo limit', `You can send up to ${MAX_PHOTOS_PER_MESSAGE} photos in one message.`);
+      return [
+        ...prev,
+        ...assets.slice(0, Math.max(0, room)).map((a) => ({ uri: a.uri, mimeType: a.mimeType || getMimeType(a.uri), width: a.width, height: a.height })),
+      ];
+    });
+  };
+
+  /** Pick several photos from the gallery. keepAnimation = GIF files (no re-encoding, so they stay animated). */
+  const handlePickPhoto = async (keepAnimation = false) => {
     if (isSendingPhoto) return;
+    if (pendingPhotos.length >= MAX_PHOTOS_PER_MESSAGE) {
+      Alert.alert('Photo limit', `You can send up to ${MAX_PHOTOS_PER_MESSAGE} photos in one message.`);
+      return;
+    }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_PHOTOS_PER_MESSAGE - pendingPhotos.length,
+        orderedSelection: true,
+        quality: keepAnimation ? 1 : 0.8,
         exif: false, // never share location or camera details
       });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      setIsSendingPhoto(true);
-      const up = await uploadMedia(asset.uri, asset.mimeType || 'image/jpeg');
-      const caption = inputText.trim();
+      if (result.canceled || !result.assets?.length) return;
+      addPhotos(result.assets);
+    } catch (err: any) {
+      Alert.alert('Could not open your photos', err?.message || 'Please try again.');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    if (isSendingPhoto || pendingPhotos.length >= MAX_PHOTOS_PER_MESSAGE) return;
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Camera permission', 'Please allow camera access to take a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8, exif: false });
+      if (result.canceled || !result.assets?.length) return;
+      addPhotos(result.assets);
+    } catch (err: any) {
+      Alert.alert('Could not open the camera', err?.message || 'Please try again.');
+    }
+  };
+
+  /** Uploads the previewed photos (3 at a time) and sends them as ONE message. Nothing is lost if an upload fails. */
+  const sendPendingPhotos = async () => {
+    if (isSendingPhoto || pendingPhotos.length === 0) return;
+    const batch = pendingPhotos;
+    const caption = inputText.trim();
+    setIsSendingPhoto(true);
+    try {
+      const ids: string[] = new Array(batch.length);
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < batch.length) {
+          const i = cursor++;
+          ids[i] = (await uploadMedia(batch[i].uri, batch[i].mimeType)).mediaId;
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, batch.length) }, worker));
+      setPendingPhotos([]);
       setInputText('');
-      await sendMessage(channelId, '', 'photo', { photoMediaId: up.mediaId, photoUrl: asset.uri, caption: caption || undefined });
+      await sendMessage(channelId, '', 'photo', {
+        photos: batch.map((p, i) => ({ photoMediaId: ids[i], photoUrl: p.uri, width: p.width, height: p.height })),
+        caption: caption || undefined,
+      });
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (err: any) {
-      Alert.alert('Photo not sent', err?.message || 'Could not send the photo. Please try again.');
+      Alert.alert('Photos not sent', (err?.message || 'Could not send the photos.') + ' Your photos are still here: tap Send to try again.');
     } finally {
       setIsSendingPhoto(false);
     }
+  };
+
+  const handleSendGif = async (gif: GifChoice) => {
+    setGifOpen(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await sendMessage(channelId, '', 'gif', {
+        gifUrl: gif.url, previewUrl: gif.previewUrl, gifId: gif.id, width: gif.width, height: gif.height, description: gif.description,
+      });
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err: any) {
+      Alert.alert('GIF not sent', err?.message || 'Could not send the GIF. Please try again.');
+    }
+  };
+
+  /** Puts an emoji where the cursor is (or at the end). */
+  const insertEmoji = (emoji: string) => {
+    setInputText((prev) => {
+      const a = Math.min(selection.start, prev.length);
+      const b = Math.min(Math.max(selection.end, a), prev.length);
+      return (prev.slice(0, a) + emoji + prev.slice(b)).slice(0, 3000);
+    });
+    const pos = selection.start + emoji.length;
+    setSelection({ start: pos, end: pos });
   };
 
   const isStaff = Boolean(
@@ -565,9 +696,16 @@ export default function ChannelChatScreen() {
                 />
                 <View style={styles.dmOnlineDot} />
               </View>
-              <Text style={[styles.dmHeaderTitle, { color: palette.text }]} numberOfLines={1}>
-                {dmTargetName}
-              </Text>
+              <View style={{ flexShrink: 1 }}>
+                <Text style={[styles.dmHeaderTitle, { color: palette.text }]} numberOfLines={1}>
+                  {dmTargetName}
+                </Text>
+                {presenceText(channel?.dmUser?.isOnline, channel?.dmUser?.lastSeenAt) ? (
+                  <Text style={{ color: channel?.dmUser?.isOnline ? '#22C55E' : palette.textSecondary, fontSize: 11 }} numberOfLines={1} accessibilityLiveRegion="polite">
+                    {presenceText(channel?.dmUser?.isOnline, channel?.dmUser?.lastSeenAt)}
+                  </Text>
+                ) : null}
+              </View>
               <ChevronRight size={16} color="#949BA4" style={{ marginLeft: 2 }} />
             </TouchableOpacity>
           ) : (
@@ -969,6 +1107,22 @@ export default function ChannelChatScreen() {
                           {msg.content}
                         </Text>
                       ) : (
+                      <ReanimatedSwipeable
+                        friction={2}
+                        leftThreshold={56}
+                        overshootLeft={false}
+                        renderLeftActions={() => (
+                          <View style={{ width: 56, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden>
+                            <ReplyIcon size={20} color={palette.primaryText || palette.primary} />
+                          </View>
+                        )}
+                        ref={(r) => { if (r) swipeRefs.current.set(msg._id, r); else swipeRefs.current.delete(msg._id); }}
+                        onSwipeableOpen={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          handleReplyMessage(msg);
+                          swipeRefs.current.get(msg._id)?.close();
+                        }}
+                      >
                       <View
                         style={[
                           styles.messageRow,
@@ -1075,6 +1229,9 @@ export default function ChannelChatScreen() {
                                 <Text style={[styles.timeText, { color: palette.textDisabled }]}>
                                   {formatTimeRelative(msg.createdAt)}
                                 </Text>
+                                {isDm && isMine(msg) && tickFor(msg._id, chatReceipts) ? (
+                                  <MessageTicks status={tickFor(msg._id, chatReceipts)!.status} muted={palette.textDisabled} />
+                                ) : null}
                               </View>
                             )}
 
@@ -1095,8 +1252,25 @@ export default function ChannelChatScreen() {
                               </TouchableOpacity>
                             )}
 
+                            {msg.isForwarded ? (
+                              <Text style={{ color: palette.textDisabled, fontSize: 12, fontStyle: 'italic', marginTop: 2 }} accessibilityLabel={msg.forwardedFrom?.displayName ? `Forwarded from ${msg.forwardedFrom.displayName}` : 'Forwarded message'}>
+                                ↪ Forwarded{msg.forwardedFrom?.displayName ? ` from ${msg.forwardedFrom.displayName}` : ''}
+                              </Text>
+                            ) : null}
+
                             {/* Markdown & Spoilers Content with Long-Press Action Menu */}
-                            {msg.content.length > 0 && (!msg.contentWarning || revealedIds.has(msg._id)) && (
+                            {msg.content.length > 0 && !msg.embedType && !msg.audioUrl && !msg.isSystem && emojiOnly(msg.content) && (!msg.contentWarning || revealedIds.has(msg._id)) && (
+                              <TouchableOpacity
+                                onLongPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                  setActionModalMessage(msg);
+                                }}
+                                activeOpacity={0.88}
+                              >
+                                <BigEmoji emojis={emojiOnly(msg.content)!} />
+                              </TouchableOpacity>
+                            )}
+                            {msg.content.length > 0 && !(!msg.embedType && !msg.audioUrl && !msg.isSystem && emojiOnly(msg.content)) && (!msg.contentWarning || revealedIds.has(msg._id)) && (
                               <TouchableOpacity
                                 onLongPress={() => {
                                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1130,25 +1304,13 @@ export default function ChannelChatScreen() {
                               />
                             )}
 
-                            {/* Photo shared from the member's library */}
-                            {msg.embedType === 'photo' && Boolean(msg.embedData?.photoUrl) && (!msg.contentWarning || revealedIds.has(msg._id)) && (
-                              <View style={{ marginTop: 6 }}>
-                                <TouchableOpacity
-                                  activeOpacity={0.9}
-                                  onPress={() => Linking.openURL(msg.embedData!.photoUrl!).catch(() => { })}
-                                  accessibilityRole="imagebutton"
-                                  accessibilityLabel={`Photo from ${msg.senderDisplayName}${msg.embedData?.caption ? `: ${msg.embedData.caption}` : ''}`}
-                                >
-                                  <Image
-                                    source={{ uri: msg.embedData!.photoUrl! }}
-                                    style={{ width: 240, height: 240, borderRadius: 12, backgroundColor: palette.surface }}
-                                    resizeMode="cover"
-                                  />
-                                </TouchableOpacity>
-                                {Boolean(msg.embedData?.caption) && (
-                                  <Text style={{ color: palette.text, marginTop: 6, fontSize: 14 }}>{msg.embedData!.caption}</Text>
-                                )}
-                              </View>
+                            {/* Photos and GIFs: grid, tap to open full screen */}
+                            {(msg.embedType === 'photo' || msg.embedType === 'gif') && (!msg.contentWarning || revealedIds.has(msg._id)) && (
+                              <PhotoGrid
+                                photos={messagePhotos(msg.embedType, msg.embedData)}
+                                caption={msg.embedData?.caption}
+                                captionColor={palette.text}
+                              />
                             )}
 
                             {/* Discord Left-Accent Rich Embed Cards */}
@@ -1179,6 +1341,22 @@ export default function ChannelChatScreen() {
                               />
                             )}
 
+                            {/* Under my newest message: Sending / Sent / Delivered / Seen (tap for details) */}
+                            {isDm && msg._id === myLastMessageId && statusLine(msg._id, chatReceipts, formatTimeRelative) ? (
+                              <TouchableOpacity
+                                onPress={() => setInfoMessageId(msg._id)}
+                                disabled={!chatReceipts || msg._id.startsWith('temp_')}
+                                style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${statusLine(msg._id, chatReceipts, formatTimeRelative)}. Tap for message info`}
+                              >
+                                <MessageTicks status={tickFor(msg._id, chatReceipts)!.status} muted={palette.textDisabled} size={13} />
+                                <Text style={{ color: tickFor(msg._id, chatReceipts)!.status === 'seen' ? '#38BDF8' : palette.textDisabled, fontSize: 12, marginLeft: 4 }}>
+                                  {statusLine(msg._id, chatReceipts, formatTimeRelative)}
+                                </Text>
+                              </TouchableOpacity>
+                            ) : null}
+
                             {/* Footer: Empathy Reactions & Thread Indicator */}
                             <View style={styles.footerRow}>
                               <EmpathyReactionBar
@@ -1203,6 +1381,7 @@ export default function ChannelChatScreen() {
                           </View>
                         </View>
                       </View>
+                      </ReanimatedSwipeable>
                       )}
                     </React.Fragment>
                   );
@@ -1341,6 +1520,41 @@ export default function ChannelChatScreen() {
               </View>
             )}
 
+            {/* Photos waiting to be sent */}
+            {pendingPhotos.length > 0 && (
+              <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
+                  {pendingPhotos.map((p, i) => (
+                    <View key={`${p.uri}-${i}`} style={{ width: 72, height: 72 }}>
+                      <Image source={{ uri: p.uri }} style={{ width: 72, height: 72, borderRadius: 10 }} accessibilityLabel={`Photo ${i + 1} of ${pendingPhotos.length}`} />
+                      <TouchableOpacity
+                        onPress={() => setPendingPhotos((prev) => prev.filter((_, j) => j !== i))}
+                        style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove photo ${i + 1}`}
+                        hitSlop={8}
+                      >
+                        <X size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {pendingPhotos.length < MAX_PHOTOS_PER_MESSAGE ? (
+                    <TouchableOpacity
+                      onPress={() => handlePickPhoto()}
+                      style={{ width: 72, height: 72, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: palette.border }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add more photos"
+                    >
+                      <ImagePlus size={22} color={palette.textSecondary} />
+                    </TouchableOpacity>
+                  ) : null}
+                </ScrollView>
+                <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 6 }}>
+                  {isSendingPhoto ? 'Sending...' : `${pendingPhotos.length} photo${pendingPhotos.length === 1 ? '' : 's'} · add a caption below, then tap Send`}
+                </Text>
+              </View>
+            )}
+
             {/* Discord Attachment Tray (toggled by + button) */}
             {attachTrayOpen && (
               <View style={styles.discordAttachTray}>
@@ -1359,10 +1573,39 @@ export default function ChannelChatScreen() {
                     }}
                     disabled={isSendingPhoto}
                     accessibilityRole="button"
-                    accessibilityLabel="Attach photo"
+                    accessibilityLabel="Attach photos"
                   >
                     <ImagePlus size={16} color="#5865F2" />
-                    <Text style={styles.discordAttachPillText}>Photo</Text>
+                    <Text style={styles.discordAttachPillText}>Photos</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      handleTakePhoto();
+                    }}
+                    disabled={isSendingPhoto}
+                    accessibilityRole="button"
+                    accessibilityLabel="Take a photo"
+                  >
+                    <CameraIcon size={16} color="#22C55E" />
+                    <Text style={styles.discordAttachPillText}>Camera</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.discordAttachPill}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setAttachTrayOpen(false);
+                      setGifOpen(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send a GIF"
+                  >
+                    <FilmIcon size={16} color="#F59E0B" />
+                    <Text style={styles.discordAttachPillText}>GIF</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1484,6 +1727,7 @@ export default function ChannelChatScreen() {
                     placeholderTextColor="#949BA4"
                     value={inputText}
                     onChangeText={handleTextChange}
+                    onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
                     multiline
                     maxLength={3000}
                   />
@@ -1492,17 +1736,31 @@ export default function ChannelChatScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setInputText((prev) => `${prev}🥄 `);
+                      Keyboard.dismiss();
+                      setEmojiOpen(true);
                     }}
                     style={styles.pillIconBtn}
-                    accessibilityLabel="Insert spoon emoji"
+                    accessibilityRole="button"
+                    accessibilityLabel="Open emoji picker"
                   >
                     <Smile size={20} color="#949BA4" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      Keyboard.dismiss();
+                      setGifOpen(true);
+                    }}
+                    style={styles.pillIconBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send a GIF"
+                  >
+                    <FilmIcon size={20} color="#949BA4" />
                   </TouchableOpacity>
                 </View>
 
                 {/* Right Action: Voice Note or Send Button */}
-                {inputText.trim().length > 0 || pendingEmbed || editingMessage ? (
+                {inputText.trim().length > 0 || pendingEmbed || editingMessage || pendingPhotos.length > 0 ? (
                   <TouchableOpacity
                     style={styles.discordSendBtn}
                     onPress={handleSend}
@@ -1595,6 +1853,34 @@ export default function ChannelChatScreen() {
         onBlock={handleBlock}
         onTranslate={handleTranslate}
         onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
+        onMoreReactions={(m) => setReactionTarget(m._id)}
+        onForward={isDm ? (m) => setForwardId(m._id) : undefined}
+      />
+      <ForwardSheet
+        visible={forwardId !== null}
+        messageId={forwardId}
+        fromChannelId={channel?._id}
+        onClose={() => setForwardId(null)}
+        onDone={() => { setForwardId(null); Alert.alert('Forwarded', 'Your message was sent.'); }}
+      />
+      <MessageInfoSheet
+        visible={infoMessageId !== null}
+        info={infoMessageId ? messageInfo(infoMessageId, chatReceipts) : null}
+        viewerReadOn={chatReceipts?.viewerReadOn !== false}
+        onClose={() => setInfoMessageId(null)}
+      />
+      <EmojiPickerSheet visible={emojiOpen} onClose={() => setEmojiOpen(false)} onPick={insertEmoji} />
+      <EmojiPickerSheet
+        visible={reactionTarget !== null}
+        mode="react"
+        onClose={() => setReactionTarget(null)}
+        onPick={(emoji) => { if (reactionTarget) toggleReaction(reactionTarget, emoji); }}
+      />
+      <GifPickerSheet
+        visible={gifOpen}
+        onClose={() => setGifOpen(false)}
+        onPick={handleSendGif}
+        onPickFromGallery={() => { setGifOpen(false); setTimeout(() => handlePickPhoto(true), 350); }}
       />
       <GroupInfoModal
         visible={groupInfoOpen}

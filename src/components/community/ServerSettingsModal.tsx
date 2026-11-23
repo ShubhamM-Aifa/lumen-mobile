@@ -18,6 +18,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { useAuthStore } from '../../store/authStore';
 import { useCommunityStore, CommunityMember, CommunityReportItem } from '../../store/communityStore';
 import { ICommunityServer } from '../../shared/types';
+import { useEmojiPrefs } from '../../store/emojiPrefsStore';
 
 const STATUS_CHOICES = ['🥄 Low spoons', '🌿 Pacing', '🛌 Resting', '✨ Good day', '🤒 In a flare'];
 
@@ -40,6 +41,10 @@ export const ServerSettingsModal: React.FC<Props> = ({ visible, server, onClose 
   const [myStatus, setMyStatus] = useState('');
   const [pushOn, setPushOn] = useState(true);
   const [quietOn, setQuietOn] = useState(false);
+  const [lockText, setLockText] = useState(true);
+  const [receiptsOn, setReceiptsOn] = useState(true);
+  const animatedEmoji = useEmojiPrefs((s) => s.animated);
+  const setAnimatedEmoji = useEmojiPrefs((s) => s.setAnimated);
 
   const isOwner = Boolean(server && user?._id && server.ownerId === user._id);
   const isStaff = isOwner || Boolean(server && user?._id && server.modIds?.includes(user._id));
@@ -51,7 +56,7 @@ export const ServerSettingsModal: React.FC<Props> = ({ visible, server, onClose 
     setMembers([]);
     fetchServerMembers(server._id).then(setMembers);
     fetchBlocks();
-    fetchMySettings().then((s) => { setMyStatus(s.status); setPushOn(s.push); setQuietOn(s.quiet); });
+    fetchMySettings().then((s) => { setMyStatus(s.status); setPushOn(s.push); setQuietOn(s.quiet); setLockText(s.lockscreenText); setReceiptsOn(s.readReceipts); });
     setReports([]);
     if (isStaff) fetchReports(server._id).then(setReports);
   }, [visible, server?._id]);
@@ -127,6 +132,14 @@ export const ServerSettingsModal: React.FC<Props> = ({ visible, server, onClose 
     });
   };
 
+  const saveFlag = (set: (v: boolean) => void, key: 'lockscreenText' | 'readReceipts') => (value: boolean) => {
+    set(value);
+    updateMySettings({ [key]: value }).catch((err: any) => {
+      set(!value);
+      Alert.alert('Could not save', err?.message || 'Please try again.');
+    });
+  };
+
   const toggleQuiet = (value: boolean) => {
     setQuietOn(value);
     updateMySettings({ quiet: value }).catch((err: any) => {
@@ -192,6 +205,27 @@ export const ServerSettingsModal: React.FC<Props> = ({ visible, server, onClose 
               <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>No community notifications from 10 pm to 8 am</Text>
             </View>
             <Switch value={quietOn} onValueChange={toggleQuiet} disabled={!pushOn} accessibilityLabel="Quiet hours" />
+          </View>
+          <View style={[styles.switchRow, { backgroundColor: palette.surface, marginTop: 8, opacity: pushOn ? 1 : 0.5 }]}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: palette.text, fontWeight: '700', fontSize: 15 }}>Show message text on the lock screen</Text>
+              <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>Off: the lock screen only says you have a new message</Text>
+            </View>
+            <Switch value={lockText} onValueChange={saveFlag(setLockText, 'lockscreenText')} disabled={!pushOn} accessibilityLabel="Show message text on the lock screen" />
+          </View>
+          <View style={[styles.switchRow, { backgroundColor: palette.surface, marginTop: 8 }]}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: palette.text, fontWeight: '700', fontSize: 15 }}>Seen ticks</Text>
+              <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>When off, people can’t see when you read their messages, and you can’t see when they read yours</Text>
+            </View>
+            <Switch value={receiptsOn} onValueChange={saveFlag(setReceiptsOn, 'readReceipts')} accessibilityLabel="Seen ticks" />
+          </View>
+          <View style={[styles.switchRow, { backgroundColor: palette.surface, marginTop: 8 }]}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: palette.text, fontWeight: '700', fontSize: 15 }}>Animated emoji</Text>
+              <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>Big emoji play an animation. Only the emoji’s code is loaded from Google, never your message</Text>
+            </View>
+            <Switch value={animatedEmoji} onValueChange={setAnimatedEmoji} accessibilityLabel="Animated emoji" />
           </View>
 
           {isOwner ? (

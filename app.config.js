@@ -47,6 +47,8 @@ module.exports = ({ config }) => ({
       'RECEIVE_BOOT_COMPLETED',
       'VIBRATE',
       'POST_NOTIFICATIONS',
+      // Voice notes in chat and talking to Lumen AI
+      'RECORD_AUDIO',
       'SCHEDULE_EXACT_ALARM',
       'USE_FULL_SCREEN_INTENT',
       'WAKE_LOCK',
@@ -84,11 +86,13 @@ module.exports = ({ config }) => ({
     'expo-background-task',
     // Native clock-style alarms (full-screen over the lock screen, alarm-volume ringing)
     './plugins/withLumenAlarm',
+    // Voice notes in chat (recording + playback); microphone text matches expo-speech-recognition's
+    ['expo-audio', { microphonePermission: 'Lumen uses the microphone to record voice notes and so you can talk to Lumen AI.' }],
     // Lumen AI voice chat: on-device listening (adds RECORD_AUDIO + Google recognizer visibility)
     [
       'expo-speech-recognition',
       {
-        microphonePermission: 'Lumen uses the microphone so you can talk to Lumen AI.',
+        microphonePermission: 'Lumen uses the microphone to record voice notes and so you can talk to Lumen AI.',
         speechRecognitionPermission: 'Lumen turns your speech into text for Lumen AI.',
         androidSpeechServicePackages: ['com.google.android.googlequicksearchbox', 'com.google.android.as'],
       },

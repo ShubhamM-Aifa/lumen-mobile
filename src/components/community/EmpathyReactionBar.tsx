@@ -31,7 +31,12 @@ export const EmpathyReactionBar: React.FC<EmpathyReactionBarProps> = ({
     toggleReaction(messageId, emoji);
   };
 
-  const activeEmojis = EMPATHY_EMOJIS.filter(({ emoji }) => {
+  // Any emoji can be a reaction: the five empathy ones first (in their usual order), then the rest.
+  const known = new Set(EMPATHY_EMOJIS.map((e) => e.emoji));
+  const extra = Array.from(new Set([...Object.keys(reactions), ...userReactions]))
+    .filter((emoji) => !known.has(emoji))
+    .map((emoji) => ({ emoji, label: emoji }));
+  const activeEmojis = [...EMPATHY_EMOJIS, ...extra].filter(({ emoji }) => {
     const count = reactions[emoji] || 0;
     const hasReacted = userReactions.includes(emoji);
     return count > 0 || hasReacted;

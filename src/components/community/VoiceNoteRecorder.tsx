@@ -7,9 +7,16 @@ import {
   useAudioRecorder,
   RecordingPresets,
   requestRecordingPermissionsAsync,
+  setAudioModeAsync,
 } from 'expo-audio';
 import { useTheme } from '../../theme/ThemeContext';
 import { uploadMedia } from '../../services/mediaUpload';
+import { voiceNoteMimeType } from '../../utils/community/voiceNote';
+
+/** Puts the phone back into normal playback mode after recording (otherwise audio can stay on the earpiece). */
+async function endRecordingMode() {
+  try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }); } catch { /* not fatal */ }
+}
 
 interface VoiceNoteRecorderProps {
   onSend: (audioUrl: string, durationSeconds: number, audioMediaId?: string) => void;
@@ -25,6 +32,8 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
   const [seconds, setSeconds] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedRef = useRef(false);
+  const finishedRef = useRef(false);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
@@ -40,14 +49,21 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
           return;
         }
 
+        if (!mounted) return;
+        // Recording needs the audio session switched to record mode and the recorder prepared first.
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await recorder.prepareToRecordAsync();
         if (mounted) {
           recorder.record();
+          startedRef.current = true;
           timerRef.current = setInterval(() => {
             setSeconds((s) => s + 1);
           }, 1000);
         }
       } catch (err) {
         console.error('Failed to start recording:', err);
+        Alert.alert('Could not start recording', 'Another app may be using the microphone. Please try again.');
+        endRecordingMode();
         onCancel();
       }
     }
@@ -57,17 +73,22 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
     return () => {
       mounted = false;
       if (timerRef.current) clearInterval(timerRef.current);
+      // Leaving the screen mid-recording: stop the microphone.
+      if (startedRef.current && !finishedRef.current) {
+        try { recorder.stop().catch(() => {}); } catch { /* already released */ }
+        endRecordingMode();
+      }
     };
   }, []);
 
   const handleCancel = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (timerRef.current) clearInterval(timerRef.current);
+    finishedRef.current = true;
     try {
-      if (recorder.isRecording) {
-        await recorder.stop();
-      }
+      if (startedRef.current) await recorder.stop();
     } catch {}
+    await endRecordingMode();
     onCancel();
   };
 
@@ -75,18 +96,24 @@ export const VoiceNoteRecorder: React.FC<VoiceNoteRecorderProps> = ({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (timerRef.current) clearInterval(timerRef.current);
 
+    finishedRef.current = true;
     try {
       setIsUploading(true);
+      let measuredMs = 0;
+      try { measuredMs = recorder.getStatus().durationMillis || 0; } catch { /* use the timer */ }
       await recorder.stop();
+      await endRecordingMode();
 
       const uri = recorder.uri;
-      if (!uri) {
+      const durationSec = measuredMs > 0 ? measuredMs / 1000 : seconds;
+      if (!uri || durationSec < 1) {
+        Alert.alert('Too short', 'Hold on a little longer: voice notes need at least 1 second.');
         onCancel();
         return;
       }
 
-      const duration = Math.max(1, seconds);
-      const res = await uploadMedia(uri, 'audio/m4a');
+      const duration = Math.max(1, Math.round(durationSec));
+      const res = await uploadMedia(uri, Platform.OS === 'web' ? 'audio/webm' : voiceNoteMimeType(uri)); // browsers record WebM
       onSend(res.url, duration, res.mediaId);
     } catch (err: any) {
       console.error('Error uploading voice note:', err);
